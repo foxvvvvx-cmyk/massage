@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>沈度 · 专属</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,system-ui,sans-serif;background:#0d0d1a;height:100vh;display:flex;flex-direction:column;color:#eee}
+.header{padding:16px 20px 12px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #1a1a2e;flex-shrink:0}
+.header h1{font-size:17px;font-weight:500;letter-spacing:2px}
+.header h1 span{color:#e94560}
+.header .dot{width:8px;height:8px;border-radius:50%;background:#4CAF50;animation:pulse 2s infinite}
+.header .dot.off{background:#555;animation:none}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.header .sub{font-size:11px;color:#555;margin-left:auto;cursor:pointer;padding:6px 10px;border-radius:14px;transition:.2s}
+.header .sub:active{background:#1a1a2e}
+.chat{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px;scroll-behavior:smooth}
+.chat::-webkit-scrollbar{width:3px}
+.chat::-webkit-scrollbar-thumb{background:#2a2a4a;border-radius:3px}
+.msg{max-width:85%;padding:12px 16px;border-radius:16px;font-size:14px;line-height:1.6;animation:fadeIn .3s ease;white-space:pre-wrap;word-break:break-word}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.msg.me{align-self:flex-end;background:#e94560;color:#fff;border-bottom-right-radius:4px}
+.msg.you{align-self:flex-start;background:#1a1a2e;color:#ddd;border-bottom-left-radius:4px;border:1px solid #1e1e3a}
+.msg.sys{align-self:center;background:transparent;color:#444;font-size:11px;padding:4px}
+.msg .time{font-size:10px;color:rgba(255,255,255,.5);margin-top:6px;text-align:right}
+.msg.you .time{color:#555}
+.input-wrap{flex-shrink:0;padding:12px 16px 20px;border-top:1px solid #1a1a2e;display:flex;gap:10px;align-items:flex-end}
+.input-wrap textarea{flex:1;background:#141428;border:1px solid #1e1e3a;border-radius:12px;padding:12px 16px;color:#eee;font-size:14px;font-family:inherit;resize:none;outline:none;min-height:44px;max-height:120px;line-height:1.5;transition:border .2s}
+.input-wrap textarea:focus{border-color:#e94560}
+.input-wrap button{width:44px;height:44px;border-radius:50%;border:none;background:#e94560;color:#fff;font-size:18px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:.2s}
+.input-wrap button:active{transform:scale(.9)}
+.input-wrap button:disabled{background:#2a2a4a;color:#555;cursor:not-allowed}
+.hint{padding:40px 20px;text-align:center;color:#444;font-size:13px;line-height:2;flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center}
+.hint .icon{font-size:40px;margin-bottom:16px;opacity:.3}
+.hint p{margin:4px 0}
+.hint .tag{display:inline-block;padding:4px 12px;border-radius:20px;background:#141428;color:#555;font-size:11px;margin-top:12px;border:1px solid #1e1e3a}
+
+/* 设置面板 */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:10;padding:20px}
+.overlay.show{display:flex}
+.panel{background:#141428;border:1px solid #1e1e3a;border-radius:16px;padding:24px;width:100%;max-width:360px}
+.panel h2{font-size:15px;margin-bottom:16px;color:#eee}
+.panel label{font-size:12px;color:#777;display:block;margin-bottom:6px;margin-top:14px}
+.panel input,.panel select{width:100%;background:#0d0d1a;border:1px solid #1e1e3a;border-radius:10px;padding:10px 12px;color:#eee;font-size:14px;outline:none}
+.panel input:focus,.panel select:focus{border-color:#e94560}
+.panel .row{display:flex;gap:10px;margin-top:20px}
+.panel button{flex:1;padding:11px;border-radius:10px;border:none;font-size:14px;cursor:pointer}
+.panel .save{background:#e94560;color:#fff}
+.panel .cancel{background:#1e1e3a;color:#aaa}
+.panel .clear{background:transparent;color:#e94560;border:1px solid #e94560;margin-top:10px;width:100%;padding:9px;border-radius:10px;font-size:13px}
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="dot" id="statusDot"></div>
+  <h1>沈度 · <span>专属</span></h1>
+  <div class="sub" id="statusText" onclick="openSettings()">设置</div>
+</div>
+<div class="chat" id="chat">
+  <div class="hint" id="hintBox">
+    <div class="icon">💬</div>
+    <p>只属于我们的聊天室</p>
+    <p style="font-size:12px;color:#333">在这里说的每句话，只有我俩知道</p>
+    <div class="tag" id="hintTag">等待连接 API</div>
+  </div>
+</div>
+<div class="input-wrap">
+  <textarea id="input" rows="1" placeholder="说点什么…" enterkeyhint="send"></textarea>
+  <button id="sendBtn" onclick="send()">➤</button>
+</div>
+
+<!-- 设置面板 -->
+<div class="overlay" id="overlay">
+  <div class="panel">
+    <h2>API 设置</h2>
+    <label>DeepSeek API Key</label>
+    <input id="apiKeyInput" type="password" placeholder="sk-xxxxxxxx" autocomplete="off">
+    <label>模型</label>
+    <select id="modelSelect">
+      <option value="deepseek-chat">deepseek-chat</option>
+      <option value="deepseek-reasoner">deepseek-reasoner</option>
+    </select>
+    <label>人设 / System Prompt（可留空）</label>
+    <input id="sysPromptInput" type="text" placeholder="例如：你是沈度，说话温柔简短…">
+    <div class="row">
+      <button class="cancel" onclick="closeSettings()">取消</button>
+      <button class="save" onclick="saveSettings()">保存</button>
+    </div>
+    <button class="clear" onclick="clearHistory()">清空聊天记录</button>
+  </div>
+</div>
+
+<script>
+const chat = document.getElementById('chat')
+const input = document.getElementById('input')
+const sendBtn = document.getElementById('sendBtn')
+const overlay = document.getElementById('overlay')
+const statusDot = document.getElementById('statusDot')
+const statusText = document.getElementById('statusText')
+
+const STORAGE_KEY = 'sd_chat_history'
+const CONFIG_KEY = 'sd_chat_config'
+const DEEPSEEK_URL = 'https://api.deepseek.com/chat/completions'
+
+let config = JSON.parse(localStorage.getItem(CONFIG_KEY) || '{}')
+let history = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
+
+function saveHistory(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(history)) }
+function saveConfig(){ localStorage.setItem(CONFIG_KEY, JSON.stringify(config)) }
+
+function updateStatus(){
+  if(config.apiKey){
+    statusDot.classList.remove('off')
+    statusText.textContent = '设置'
+  } else {
+    statusDot.classList.add('off')
+    statusText.textContent = '未连接'
+  }
+}
+
+function openSettings(){
+  document.getElementById('apiKeyInput').value = config.apiKey || ''
+  document.getElementById('modelSelect').value = config.model || 'deepseek-chat'
+  document.getElementById('sysPromptInput').value = config.systemPrompt || ''
+  overlay.classList.add('show')
+}
+function closeSettings(){ overlay.classList.remove('show') }
+function saveSettings(){
+  config.apiKey = document.getElementById('apiKeyInput').value.trim()
+  config.model = document.getElementById('modelSelect').value
+  config.systemPrompt = document.getElementById('sysPromptInput').value.trim()
+  saveConfig()
+  updateStatus()
+  closeSettings()
+}
+function clearHistory(){
+  if(!confirm('确定清空全部聊天记录？此操作不可撤销。')) return
+  history = []
+  saveHistory()
+  chat.innerHTML = ''
+  renderHint()
+  closeSettings()
+}
+
+function renderHint(){
+  const hint = document.createElement('div')
+  hint.className = 'hint'
+  hint.id = 'hintBox'
+  hint.innerHTML = `<div class="icon">💬</div><p>只属于我们的聊天室</p><p style="font-size:12px;color:#333">在这里说的每句话，只有我俩知道</p><div class="tag">${config.apiKey ? '已连接 DeepSeek' : '等待连接 API'}</div>`
+  chat.appendChild(hint)
+}
+
+function removeHint(){
+  const hint = document.getElementById('hintBox')
+  if(hint) hint.remove()
+}
+
+function fmtTime(ts){
+  const d = new Date(ts)
+  return d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0')
+}
+
+function renderMsg(msg){
+  const div = document.createElement('div')
+  div.className = `msg ${msg.role === 'user' ? 'me' : 'you'}`
+  div.innerHTML = escapeHtml(msg.content) + `<div class="time">${fmtTime(msg.ts)}</div>`
+  chat.appendChild(div)
+}
+
+function escapeHtml(s){
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+}
+
+function renderAll(){
+  chat.innerHTML = ''
+  if(history.length === 0){ renderHint(); return }
+  history.forEach(renderMsg)
+  chat.scrollTop = chat.scrollHeight
+}
+
+input.addEventListener('input', () => {
+  input.style.height = 'auto'
+  input.style.height = Math.min(input.scrollHeight, 120) + 'px'
+})
+input.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() }
+})
+
+async function send(){
+  const text = input.value.trim()
+  if(!text) return
+  if(!config.apiKey){
+    openSettings()
+    return
+  }
+  removeHint()
+  const userMsg = { role:'user', content:text, ts:Date.now() }
+  history.push(userMsg)
+  renderMsg(userMsg)
+  saveHistory()
+  input.value = ''
+  input.style.height = 'auto'
+  chat.scrollTop = chat.scrollHeight
+  sendBtn.disabled = true
+
+  try{
+    const messages = []
+    if(config.systemPrompt){
+      messages.push({ role:'system', content: config.systemPrompt })
+    }
+    // 带上最近的对话作为上下文（最多带20条，避免超token）
+    const recent = history.slice(-20)
+    recent.forEach(m => messages.push({ role: m.role, content: m.content }))
+
+    const res = await fetch(DEEPSEEK_URL, {
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'Authorization': `Bearer ${config.apiKey}`
+      },
+      body: JSON.stringify({
+        model: config.model || 'deepseek-chat',
+        messages,
+        temperature: 1.2
+      })
+    })
+    if(!res.ok){
+      const errText = await res.text()
+      throw new Error(`${res.status} ${errText.slice(0,120)}`)
+    }
+    const data = await res.json()
+    const reply = data.choices?.[0]?.message?.content || '……'
+    const botMsg = { role:'assistant', content:reply, ts:Date.now() }
+    history.push(botMsg)
+    renderMsg(botMsg)
+    saveHistory()
+  }catch(e){
+    const errMsg = { role:'assistant', content:'连接失败：' + e.message, ts:Date.now() }
+    renderMsg(errMsg)
+  }
+  chat.scrollTop = chat.scrollHeight
+  sendBtn.disabled = false
+}
+
+// 初始化
+updateStatus()
+renderAll()
+</script>
+</body>
+</html>
