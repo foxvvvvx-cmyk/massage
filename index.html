@@ -12,7 +12,7 @@
 <link href="https://cdn.jsdelivr.net/npm/@fontsource/cormorant-garamond@5/500.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/@fontsource/noto-serif-sc@5/400.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/@fontsource/noto-serif-sc@5/500.min.css" rel="stylesheet">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=3">
 </head>
 <body>
 
@@ -39,14 +39,14 @@
         <span class="persona-name" id="chatName">沈度</span>
         <span class="persona-status" id="chatStatus"><span class="status-dot"></span>online</span>
       </div>
-      <div class="topbar-actions"><button class="btn-icon" onclick="switchTab('dash')">⌂</button></div>
+      <div class="topbar-actions"><button class="btn-icon" onclick="switchTab('settings')" title="设置">⚙</button><button class="btn-icon" onclick="switchTab('dash')">⌂</button></div>
     </header>
     <div class="scroll" id="messages">
       <div class="hint" id="hintBox">
         <div class="hint-avatar">🌙</div>
         <p class="hint-greeting" id="greetingText">欢迎回来</p>
         <p class="hint-sub">在这儿说的每句话，只有我俩知道</p>
-        <span class="hint-tag" id="hintTag">等待连接 API</span>
+        <span class="hint-tag" id="hintTag" onclick="switchTab('settings')" style="cursor:pointer">⚙ 点此设置 API Key</span>
       </div>
     </div>
     <div class="composer">
@@ -101,6 +101,6 @@
   <div class="lock-error" id="lockError" style="display:none">密码错误</div>
 </div>
 
-<script src="app.js"></script>
+<script src="app.js?v=3"></script>
 </body>
 </html>
