@@ -13,7 +13,7 @@
 <link href="https://cdn.jsdelivr.net/npm/@fontsource/cormorant-garamond@5/500.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/@fontsource/noto-serif-sc@5/400.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/@fontsource/noto-serif-sc@5/500.min.css" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=5">
+<link rel="stylesheet" href="style.css?v=6">
 </head>
 <body>
 
@@ -40,7 +40,7 @@
         <span class="persona-name" id="chatName">沈度</span>
         <span class="persona-status" id="chatStatus"><span class="status-dot"></span>online</span>
       </div>
-      <div class="topbar-actions"><button class="btn-icon" onclick="toggleSearch()" title="搜索">🔍</button><button class="btn-icon" onclick="switchTab('settings')" title="设置">⚙</button><button class="btn-icon" onclick="switchTab('dash')">⌂</button></div>
+      <div class="topbar-actions"><button id="thinkToggle" class="think-toggle" onclick="toggleDeepThink()" title="深度思考">💭</button><button class="btn-icon" onclick="toggleSearch()" title="搜索">🔍</button><button class="btn-icon" onclick="switchTab('settings')" title="设置">⚙</button><button class="btn-icon" onclick="switchTab('dash')">⌂</button></div>
     </header>
     <div class="search-wrap" id="searchWrap"><input id="searchInput" placeholder="搜索聊天记录…" oninput="searchMessages()"><span class="search-info" id="searchInfo"></span><button class="search-close" onclick="toggleSearch()">✕</button></div>
 	    <div class="scroll" id="messages">
@@ -62,7 +62,9 @@
     <div class="composer">
       <div class="image-preview-row" id="imagePreview"></div>
       <div class="composer-inner">
-        <input type="file" id="imageInput" accept="image/*" style="display:none" onchange="attachImage(this)">
+        <input type="file" id="imageInput" accept="image/*" multiple style="display:none" onchange="attachImage(this)">
+        <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none" onchange="attachImage(this)">
+        <button class="btn-icon camera-btn" id="cameraBtn" onclick="document.getElementById('cameraInput').click()" title="拍照">📷</button>
         <button class="btn-icon attach-btn" id="attachBtn" onclick="document.getElementById('imageInput').click()" title="发送图片">📎</button>
         <button class="btn-icon voice-btn" id="voiceBtn" onclick="toggleVoice()">🎤</button>
         <div class="field-wrap"><textarea id="input" rows="1" placeholder="说点什么…" enterkeyhint="send"></textarea></div>
@@ -93,6 +95,7 @@
 <!-- 长按菜单 -->
 <div class="ctx-menu" id="ctxMenu">
   <button onclick="ctxCopy()">📋 复制</button>
+  <button class="ctx-edit" onclick="ctxEdit()">✏️ 编辑</button>
   <button onclick="ctxFav()">⭐ 收藏</button>
   <button onclick="ctxReact()">❤️ 贴表情</button>
   <button class="danger" onclick="ctxDelete()">🗑 删除</button>
@@ -118,6 +121,15 @@
 <!-- 图片灯箱 -->
 <div class="lightbox-overlay" id="lightbox" style="display:none" onclick="this.style.display='none'"><img id="lightboxImg" src=""></div>
 
-<script src="app.js?v=5"></script>
+<!-- 编辑消息弹层 -->
+<div class="edit-overlay" id="editOverlay" style="display:none">
+  <textarea id="editTextarea" placeholder="编辑消息…"></textarea>
+  <div class="edit-actions">
+    <button class="ea-cancel" onclick="closeEdit()">取消</button>
+    <button class="ea-send" onclick="confirmEdit()">重新发送</button>
+  </div>
+</div>
+
+<script src="app.js?v=6"></script>
 </body>
 </html>
