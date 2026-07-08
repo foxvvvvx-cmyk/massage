@@ -7,12 +7,13 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#060d1a">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='192' height='192' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='40' fill='%23060d1a'/%3E%3Ctext x='96' y='110' text-anchor='middle' font-size='80'%3E🌙%3C/text%3E%3C/svg%3E">
 <link rel="manifest" href="manifest.json">
 <link href="https://cdn.jsdelivr.net/npm/@fontsource/cormorant-garamond@5/400.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/@fontsource/cormorant-garamond@5/500.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/@fontsource/noto-serif-sc@5/400.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/@fontsource/noto-serif-sc@5/500.min.css" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=3">
+<link rel="stylesheet" href="style.css?v=5">
 </head>
 <body>
 
@@ -39,9 +40,10 @@
         <span class="persona-name" id="chatName">沈度</span>
         <span class="persona-status" id="chatStatus"><span class="status-dot"></span>online</span>
       </div>
-      <div class="topbar-actions"><button class="btn-icon" onclick="switchTab('settings')" title="设置">⚙</button><button class="btn-icon" onclick="switchTab('dash')">⌂</button></div>
+      <div class="topbar-actions"><button class="btn-icon" onclick="toggleSearch()" title="搜索">🔍</button><button class="btn-icon" onclick="switchTab('settings')" title="设置">⚙</button><button class="btn-icon" onclick="switchTab('dash')">⌂</button></div>
     </header>
-    <div class="scroll" id="messages">
+    <div class="search-wrap" id="searchWrap"><input id="searchInput" placeholder="搜索聊天记录…" oninput="searchMessages()"><span class="search-info" id="searchInfo"></span><button class="search-close" onclick="toggleSearch()">✕</button></div>
+	    <div class="scroll" id="messages">
       <div class="hint" id="hintBox">
         <div class="hint-avatar">🌙</div>
         <p class="hint-greeting" id="greetingText">欢迎回来</p>
@@ -49,8 +51,19 @@
         <span class="hint-tag" id="hintTag" onclick="switchTab('settings')" style="cursor:pointer">⚙ 点此设置 API Key</span>
       </div>
     </div>
+    <div class="status-bar" id="statusBar">
+      <span class="sb-item" id="sbBalance" onclick="fetchBalance()" title="点击刷新余额">
+        <span class="sb-dot"></span>余额 <span class="sb-val" id="sbBalanceVal">--</span>
+      </span>
+      <span class="sb-item">
+        <span class="sb-dot ctx"></span>上下文 <span class="sb-val" id="sbContextVal">--</span>
+      </span>
+    </div>
     <div class="composer">
+      <div class="image-preview-row" id="imagePreview"></div>
       <div class="composer-inner">
+        <input type="file" id="imageInput" accept="image/*" style="display:none" onchange="attachImage(this)">
+        <button class="btn-icon attach-btn" id="attachBtn" onclick="document.getElementById('imageInput').click()" title="发送图片">📎</button>
         <button class="btn-icon voice-btn" id="voiceBtn" onclick="toggleVoice()">🎤</button>
         <div class="field-wrap"><textarea id="input" rows="1" placeholder="说点什么…" enterkeyhint="send"></textarea></div>
         <button class="btn-send" id="sendBtn" onclick="send()" disabled>
@@ -60,7 +73,7 @@
     </div>
   </section>
   <section class="page" id="page-dash"><header class="topbar"><button class="btn-icon" onclick="switchTab('chat')">←</button><span class="topbar-title">仪表盘</span><span style="width:36px"></span></header><div class="page-content" id="dashContent"></div></section>
-  <section class="page" id="page-diary"><header class="topbar"><button class="btn-icon" onclick="switchTab('chat')">←</button><span class="topbar-title">日记</span><button class="btn-icon" onclick="showDiaryAdd()">＋</button></header><div class="page-content" id="diaryContent"></div></section>
+  <section class="page" id="page-diary"><header class="topbar"><button class="btn-icon" onclick="switchTab('chat')">←</button><span class="topbar-title">日记</span><button class="btn-icon" id="diaryAiBtn" onclick="askAiDiary()" title="让 AI 写日记">🤖</button><button class="btn-icon" onclick="showDiaryAdd()">＋</button></header><div class="page-content" id="diaryContent"></div></section>
   <section class="page" id="page-memory"><header class="topbar"><button class="btn-icon" onclick="switchTab('chat')">←</button><span class="topbar-title">记忆</span><button class="btn-icon" onclick="showMemoryAdd()">＋</button></header><div class="page-content" id="memoryContent"></div></section>
   <section class="page" id="page-settings"><header class="topbar"><button class="btn-icon" onclick="switchTab('chat')">←</button><span class="topbar-title">设置</span><span style="width:36px"></span></header><div class="page-content" id="settingsContent"></div></section>
 </div>
@@ -80,6 +93,7 @@
 <!-- 长按菜单 -->
 <div class="ctx-menu" id="ctxMenu">
   <button onclick="ctxCopy()">📋 复制</button>
+  <button onclick="ctxFav()">⭐ 收藏</button>
   <button onclick="ctxReact()">❤️ 贴表情</button>
   <button class="danger" onclick="ctxDelete()">🗑 删除</button>
 </div>
@@ -101,6 +115,9 @@
   <div class="lock-error" id="lockError" style="display:none">密码错误</div>
 </div>
 
-<script src="app.js?v=3"></script>
+<!-- 图片灯箱 -->
+<div class="lightbox-overlay" id="lightbox" style="display:none" onclick="this.style.display='none'"><img id="lightboxImg" src=""></div>
+
+<script src="app.js?v=5"></script>
 </body>
 </html>
