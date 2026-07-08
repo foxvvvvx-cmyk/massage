@@ -105,15 +105,20 @@ function renderDrawerPanel(){
   const dp=$('drawerPanel');if(!dp)return
   const p=activePersona()
   const favCount=favorites.length,remCount=reminders.filter(r=>r.triggerAt>Date.now()).length
+  const hasKey=!!config.apiKey
   dp.innerHTML=`
+    ${!hasKey?`<div style="padding:4px 8px 8px"><input id="drawerApiKey" type="password" value="${escHtml(config.apiKey||'')}" placeholder="输入 DeepSeek API Key（sk-...）" style="width:100%;background:var(--glass-light);border:1px solid var(--glass-border-strong);border-radius:var(--radius-sm);padding:8px 10px;font-size:11px;outline:none;color:var(--text);font-family:inherit" onchange="config.apiKey=this.value.trim();saveConfig();updateChatHeader();fetchBalance()"><div style="font-size:9px;color:var(--text-muted);margin-top:3px;text-align:center">粘贴后自动保存 · <a href="https://platform.deepseek.com/api_keys" target="_blank">获取 Key</a></div></div><div class="drawer-divider"></div>`:''}
     <div class="drawer-section">
-      <div class="ds-label">角色</div>
+      <div class="ds-label">角色切换</div>
       <div class="persona-row">
         ${personas.map(pp=>`<div class="persona-chip ${pp.id===config.activePersonaId?'active':''}" onclick="switchPersona('${pp.id}')"><div class="pc-avatar">${avatarHTML(pp.avatar)}</div><div class="pc-name">${escHtml(pp.name)}</div></div>`).join('')}
+        <div class="persona-chip" onclick="newPersona()" style="opacity:.6"><div class="pc-avatar" style="font-size:14px;border-style:dashed">＋</div><div class="pc-name">新建</div></div>
       </div>
     </div>
     <div class="drawer-divider"></div>
-    <div class="drawer-menu-item" onclick="toggleDeepThink();renderDrawerPanel()"><span class="dm-icon">💭</span><span class="dm-label">深度思考</span><span class="dm-badge">${config.deepThink?'R1 开':'V3'}</span></div>
+    <div class="drawer-menu-item" onclick="toggleDeepThink();renderDrawerPanel()"><span class="dm-icon">💭</span><span class="dm-label">深度思考</span><span class="dm-badge">${config.deepThink?'R1':'V3'}</span></div>
+    <div class="drawer-menu-item" onclick="editPersona('${p.id}')"><span class="dm-icon">✎</span><span class="dm-label">编辑「${escHtml(p.name)}」</span><span class="dm-arrow">›</span></div>
+    <div class="drawer-divider"></div>
     <div class="drawer-menu-item" onclick="closeDrawer();switchTab('diary')"><span class="dm-icon">📔</span><span class="dm-label">日记</span><span class="dm-arrow">›</span></div>
     <div class="drawer-menu-item" onclick="closeDrawer();switchTab('memory')"><span class="dm-icon">🗂</span><span class="dm-label">记忆</span><span class="dm-arrow">›</span></div>
     <div class="drawer-menu-item" onclick="closeDrawer();toggleSearch()"><span class="dm-icon">🔍</span><span class="dm-label">搜索消息</span><span class="dm-arrow">›</span></div>
@@ -121,10 +126,7 @@ function renderDrawerPanel(){
     <div class="drawer-menu-item" onclick="closeDrawer();switchTab('me')"><span class="dm-icon">⭐</span><span class="dm-label">收藏夹</span>${favCount?`<span class="dm-badge">${favCount}</span>`:''}<span class="dm-arrow">›</span></div>
     <div class="drawer-menu-item" onclick="closeDrawer();switchTab('me')"><span class="dm-icon">⏰</span><span class="dm-label">提醒</span>${remCount?`<span class="dm-badge">${remCount}</span>`:''}<span class="dm-arrow">›</span></div>
     <div class="drawer-menu-item" onclick="closeDrawer();switchTab('me')"><span class="dm-icon">📊</span><span class="dm-label">数据看板</span><span class="dm-arrow">›</span></div>
-    <div class="drawer-menu-item" onclick="closeDrawer();switchTab('me');setTimeout(()=>{const e=document.getElementById('setApiKey');if(e)e.focus()},400)"><span class="dm-icon">⚙</span><span class="dm-label">设置</span><span class="dm-arrow">›</span></div>
-    <div class="drawer-divider"></div>
-    <div class="drawer-menu-item" onclick="editPersona('${p.id}')"><span class="dm-icon">✎</span><span class="dm-label">编辑「${escHtml(p.name)}」</span><span class="dm-arrow">›</span></div>
-    <div class="drawer-menu-item" onclick="newPersona()"><span class="dm-icon">＋</span><span class="dm-label">新建角色</span><span class="dm-arrow">›</span></div>
+    <div class="drawer-menu-item" onclick="closeDrawer();switchTab('me')"><span class="dm-icon">⚙</span><span class="dm-label">更多设置</span><span class="dm-arrow">›</span></div>
   `
 }
 function switchPersona(id){if(id===config.activePersonaId){closeDrawer();return};config.activePersonaId=id;saveConfig();closeDrawer();updateChatHeader();renderAllMessages();toast('已切换到 '+activePersona().name)}

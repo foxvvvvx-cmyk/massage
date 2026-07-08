@@ -26,7 +26,7 @@
 <div class="drawer-overlay" id="drawerOverlay" onclick="closeDrawer()"></div>
 <aside class="drawer" id="drawer">
   <div class="drawer-inner">
-    <div class="drawer-header"><h2>鹤言</h2><button class="btn-icon" onclick="newPersona()">＋</button></div>
+    <div class="drawer-header"><h2>鹤言</h2></div>
     <div class="drawer-panel" id="drawerPanel"></div>
   </div>
 </aside>
@@ -75,14 +75,14 @@
   </section>
   <section class="page" id="page-diary"><header class="topbar"><button class="btn-icon" onclick="switchTab('chat')">←</button><span class="topbar-title">日记</span><button class="btn-icon" id="diaryAiBtn" onclick="askAiDiary()">🤖</button><button class="btn-icon" onclick="showDiaryAdd()">＋</button></header><div class="page-content" id="diaryContent"></div></section>
   <section class="page" id="page-memory"><header class="topbar"><button class="btn-icon" onclick="switchTab('chat')">←</button><span class="topbar-title">记忆</span><button class="btn-icon" onclick="showMemoryAdd()">＋</button></header><div class="page-content" id="memoryContent"></div></section>
-  <section class="page" id="page-me"><header class="topbar"><button class="btn-icon" onclick="switchTab('chat')">←</button><span class="topbar-title">我的</span><span style="width:36px"></span></header><div class="page-content" id="meContent"></div></section>
+  <section class="page" id="page-me"><header class="topbar"><button class="btn-icon" onclick="switchTab('chat')">←</button><span class="topbar-title">设置</span><span style="width:36px"></span></header><div class="page-content" id="meContent"></div></section>
 </div>
 
 <nav class="tabbar" id="tabbar">
   <button class="active" data-tab="chat"><span class="tb-icon">💬</span><span class="tb-label">聊天</span></button>
   <button data-tab="diary"><span class="tb-icon">📔</span><span class="tb-label">日记</span></button>
   <button data-tab="memory"><span class="tb-icon">🗂</span><span class="tb-label">记忆</span></button>
-  <button data-tab="me"><span class="tb-icon">👤</span><span class="tb-label">我的</span></button>
+  <button data-tab="me"><span class="tb-icon">⚙</span><span class="tb-label">设置</span></button>
 </nav>
 
 <div class="toast" id="toast"></div>
