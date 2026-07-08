@@ -99,10 +99,35 @@ function confirmAction(){confirmModalOverlay.classList.remove('show');if(confirm
 $('confirmOk').addEventListener('click',confirmAction)
 
 // ===== DRAWER =====
-function openDrawer(){renderPersonaList();drawerEl.classList.add('open');drawerOverlay.classList.add('open')}
+function openDrawer(){renderDrawerPanel();drawerEl.classList.add('open');drawerOverlay.classList.add('open')}
 function closeDrawer(){drawerEl.classList.remove('open');drawerOverlay.classList.remove('open')}
-function renderPersonaList(){personaListEl.innerHTML=personas.map(p=>`<div class="persona-card ${p.id===config.activePersonaId?'active':''}" onclick="switchPersona('${p.id}')"><div class="pc-avatar">${avatarHTML(p.avatar)}</div><div class="pc-info"><div class="pc-name">${escHtml(p.name)}</div><div class="pc-desc">${escHtml(p.description||'')}</div></div><button class="pc-edit" onclick="event.stopPropagation();editPersona('${p.id}')">✎</button></div>`).join('')}
-function switchPersona(id){if(id===config.activePersonaId){closeDrawer();return};config.activePersonaId=id;saveConfig();closeDrawer();updateChatHeader();updateThinkToggle();renderAllMessages();toast('已切换到 '+activePersona().name)}
+function renderDrawerPanel(){
+  const dp=$('drawerPanel');if(!dp)return
+  const p=activePersona()
+  const favCount=favorites.length,remCount=reminders.filter(r=>r.triggerAt>Date.now()).length
+  dp.innerHTML=`
+    <div class="drawer-section">
+      <div class="ds-label">角色</div>
+      <div class="persona-row">
+        ${personas.map(pp=>`<div class="persona-chip ${pp.id===config.activePersonaId?'active':''}" onclick="switchPersona('${pp.id}')"><div class="pc-avatar">${avatarHTML(pp.avatar)}</div><div class="pc-name">${escHtml(pp.name)}</div></div>`).join('')}
+      </div>
+    </div>
+    <div class="drawer-divider"></div>
+    <div class="drawer-menu-item" onclick="toggleDeepThink();renderDrawerPanel()"><span class="dm-icon">💭</span><span class="dm-label">深度思考</span><span class="dm-badge">${config.deepThink?'R1 开':'V3'}</span></div>
+    <div class="drawer-menu-item" onclick="closeDrawer();switchTab('diary')"><span class="dm-icon">📔</span><span class="dm-label">日记</span><span class="dm-arrow">›</span></div>
+    <div class="drawer-menu-item" onclick="closeDrawer();switchTab('memory')"><span class="dm-icon">🗂</span><span class="dm-label">记忆</span><span class="dm-arrow">›</span></div>
+    <div class="drawer-menu-item" onclick="closeDrawer();toggleSearch()"><span class="dm-icon">🔍</span><span class="dm-label">搜索消息</span><span class="dm-arrow">›</span></div>
+    <div class="drawer-divider"></div>
+    <div class="drawer-menu-item" onclick="closeDrawer();switchTab('me')"><span class="dm-icon">⭐</span><span class="dm-label">收藏夹</span>${favCount?`<span class="dm-badge">${favCount}</span>`:''}<span class="dm-arrow">›</span></div>
+    <div class="drawer-menu-item" onclick="closeDrawer();switchTab('me')"><span class="dm-icon">⏰</span><span class="dm-label">提醒</span>${remCount?`<span class="dm-badge">${remCount}</span>`:''}<span class="dm-arrow">›</span></div>
+    <div class="drawer-menu-item" onclick="closeDrawer();switchTab('me')"><span class="dm-icon">📊</span><span class="dm-label">数据看板</span><span class="dm-arrow">›</span></div>
+    <div class="drawer-menu-item" onclick="closeDrawer();switchTab('me');setTimeout(()=>{const e=document.getElementById('setApiKey');if(e)e.focus()},400)"><span class="dm-icon">⚙</span><span class="dm-label">设置</span><span class="dm-arrow">›</span></div>
+    <div class="drawer-divider"></div>
+    <div class="drawer-menu-item" onclick="editPersona('${p.id}')"><span class="dm-icon">✎</span><span class="dm-label">编辑「${escHtml(p.name)}」</span><span class="dm-arrow">›</span></div>
+    <div class="drawer-menu-item" onclick="newPersona()"><span class="dm-icon">＋</span><span class="dm-label">新建角色</span><span class="dm-arrow">›</span></div>
+  `
+}
+function switchPersona(id){if(id===config.activePersonaId){closeDrawer();return};config.activePersonaId=id;saveConfig();closeDrawer();updateChatHeader();renderAllMessages();toast('已切换到 '+activePersona().name)}
 function newPersona(){editPersonaId=null;renderPersonaForm({name:'',avatar:'✨',description:'',systemPrompt:'',model:'deepseek-chat',temperature:1.3,topP:0.9,useReasoner:false});personaModalOverlay.classList.add('show')}
 function editPersona(id){editPersonaId=id;const p=personas.find(p=>p.id===id);if(p)renderPersonaForm(p);personaModalOverlay.classList.add('show')}
 function renderPersonaForm(p){
@@ -131,7 +156,7 @@ function savePersona(){
   const avatar=avatarData||($('emojiBtn')?.textContent||'✨').trim()
   const d={name:n,avatar,description:($('pfDesc')?.value||'').trim(),systemPrompt:($('pfPrompt')?.value||'').trim(),model:$('pfModel')?.value||'deepseek-chat',useReasoner:false,temperature:parseFloat($('pfTemp')?.value||1.3),topP:parseFloat($('pfTopP')?.value||0.9)}
   if(editPersonaId){const p=personas.find(p=>p.id===editPersonaId);if(p)Object.assign(p,d)}else{personas.push({id:'p_'+Date.now(),...d,chatHistory:[]})}
-  savePersonas();personaModalOverlay.classList.remove('show');renderPersonaList();updateChatHeader();toast(editPersonaId?'角色已更新':'新角色已创建')
+  savePersonas();personaModalOverlay.classList.remove('show');updateChatHeader();toast(editPersonaId?'角色已更新':'新角色已创建')
 }
 function closePersonaModal(){personaModalOverlay.classList.remove('show')}
 function updateChatHeader(){
@@ -450,7 +475,7 @@ function scrollToMessage(ts){const el=document.querySelector('.msg[data-ts="'+ts
 
 // ===== STREAMING SEND =====
 async function send(){
-  if(isGenerating)return;const t=inputEl.value.trim();if(!t&&pendingImages.length===0)return;if(!config.apiKey){switchTab('settings');toast('请先设置 API Key');return}
+  if(isGenerating)return;const t=inputEl.value.trim();if(!t&&pendingImages.length===0)return;if(!config.apiKey){openDrawer();toast('请先在面板中设置 API Key');return}
   hintBox.style.display='none'
   const um={role:'user',content:t,ts:Date.now(),reactions:{}}
   if(pendingImages.length>0){um.images=pendingImages.map(img=>({dataUrl:img.dataUrl,mimeType:img.mimeType}));clearPendingImages()}
@@ -502,7 +527,7 @@ async function send(){
 }
 
 // ===== NAVIGATION =====
-function switchTab(n){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));const pg=document.querySelector('#page-'+n);if(pg)pg.classList.add('active');document.querySelectorAll('.tabbar button').forEach(b=>b.classList.toggle('active',b.dataset.tab===n));if(n!=='chat'){const sw=$('searchWrap');if(sw)sw.classList.remove('show')}if(n==='settings')renderSettings();if(n==='dash')renderDashboard();if(n==='memory')renderMemories();if(n==='diary')renderDiary();if(n==='chat'){inputEl.focus();messagesEl.scrollTop=messagesEl.scrollHeight}}
+function switchTab(n){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));const pg=document.querySelector('#page-'+n);if(pg)pg.classList.add('active');document.querySelectorAll('.tabbar button').forEach(b=>b.classList.toggle('active',b.dataset.tab===n));if(n!=='chat'){const sw=$('searchWrap');if(sw)sw.classList.remove('show')}if(n==='me')renderMe();if(n==='memory')renderMemories();if(n==='diary')renderDiary();if(n==='chat'){inputEl.focus();messagesEl.scrollTop=messagesEl.scrollHeight}}
 
 // ===== INPUT =====
 inputEl.addEventListener('input',()=>{inputEl.style.height='auto';inputEl.style.height=Math.min(inputEl.scrollHeight,110)+'px';sendBtn.disabled=!inputEl.value.trim()&&pendingImages.length===0})
@@ -521,7 +546,48 @@ function updateStatusBar(){
   const cv=$('sbContextVal');if(cv){const tokens=estimateContextTokens(),max=65536,pct=Math.min(100,Math.round(tokens/max*100));cv.textContent='~'+pct+'% (~'+(tokens>=1000?(tokens/1000).toFixed(1)+'K':tokens)+' tokens)'}
 }
 
-// ===== SETTINGS =====
+// ===== ME PAGE (settings + dashboard) =====
+function renderMe(){
+  const c=$('meContent');if(!c)return
+  const p=activePersona()
+  let all=[];personas.forEach(pp=>{if(pp.chatHistory)all=all.concat(pp.chatHistory)})
+  const total=all.length,tk=dayKey(Date.now()),today=all.filter(m=>dayKey(m.ts)===tk).length
+  let together=0;if(all.length>0)together=Math.max(1,Math.ceil((Date.now()-all[0].ts)/86400000))
+  const userAv=config.userAvatar?`<img src="${escHtml(config.userAvatar)}">`:'🧑'
+  const wpStyle=config.wallpaper?`background-image:url(${escHtml(config.wallpaper)});background-size:cover;background-position:center`:''
+  c.innerHTML=`
+    <div class="settings-section"><div class="sec-title">API 设置</div>
+      <label>DeepSeek API Key</label><input id="setApiKey" type="password" value="${escHtml(config.apiKey||'')}" placeholder="sk-xxxxxxxx" autocomplete="off">
+      <div class="settings-hint"><a href="https://platform.deepseek.com/api_keys" target="_blank">获取 API Key</a></div>
+      <div class="balance-row"><span class="bl">账户余额</span><span class="bv" id="balanceVal">${balanceCache||'--'}</span></div>
+    </div>
+    <div class="settings-section"><div class="sec-title">你的信息</div>
+      <label>头像</label><div class="avatar-upload"><div class="av-preview" id="userAvatarPrev" onclick="document.getElementById('userAvatarInput').click()">${userAv}</div><input type="file" id="userAvatarInput" accept="image/*" style="display:none" onchange="uploadUserAvatar(this)"><button class="av-btn" onclick="document.getElementById('userAvatarInput').click()">从相册选择</button></div>
+      <label style="margin-top:8px">你的昵称</label><input id="setUserName" value="${escHtml(config.userName||'')}" placeholder="对方会看到这个名字">
+    </div>
+    <div class="settings-section"><div class="sec-title">隐私</div>
+      <label>解锁密码（留空关闭）</label><input id="setPasscode" type="password" maxlength="6" value="${escHtml(config.lockPasscode||'')}" placeholder="6位数字密码" autocomplete="off">
+    </div>
+    <div class="settings-section"><div class="sec-title">壁纸</div>
+      <div class="avatar-upload"><div class="av-preview" id="wallpaperPrev" style="width:80px;height:50px;border-radius:8px;${wpStyle}" onclick="document.getElementById('wallpaperInput').click()">${!config.wallpaper?'🖼️':''}</div><input type="file" id="wallpaperInput" accept="image/*" style="display:none" onchange="uploadWallpaperFile(this)"><button class="av-btn" onclick="document.getElementById('wallpaperInput').click()">从相册选择</button>${config.wallpaper?'<button class="av-btn" style="color:#d89098" onclick="config.wallpaper=&#39;&#39;;document.body.style.backgroundImage=&#39;&#39;;renderMe()">清除</button>':''}</div>
+    </div>
+    <div class="settings-section"><div class="sec-title">数据</div>
+      <div class="dash-grid"><div class="dash-card highlight"><div class="dl">在一起</div><div class="dv">${together}<span class="du">天</span></div></div><div class="dash-card"><div class="dl">今日消息</div><div class="dv">${today}<span class="du">条</span></div></div><div class="dash-card"><div class="dl">消息总数</div><div class="dv">${total}<span class="du">条</span></div></div><div class="dash-card"><div class="dl">记忆</div><div class="dv">${memories.length}<span class="du">条</span></div></div><div class="dash-card"><div class="dl">日记</div><div class="dv">${diaries.length}<span class="du">篇</span></div></div><div class="dash-card"><div class="dl">收藏</div><div class="dv">${favorites.length}<span class="du">条</span></div></div></div>
+    </div>
+    ${renderFavoritesHTML()}
+    ${renderRemindersHTML()}
+    ${renderMoodChart()}
+    <div class="settings-section"><div class="sec-title">角色：${avatarHTML(p.avatar)} ${escHtml(p.name)}</div>
+      <button class="btn-full" onclick="openDrawer()">打开角色面板</button>
+    </div>
+    <div class="settings-section"><div class="sec-title">数据管理</div>
+      <div class="btn-row"><button class="btn-primary" onclick="exportAll()" style="flex:1">导出备份</button><button class="btn-outline" onclick="document.getElementById('importFile').click()" style="flex:1">导入备份</button></div><input type="file" id="importFile" accept=".json" style="display:none" onchange="importAll(this)"><button class="btn-full" onclick="clearAllData()">清空所有数据</button>
+    </div>
+    <button class="btn-full primary" onclick="saveSettingsFromForm()">保存设置</button>`
+  fetchBalance()
+}
+
+// ===== SETTINGS (legacy, kept for compat) =====
 function uploadUserAvatar(inp){
   const f=inp.files[0];if(!f||!f.type.startsWith('image/'))return
   const reader=new FileReader()
@@ -532,21 +598,22 @@ function uploadWallpaperFile(inp){
   const reader=new FileReader()
   reader.onload=function(e){const img=new Image();img.onload=function(){const maxW=1200,scale=Math.min(1,maxW/img.width);const canvas=document.createElement('canvas');canvas.width=Math.round(img.width*scale);canvas.height=Math.round(img.height*scale);canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);config.wallpaper=canvas.toDataURL('image/jpeg',0.7);const p=$('wallpaperPrev');if(p)p.style.backgroundImage='url('+config.wallpaper+')';document.body.style.backgroundImage='url('+config.wallpaper+')';document.body.style.backgroundSize='cover';document.body.style.backgroundPosition='center'};img.src=e.target.result};reader.readAsDataURL(f);inp.value=''
 }
-function renderSettings(){
+function renderMe(){renderMe();return}
+function _oldRenderSettings(){
   const p=activePersona()
   const userAv=config.userAvatar?`<img src="${escHtml(config.userAvatar)}">`:'🧑'
   const wpStyle=config.wallpaper?`background-image:url(${escHtml(config.wallpaper)});background-size:cover;background-position:center`:''
-  $('settingsContent').innerHTML=`<div class="settings-section"><div class="sec-title">API 设置</div><label>DeepSeek API Key</label><input id="setApiKey" type="password" value="${escHtml(config.apiKey||'')}" placeholder="sk-xxxxxxxx" autocomplete="off"><div class="settings-hint"><a href="https://platform.deepseek.com/api_keys" target="_blank">获取 API Key</a></div><div class="balance-row"><span class="bl">账户余额</span><span class="bv" id="balanceVal">${balanceCache||'--'}</span></div><div style="text-align:right;margin-top:4px"><span style="font-size:10px;color:var(--text-muted);cursor:pointer;text-decoration:underline" onclick="fetchBalance()">刷新余额</span></div></div><div class="settings-section"><div class="sec-title">你的信息</div><label>头像</label><div class="avatar-upload"><div class="av-preview" id="userAvatarPrev" onclick="document.getElementById('userAvatarInput').click()">${userAv}</div><input type="file" id="userAvatarInput" accept="image/*" style="display:none" onchange="uploadUserAvatar(this)"><button class="av-btn" onclick="document.getElementById('userAvatarInput').click()">从相册选择</button></div><label style="margin-top:8px">你的昵称</label><input id="setUserName" value="${escHtml(config.userName||'')}" placeholder="对方会看到这个名字"></div><div class="settings-section"><div class="sec-title">隐私</div><label>解锁密码（留空关闭）</label><input id="setPasscode" type="password" maxlength="6" value="${escHtml(config.lockPasscode||'')}" placeholder="6位数字密码" autocomplete="off"></div><div class="settings-section"><div class="sec-title">壁纸</div><label>背景图</label><div class="avatar-upload"><div class="av-preview" id="wallpaperPrev" style="width:80px;height:50px;border-radius:8px;${wpStyle}" onclick="document.getElementById('wallpaperInput').click()">${!config.wallpaper?'🖼️':''}</div><input type="file" id="wallpaperInput" accept="image/*" style="display:none" onchange="uploadWallpaperFile(this)"><button class="av-btn" onclick="document.getElementById('wallpaperInput').click()">从相册选择</button>${config.wallpaper?'<button class="av-btn" style="color:#d89098" onclick="config.wallpaper=&#39;&#39;;document.body.style.backgroundImage=&#39;&#39;;renderSettings()">清除</button>':''}</div></div><div class="settings-section"><div class="sec-title">角色：${avatarHTML(p.avatar)} ${escHtml(p.name)}</div><button class="btn-full" onclick="switchTab('chat');setTimeout(openDrawer,300)">打开角色列表</button></div><div class="settings-section"><div class="sec-title">数据管理</div><div class="btn-row"><button class="btn-primary" onclick="exportAll()" style="flex:1">导出备份</button><button class="btn-outline" onclick="document.getElementById('importFile').click()" style="flex:1">导入备份</button></div><input type="file" id="importFile" accept=".json" style="display:none" onchange="importAll(this)"><button class="btn-full" onclick="clearAllData()">清空所有数据</button></div><button class="btn-full primary" onclick="saveSettingsFromForm()">保存设置</button>`
+  $('settingsContent').innerHTML=`<div class="settings-section"><div class="sec-title">API 设置</div><label>DeepSeek API Key</label><input id="setApiKey" type="password" value="${escHtml(config.apiKey||'')}" placeholder="sk-xxxxxxxx" autocomplete="off"><div class="settings-hint"><a href="https://platform.deepseek.com/api_keys" target="_blank">获取 API Key</a></div><div class="balance-row"><span class="bl">账户余额</span><span class="bv" id="balanceVal">${balanceCache||'--'}</span></div><div style="text-align:right;margin-top:4px"><span style="font-size:10px;color:var(--text-muted);cursor:pointer;text-decoration:underline" onclick="fetchBalance()">刷新余额</span></div></div><div class="settings-section"><div class="sec-title">你的信息</div><label>头像</label><div class="avatar-upload"><div class="av-preview" id="userAvatarPrev" onclick="document.getElementById('userAvatarInput').click()">${userAv}</div><input type="file" id="userAvatarInput" accept="image/*" style="display:none" onchange="uploadUserAvatar(this)"><button class="av-btn" onclick="document.getElementById('userAvatarInput').click()">从相册选择</button></div><label style="margin-top:8px">你的昵称</label><input id="setUserName" value="${escHtml(config.userName||'')}" placeholder="对方会看到这个名字"></div><div class="settings-section"><div class="sec-title">隐私</div><label>解锁密码（留空关闭）</label><input id="setPasscode" type="password" maxlength="6" value="${escHtml(config.lockPasscode||'')}" placeholder="6位数字密码" autocomplete="off"></div><div class="settings-section"><div class="sec-title">壁纸</div><label>背景图</label><div class="avatar-upload"><div class="av-preview" id="wallpaperPrev" style="width:80px;height:50px;border-radius:8px;${wpStyle}" onclick="document.getElementById('wallpaperInput').click()">${!config.wallpaper?'🖼️':''}</div><input type="file" id="wallpaperInput" accept="image/*" style="display:none" onchange="uploadWallpaperFile(this)"><button class="av-btn" onclick="document.getElementById('wallpaperInput').click()">从相册选择</button>${config.wallpaper?'<button class="av-btn" style="color:#d89098" onclick="config.wallpaper=&#39;&#39;;document.body.style.backgroundImage=&#39;&#39;;renderMe()">清除</button>':''}</div></div><div class="settings-section"><div class="sec-title">角色：${avatarHTML(p.avatar)} ${escHtml(p.name)}</div><button class="btn-full" onclick="switchTab('chat');setTimeout(openDrawer,300)">打开角色列表</button></div><div class="settings-section"><div class="sec-title">数据管理</div><div class="btn-row"><button class="btn-primary" onclick="exportAll()" style="flex:1">导出备份</button><button class="btn-outline" onclick="document.getElementById('importFile').click()" style="flex:1">导入备份</button></div><input type="file" id="importFile" accept=".json" style="display:none" onchange="importAll(this)"><button class="btn-full" onclick="clearAllData()">清空所有数据</button></div><button class="btn-full primary" onclick="saveSettingsFromForm()">保存设置</button>`
   fetchBalance()
 }
 function saveSettingsFromForm(){
   config.apiKey=($('setApiKey')?.value||'').trim();config.lockPasscode=($('setPasscode')?.value||'').trim()
   config.userName=($('setUserName')?.value||'').trim()
-  saveConfig();updateChatHeader();applyWallpaper();fetchBalance();renderAllMessages();toast('设置已保存')
+  saveConfig();updateChatHeader();applyWallpaper();fetchBalance();renderAllMessages();renderMe();toast('设置已保存')
 }
 function exportAll(){const d={version:'v6',exportedAt:new Date().toISOString(),config:{activePersonaId:config.activePersonaId,userAvatar:config.userAvatar,userName:config.userName},personas:personas.map(p=>({...p,chatHistory:p.chatHistory||[]})),memories,diaries,anniversaries,favorites,reminders};const b=new Blob([JSON.stringify(d,null,2)],{type:'application/json'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='沈度备份_'+dayKey(Date.now())+'.json';a.click();URL.revokeObjectURL(u);toast('已导出')}
-function importAll(inp){const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=e=>{try{const d=JSON.parse(e.target.result);if(!d.version)throw new Error('格式不对');showConfirm('确认导入','将导入：\n· '+(d.personas?.length||0)+' 个角色\n· '+(d.memories?.length||0)+' 条记忆\n· '+(d.diaries?.length||0)+' 条日记\n· '+(d.favorites?.length||0)+' 条收藏\n当前数据会被覆盖，确定？',()=>{if(d.personas)personas=d.personas;if(d.memories)memories=d.memories;if(d.diaries)diaries=d.diaries;if(d.anniversaries)anniversaries=d.anniversaries;if(d.favorites)favorites=d.favorites;if(d.reminders)reminders=d.reminders;if(d.config?.activePersonaId)config.activePersonaId=d.config.activePersonaId;if(d.config?.userAvatar)config.userAvatar=d.config.userAvatar;if(d.config?.userName)config.userName=d.config.userName;savePersonas();saveMemories();saveDiaries();saveAnniversaries();saveFavorites();saveReminders();saveConfig();updateChatHeader();renderAllMessages();renderSettings();toast('已导入')})}catch(err){toast('文件格式错误')}};r.readAsText(f);inp.value=''}
-function clearAllData(){showConfirm('确认清空','将删除所有角色、聊天记录、记忆、日记，不可恢复。确定？',()=>{personas=JSON.parse(JSON.stringify(DEFAULT_PERSONAS));memories=[];diaries=[];anniversaries=[];favorites=[];reminders=[];config.activePersonaId='shendu';config.userAvatar='';config.userName='';savePersonas();saveMemories();saveDiaries();saveAnniversaries();saveFavorites();saveReminders();saveConfig();updateChatHeader();renderAllMessages();renderSettings();toast('已清空')})}
+function importAll(inp){const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=e=>{try{const d=JSON.parse(e.target.result);if(!d.version)throw new Error('格式不对');showConfirm('确认导入','将导入：\n· '+(d.personas?.length||0)+' 个角色\n· '+(d.memories?.length||0)+' 条记忆\n· '+(d.diaries?.length||0)+' 条日记\n· '+(d.favorites?.length||0)+' 条收藏\n当前数据会被覆盖，确定？',()=>{if(d.personas)personas=d.personas;if(d.memories)memories=d.memories;if(d.diaries)diaries=d.diaries;if(d.anniversaries)anniversaries=d.anniversaries;if(d.favorites)favorites=d.favorites;if(d.reminders)reminders=d.reminders;if(d.config?.activePersonaId)config.activePersonaId=d.config.activePersonaId;if(d.config?.userAvatar)config.userAvatar=d.config.userAvatar;if(d.config?.userName)config.userName=d.config.userName;savePersonas();saveMemories();saveDiaries();saveAnniversaries();saveFavorites();saveReminders();saveConfig();updateChatHeader();renderAllMessages();renderMe();toast('已导入')})}catch(err){toast('文件格式错误')}};r.readAsText(f);inp.value=''}
+function clearAllData(){showConfirm('确认清空','将删除所有角色、聊天记录、记忆、日记，不可恢复。确定？',()=>{personas=JSON.parse(JSON.stringify(DEFAULT_PERSONAS));memories=[];diaries=[];anniversaries=[];favorites=[];reminders=[];config.activePersonaId='shendu';config.userAvatar='';config.userName='';savePersonas();saveMemories();saveDiaries();saveAnniversaries();saveFavorites();saveReminders();saveConfig();updateChatHeader();renderAllMessages();renderMe();toast('已清空')})}
 
 // ===== MEMORIES =====
 function setMemCat(c){memCatFilter=c;renderMemories()}
@@ -614,8 +681,7 @@ function renderMoodChart(){
 // ===== DASHBOARD =====
 function addAnniversary(){const n=document.querySelector('#annName')?.value?.trim();const d=document.querySelector('#annDate')?.value;if(!n||!d)return;anniversaries.push({id:Date.now(),name:n,date:d});saveAnniversaries();renderDashboard()}
 function deleteAnniversary(id){anniversaries=anniversaries.filter(a=>a.id!==id);saveAnniversaries();renderDashboard()}
-function renderDashboard(){
-  const c=$('dashContent');if(!c)return;let all=[];personas.forEach(p=>{if(p.chatHistory)all=all.concat(p.chatHistory)})
+function renderDashboard(){if(document.querySelector('#page-me.active')){renderMe();return};const c=$('dashContent');if(!c)return;let all=[];personas.forEach(p=>{if(p.chatHistory)all=all.concat(p.chatHistory)})
   const total=all.length,tk=dayKey(Date.now()),today=all.filter(m=>dayKey(m.ts)===tk).length
   let together=0;if(all.length>0)together=Math.max(1,Math.ceil((Date.now()-all[0].ts)/86400000))
   const counts={};all.forEach(m=>{const k=dayKey(m.ts);counts[k]=(counts[k]||0)+1})
