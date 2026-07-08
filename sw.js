@@ -1,5 +1,5 @@
 /* 沈度 v5 — Service Worker */
-const CACHE = 'shendu-v5.4'
+const CACHE = 'shendu-v7'
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll([
