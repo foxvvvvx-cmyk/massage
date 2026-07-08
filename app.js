@@ -116,6 +116,9 @@ function renderDrawerPanel(){
       </div>
     </div>
     <div class="drawer-divider"></div>
+    <div class="drawer-menu-item" onclick="document.getElementById('userAvatarInput2').click()"><span class="dm-icon" style="font-size:22px;width:auto">${config.userAvatar&&config.userAvatar.startsWith('data:')?`<img src="${escHtml(config.userAvatar)}" style="width:24px;height:24px;border-radius:50%;object-fit:cover;vertical-align:middle">`:(config.userAvatar||'🧑')}</span><span class="dm-label">你的头像</span><span class="dm-arrow">点击更换 ›</span></div>
+    <input type="file" id="userAvatarInput2" accept="image/*" style="display:none" onchange="uploadUserAvatar(this);renderDrawerPanel()">
+    <div class="drawer-divider"></div>
     <div class="drawer-menu-item" onclick="toggleDeepThink();renderDrawerPanel()"><span class="dm-icon">💭</span><span class="dm-label">深度思考</span><span class="dm-badge">${config.deepThink?'R1':'V3'}</span></div>
     <div class="drawer-menu-item" onclick="editPersona('${p.id}')"><span class="dm-icon">✎</span><span class="dm-label">编辑「${escHtml(p.name)}」</span><span class="dm-arrow">›</span></div>
     <div class="drawer-divider"></div>
@@ -227,7 +230,7 @@ function appendMsgEl(msg){
   avatar.innerHTML=msg.role==='user'?userAvatarHTML():aiAvatarHTML()
   const bubble=document.createElement('div');bubble.className='msg';bubble.setAttribute('data-ts',msg.ts)
   bubble.innerHTML=buildMsgHTML(msg)
-  if(msg.role==='user'){row.appendChild(bubble);row.appendChild(avatar)}else{row.appendChild(avatar);row.appendChild(bubble)}
+  row.appendChild(avatar);row.appendChild(bubble)
   // long press
   let pressTimer;const clearPress=()=>{clearTimeout(pressTimer);pressTimer=null}
   bubble.addEventListener('touchstart',e=>{pressTimer=setTimeout(()=>{showCtxMenu(msg,e);clearPress()},500)})
