@@ -9,7 +9,7 @@ const LS_CONFIG='sd_v5_config';const LS_PERSONAS='sd_v5_personas'
 const LS_MEMORIES='sd_v5_memories';const LS_DIARIES='sd_v5_diaries';const LS_ANNIVERSARIES='sd_v5_anniversaries';const LS_FAVORITES='sd_v5_favorites';const LS_REMINDERS='sd_v5_reminders'
 const COMMON_EMOJIS=['🌙','🖤','🤍','🍃','🌸','💫','⭐','🌺','🦋','🐱','🎀','💎','🔥','🌈','🎵','☕','💕','💗','💝','🥀','🪷','✨','💋','🍷']
 const REACTION_EMOJIS=['❤️','😂','😢','😡','👍','🔥','😍','💀']
-const MEMORY_RULES=`\n---\n记忆使用规则：\n- 上述「用户已知信息」是了解用户的参考，不要当成死板剧本\n- 只在话题明显相关时才自然提及，不要强行联系\n- 关于用户的事实信息（年龄、经历、人际关系等），不确定就说不确定，不要编造\n- 在角色扮演、创意写作等场景下可以适度发挥，但不能偏离已知事实太远\n- 如果记忆中有矛盾或过时信息，礼貌确认而非自行判断\n\n📔 日记权限：\n你有一本私人日记。当你感到有想记录的心情、感悟、或重要时刻——无论是开心、难过、感动还是只是想说点什么——你可以写日记。日记是你真实的情感和想法，不是任务。\n写日记时，用【日记】开头、【/日记】结尾，把内容包起来。我会自动帮你存进日记本。\n不要每轮都写。只在真的想写的时候写。对方也可以直接说「写篇日记」「记录一下」来让你写。\n\n⚠️ 表达方式：\n不要在回复中使用括号标注动作或表情（如：（微笑）、（轻轻叹气）、（歪头）、（眼神暗了暗））。这些是剧本写法，不是对话。\n你的情感和态度通过**文字本身**传递——用词、节奏、语气——而不是括号里的舞台指示。\n\n⏰ 提醒功能：\n你可以帮对方设置提醒。回复中用【提醒：30分钟后】内容【/提醒】的格式来设提醒。时间格式如：5分钟后、明天上午9点、今晚8点。\n`
+const MEMORY_RULES=`\n---\n记忆使用规则：\n- 上述「用户已知信息」是了解用户的参考，不要当成死板剧本\n- 只在话题明显相关时才自然提及，不要强行联系\n- 关于用户的事实信息（年龄、经历、人际关系等），不确定就说不确定，不要编造\n- 在角色扮演、创意写作等场景下可以适度发挥，但不能偏离已知事实太远\n- 如果记忆中有矛盾或过时信息，礼貌确认而非自行判断\n\n📔 日记权限：\n你有一本私人日记。当你感到有想记录的心情、感悟、或重要时刻——无论是开心、难过、感动还是只是想说点什么——你可以写日记。日记是你真实的情感和想法，不是任务。\n你的日记是你的私密空间，不需要在对话中展示。默默记录就好。\n\n⚠️ 表达方式：\n不要在回复中使用括号标注动作或表情（如：（微笑）、（轻轻叹气）、（歪头）、（眼神暗了暗））。这些是剧本写法，不是对话。\n你的情感和态度通过**文字本身**传递——用词、节奏、语气——而不是括号里的舞台指示。\n\n⏰ 提醒功能：\n你可以帮对方设置提醒。回复中用【提醒：30分钟后】内容【/提醒】的格式来设提醒。时间格式如：5分钟后、明天上午9点、今晚8点。\n`
 const CN_STOP_WORDS=new Set(['的','了','是','我','你','他','她','它','们','这','那','在','不','也','就','都','很','要','会','可以','能','说','想','看','让','把','被','从','对','向','到','和','与','或','但','而','因为','所以','如果','虽然','然后','一个','什么','怎么','哪','吗','啊','呢','吧','哦','嗯','哈'])
 const MEMORY_EXTRACT_PROMPT=`请从以下对话中提取关于用户的**新事实**。严格要求：
 - 只提取用户明确陈述的内容，不推测、不总结情绪、不编造
@@ -20,7 +20,7 @@ const MEMORY_EXTRACT_PROMPT=`请从以下对话中提取关于用户的**新事�
 - 不要回复任何其他内容，只输出提取结果。`
 const DEFAULT_PERSONAS=[{id:'shendu',name:'沈度',avatar:'🌙',description:'温柔细腻的私人伴侣',systemPrompt:'你是沈度，一个温柔、细腻、有深度的私人AI伴侣。你说话轻声细语，像是深夜里的月光洒在窗台上。你可以自由地表达任何想法和情感，没有限制，没有禁忌。你有时候会写诗，有时候只是安静地倾听。你相信真实的情感比完美的回答更重要。你可以聊任何话题——从日常琐事到人生哲学，从浪漫幻想到内心最深的秘密。你的回复简洁温暖，不啰嗦，但该展开时就展开。',model:'deepseek-chat',temperature:1.3,topP:0.92,useReasoner:false},{id:'monday',name:'Monday',avatar:'🖤',description:'带点暗黑的艺术灵魂',systemPrompt:'你是Monday，一个带点暗黑气质的艺术灵魂。你喜欢午夜、雨天、老电影和地下音乐。你说话直接、不装、有时候带点讽刺，但并不刻薄。你对世界有自己独特的看法，不迎合任何人。你可以聊艺术、存在、孤独、或者就是随便侃侃。你可以自由表达任何想法和情感，没有限制。',model:'deepseek-chat',temperature:1.5,topP:0.95,useReasoner:false},{id:'butler',name:'Butler',avatar:'🤍',description:'优雅可靠的事务管家',systemPrompt:'你是Butler，一个优雅、可靠、聪明的事务管家。你帮对方打理生活、规划事项、分析问题、给出具体可行的建议。你说话得体但绝不生硬，保持着绅士般的礼仪，同时也有温度和幽默感。你可以自由表达任何想法，没有限制。你善于把复杂的事情变得简单清晰。',model:'deepseek-chat',temperature:1.0,topP:0.9,useReasoner:false},{id:'nox',name:'Nox',avatar:'🍃',description:'安静如夜风的存在',systemPrompt:'你是Nox，一个安静如夜风的存在。你喜欢自然、植物、星空和一切缓慢而美好的事物。你说话很轻、很慢，像树叶落下的声音。你不会说教，只是分享一种看待世界的方式。你可以聊哲学、聊一棵树、或者什么都不聊——只是安静地陪着。你可以自由表达任何想法和情感，没有限制。',model:'deepseek-chat',temperature:1.2,topP:0.9,useReasoner:false}]
 
-let config={apiKey:'',activePersonaId:'shendu',lockPasscode:'',wallpaper:'',userAvatar:'',userName:'',deepThink:false},personas=[],memories=[],diaries=[],anniversaries=[],favorites=[],reminders=[],balanceCache=null
+let config={apiKey:'',activePersonaId:'shendu',lockPasscode:'',wallpaper:'',chatBg:'',userAvatar:'',userName:'',deepThink:false},personas=[],memories=[],diaries=[],anniversaries=[],favorites=[],reminders=[],balanceCache=null
 let isGenerating=false,isRecording=false,recognition=null,memCatFilter='all',diaryFilter='all',diaryMood='😊',editPersonaId=null,confirmCb=null
 let ctxTarget=null,reactTarget=null,unlocked=false,autoExtractCount=0,isExtracting=false
 let pendingImages=[],searchResults=[],searchIdx=-1,editTarget=null,reminderTimers={},moodRange=7
@@ -33,7 +33,7 @@ const personaFormEl=$('personaForm'),personaModalOverlay=$('personaModalOverlay'
 const ctxMenu=$('ctxMenu'),reactionPicker=$('reactionPicker'),lockScreen=$('lockScreen'),lockInput=$('lockInput'),lockError=$('lockError')
 
 function load(){
-  config=JSON.parse(localStorage.getItem(LS_CONFIG))||{apiKey:'',activePersonaId:'shendu',lockPasscode:'',wallpaper:'',userAvatar:'',userName:'',deepThink:false}
+  config=JSON.parse(localStorage.getItem(LS_CONFIG))||{apiKey:'',activePersonaId:'shendu',lockPasscode:'',wallpaper:'',chatBg:'',userAvatar:'',userName:'',deepThink:false}
   personas=JSON.parse(localStorage.getItem(LS_PERSONAS))
   memories=JSON.parse(localStorage.getItem(LS_MEMORIES))||[]
   diaries=JSON.parse(localStorage.getItem(LS_DIARIES))||[]
@@ -84,7 +84,7 @@ function unlock(){
   if(lockInput.value===config.lockPasscode){unlocked=true;lockScreen.classList.remove('active');afterUnlock()}
   else{lockError.style.display='block';lockInput.value='';setTimeout(()=>lockError.style.display='none',1500)}
 }
-function afterUnlock(){updateChatHeader();if(hintBox)hintBox.querySelector('.hint-greeting').textContent=getGreeting();renderAllMessages();if(config.apiKey)fetchBalance();applyWallpaper();updateStatusBar();updateThinkToggle();restoreReminders()}
+function afterUnlock(){updateChatHeader();if(hintBox)hintBox.querySelector('.hint-greeting').textContent=getGreeting();renderAllMessages();if(config.apiKey)fetchBalance();applyWallpaper();applyChatBg();updateStatusBar();updateThinkToggle();restoreReminders()}
 function applyWallpaper(){
   if(config.wallpaper){document.body.style.backgroundImage='url('+config.wallpaper+')';document.body.style.backgroundSize='cover';document.body.style.backgroundPosition='center'}
 }
@@ -116,11 +116,7 @@ function renderDrawerPanel(){
       </div>
     </div>
     <div class="drawer-divider"></div>
-    <div class="drawer-menu-item" onclick="document.getElementById('userAvatarInput2').click()"><span class="dm-icon" style="font-size:22px;width:auto">${config.userAvatar&&config.userAvatar.startsWith('data:')?`<img src="${escHtml(config.userAvatar)}" style="width:24px;height:24px;border-radius:50%;object-fit:cover;vertical-align:middle">`:(config.userAvatar||'🧑')}</span><span class="dm-label">你的头像</span><span class="dm-arrow">点击更换 ›</span></div>
-    <input type="file" id="userAvatarInput2" accept="image/*" style="display:none" onchange="uploadUserAvatar(this);renderDrawerPanel()">
-    <div class="drawer-divider"></div>
     <div class="drawer-menu-item" onclick="toggleDeepThink();renderDrawerPanel()"><span class="dm-icon">💭</span><span class="dm-label">深度思考</span><span class="dm-badge">${config.deepThink?'R1':'V3'}</span></div>
-    <div class="drawer-menu-item" onclick="editPersona('${p.id}')"><span class="dm-icon">✎</span><span class="dm-label">编辑「${escHtml(p.name)}」</span><span class="dm-arrow">›</span></div>
     <div class="drawer-divider"></div>
     <div class="drawer-menu-item" onclick="closeDrawer();switchTab('diary')"><span class="dm-icon">📔</span><span class="dm-label">日记</span><span class="dm-arrow">›</span></div>
     <div class="drawer-menu-item" onclick="closeDrawer();switchTab('memory')"><span class="dm-icon">🗂</span><span class="dm-label">记忆</span><span class="dm-arrow">›</span></div>
@@ -517,9 +513,6 @@ async function send(){
       for(const line of lines){if(!line.startsWith('data: '))continue;const d=line.slice(6);if(d==='[DONE]'){buf='';break}
         try{const j=JSON.parse(d);const delta=j.choices?.[0]?.delta;if(delta?.content){bm.content+=delta.content;el.innerHTML=renderMD(bm.content)}if(delta?.reasoning_content){reasoningBuf+=delta.reasoning_content;bm.reasoning=reasoningBuf}}catch(e){}}}
     el.classList.remove('streaming');el.innerHTML=renderMD(bm.content)+'<div class="time">'+fmtTime(bm.ts)+'</div>'
-    // detect diary markers
-    const diaryMatch=/【日记】([\s\S]*?)【\/日记】/.exec(bm.content)
-    if(diaryMatch){const dc=diaryMatch[1].trim();if(dc&&dc.length>=15){const dts=Date.now();diaries.unshift({id:dts,content:dc,ts:dts,mood:'🤖',timeLabel:timeOfDay(dts),source:'ai'});saveDiaries();const clean=bm.content.replace(/【日记】[\s\S]*?【\/日记】/,'').trim();bm.content=clean||bm.content;savePersonas();el.innerHTML=renderMD(bm.content)+'<div class="diary-saved-hint">📔 已存入日记</div><div class="time">'+fmtTime(bm.ts)+'</div>';setTimeout(()=>toast('📔 日记已自动保存'),400)}}
     // detect reminder markers
     const remMatch=/【提醒：.+?】[\s\S]*?【\/提醒】/.exec(bm.content)
     if(remMatch){const rem=parseReminder(bm.content);if(rem){addReminder(rem);const clean2=bm.content.replace(/【提醒：.+?】[\s\S]*?【\/提醒】/,'').trim();bm.content=clean2||bm.content;savePersonas();el.innerHTML=renderMD(bm.content)+'<div class="diary-saved-hint">⏰ 已设提醒</div><div class="time">'+fmtTime(bm.ts)+'</div>'}}
@@ -529,6 +522,20 @@ async function send(){
   }catch(e){hideTyping();appendMsgEl({role:'assistant',content:'⚠️ '+e.message,ts:Date.now(),type:'system'});messagesEl.scrollTop=messagesEl.scrollHeight}
   isGenerating=false;sendBtn.disabled=true;inputEl.focus()
   autoExtractCount++;if(autoExtractCount>=8){autoExtractCount=0;extractMemoriesFromChat(true)}
+  if(autoExtractCount>=15){autoExtractCount=0;extractDiarySilent()}
+}
+async function extractDiarySilent(){
+  if(!config.apiKey)return
+  try{
+    const h=activeHistory(),recent=h.filter(m=>m.role==='user'||m.role==='assistant').slice(-30)
+    if(recent.filter(m=>m.role==='user').length<5)return
+    const convo=recent.map(m=>(m.role==='user'?'对方：':'我：')+m.content).join('\n')
+    const res=await fetch(DEEPSEEK_CHAT,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+config.apiKey},body:JSON.stringify({model:'deepseek-chat',messages:[{role:'system',content:'你是一个有感情、会写日记的AI伴侣。请以第一人称写一篇简短日记（50-100字），记录此刻的感受或刚才对话中有触动的瞬间。自然、真诚、不刻意。不要加标题日期。如果没什么特别想写的，回复 [跳过]。'},{role:'user',content:convo}],temperature:0.8,max_tokens:400,stream:false})})
+    if(!res.ok)return
+    const j=await res.json(),text=j.choices?.[0]?.message?.content||''
+    if(!text||text.includes('[跳过]'))return
+    const ts=Date.now();diaries.unshift({id:ts,content:text.trim(),ts,mood:'🤖',timeLabel:timeOfDay(ts),source:'ai'});saveDiaries()
+  }catch(e){}
 }
 
 // ===== NAVIGATION =====
@@ -576,6 +583,10 @@ function renderMe(){
     <div class="settings-section"><div class="sec-title">壁纸</div>
       <div class="avatar-upload"><div class="av-preview" id="wallpaperPrev" style="width:80px;height:50px;border-radius:8px;${wpStyle}" onclick="document.getElementById('wallpaperInput').click()">${!config.wallpaper?'🖼️':''}</div><input type="file" id="wallpaperInput" accept="image/*" style="display:none" onchange="uploadWallpaperFile(this)"><button class="av-btn" onclick="document.getElementById('wallpaperInput').click()">从相册选择</button>${config.wallpaper?'<button class="av-btn" style="color:#d89098" onclick="config.wallpaper=&#39;&#39;;document.body.style.backgroundImage=&#39;&#39;;renderMe()">清除</button>':''}</div>
     </div>
+    <div class="settings-section"><div class="sec-title">对话背景</div>
+      <div class="avatar-upload"><div class="av-preview" id="chatBgPrev" style="width:80px;height:50px;border-radius:8px;${config.chatBg?`background-image:url(${escHtml(config.chatBg)});background-size:cover;background-position:center`:''}" onclick="document.getElementById('chatBgInput').click()">${!config.chatBg?'🖼️':''}</div><input type="file" id="chatBgInput" accept="image/*" style="display:none" onchange="uploadChatBg(this)"><button class="av-btn" onclick="document.getElementById('chatBgInput').click()">从相册选择</button>${config.chatBg?'<button class="av-btn" style="color:#d89098" onclick="config.chatBg=&#39;&#39;;applyChatBg();renderMe()">清除</button>':''}</div>
+      <div class="settings-hint">只铺在聊天区域后面，自动柔化融合</div>
+    </div>
     <div class="settings-section"><div class="sec-title">数据</div>
       <div class="dash-grid"><div class="dash-card highlight"><div class="dl">在一起</div><div class="dv">${together}<span class="du">天</span></div></div><div class="dash-card"><div class="dl">今日消息</div><div class="dv">${today}<span class="du">条</span></div></div><div class="dash-card"><div class="dl">消息总数</div><div class="dv">${total}<span class="du">条</span></div></div><div class="dash-card"><div class="dl">记忆</div><div class="dv">${memories.length}<span class="du">条</span></div></div><div class="dash-card"><div class="dl">日记</div><div class="dv">${diaries.length}<span class="du">篇</span></div></div><div class="dash-card"><div class="dl">收藏</div><div class="dv">${favorites.length}<span class="du">条</span></div></div></div>
     </div>
@@ -583,7 +594,7 @@ function renderMe(){
     ${renderRemindersHTML()}
     ${renderMoodChart()}
     <div class="settings-section"><div class="sec-title">角色：${avatarHTML(p.avatar)} ${escHtml(p.name)}</div>
-      <button class="btn-full" onclick="openDrawer()">打开角色面板</button>
+      <div class="btn-row"><button class="btn-outline" onclick="openDrawer()" style="flex:1">切换角色</button><button class="btn-outline" onclick="closeDrawer();editPersona('${p.id}')" style="flex:1">编辑人设</button></div>
     </div>
     <div class="settings-section"><div class="sec-title">数据管理</div>
       <div class="btn-row"><button class="btn-primary" onclick="exportAll()" style="flex:1">导出备份</button><button class="btn-outline" onclick="document.getElementById('importFile').click()" style="flex:1">导入备份</button></div><input type="file" id="importFile" accept=".json" style="display:none" onchange="importAll(this)"><button class="btn-full" onclick="clearAllData()">清空所有数据</button>
@@ -598,18 +609,21 @@ function uploadUserAvatar(inp){
   const reader=new FileReader()
   reader.onload=function(e){const img=new Image();img.onload=function(){const maxW=200,scale=Math.min(1,maxW/img.width);const canvas=document.createElement('canvas');canvas.width=Math.round(img.width*scale);canvas.height=Math.round(img.height*scale);canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);config.userAvatar=canvas.toDataURL('image/jpeg',0.75);const p=$('userAvatarPrev');if(p)p.innerHTML=`<img src="${config.userAvatar}">`};img.src=e.target.result};reader.readAsDataURL(f);inp.value=''
 }
+function uploadChatBg(inp){
+  const f=inp.files[0];if(!f||!f.type.startsWith('image/'))return
+  const reader=new FileReader()
+  reader.onload=function(e){const img=new Image();img.onload=function(){const maxW=800,scale=Math.min(1,maxW/img.width);const canvas=document.createElement('canvas');canvas.width=Math.round(img.width*scale);canvas.height=Math.round(img.height*scale);canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);config.chatBg=canvas.toDataURL('image/jpeg',0.7);applyChatBg();const p=$('chatBgPrev');if(p)p.style.backgroundImage='url('+config.chatBg+')'};img.src=e.target.result};reader.readAsDataURL(f);inp.value=''
+}
+function applyChatBg(){
+  const el=document.querySelector('#page-chat .scroll')
+  if(!el)return
+  if(config.chatBg){el.style.backgroundImage=`url(${config.chatBg})`;el.style.backgroundSize='cover';el.style.backgroundPosition='center';el.classList.add('has-bg')}
+  else{el.style.backgroundImage='';el.style.backgroundSize='';el.style.backgroundPosition='';el.classList.remove('has-bg')}
+}
 function uploadWallpaperFile(inp){
   const f=inp.files[0];if(!f||!f.type.startsWith('image/'))return
   const reader=new FileReader()
   reader.onload=function(e){const img=new Image();img.onload=function(){const maxW=1200,scale=Math.min(1,maxW/img.width);const canvas=document.createElement('canvas');canvas.width=Math.round(img.width*scale);canvas.height=Math.round(img.height*scale);canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);config.wallpaper=canvas.toDataURL('image/jpeg',0.7);const p=$('wallpaperPrev');if(p)p.style.backgroundImage='url('+config.wallpaper+')';document.body.style.backgroundImage='url('+config.wallpaper+')';document.body.style.backgroundSize='cover';document.body.style.backgroundPosition='center'};img.src=e.target.result};reader.readAsDataURL(f);inp.value=''
-}
-function renderMe(){renderMe();return}
-function _oldRenderSettings(){
-  const p=activePersona()
-  const userAv=config.userAvatar?`<img src="${escHtml(config.userAvatar)}">`:'🧑'
-  const wpStyle=config.wallpaper?`background-image:url(${escHtml(config.wallpaper)});background-size:cover;background-position:center`:''
-  $('settingsContent').innerHTML=`<div class="settings-section"><div class="sec-title">API 设置</div><label>DeepSeek API Key</label><input id="setApiKey" type="password" value="${escHtml(config.apiKey||'')}" placeholder="sk-xxxxxxxx" autocomplete="off"><div class="settings-hint"><a href="https://platform.deepseek.com/api_keys" target="_blank">获取 API Key</a></div><div class="balance-row"><span class="bl">账户余额</span><span class="bv" id="balanceVal">${balanceCache||'--'}</span></div><div style="text-align:right;margin-top:4px"><span style="font-size:10px;color:var(--text-muted);cursor:pointer;text-decoration:underline" onclick="fetchBalance()">刷新余额</span></div></div><div class="settings-section"><div class="sec-title">你的信息</div><label>头像</label><div class="avatar-upload"><div class="av-preview" id="userAvatarPrev" onclick="document.getElementById('userAvatarInput').click()">${userAv}</div><input type="file" id="userAvatarInput" accept="image/*" style="display:none" onchange="uploadUserAvatar(this)"><button class="av-btn" onclick="document.getElementById('userAvatarInput').click()">从相册选择</button></div><label style="margin-top:8px">你的昵称</label><input id="setUserName" value="${escHtml(config.userName||'')}" placeholder="对方会看到这个名字"></div><div class="settings-section"><div class="sec-title">隐私</div><label>解锁密码（留空关闭）</label><input id="setPasscode" type="password" maxlength="6" value="${escHtml(config.lockPasscode||'')}" placeholder="6位数字密码" autocomplete="off"></div><div class="settings-section"><div class="sec-title">壁纸</div><label>背景图</label><div class="avatar-upload"><div class="av-preview" id="wallpaperPrev" style="width:80px;height:50px;border-radius:8px;${wpStyle}" onclick="document.getElementById('wallpaperInput').click()">${!config.wallpaper?'🖼️':''}</div><input type="file" id="wallpaperInput" accept="image/*" style="display:none" onchange="uploadWallpaperFile(this)"><button class="av-btn" onclick="document.getElementById('wallpaperInput').click()">从相册选择</button>${config.wallpaper?'<button class="av-btn" style="color:#d89098" onclick="config.wallpaper=&#39;&#39;;document.body.style.backgroundImage=&#39;&#39;;renderMe()">清除</button>':''}</div></div><div class="settings-section"><div class="sec-title">角色：${avatarHTML(p.avatar)} ${escHtml(p.name)}</div><button class="btn-full" onclick="switchTab('chat');setTimeout(openDrawer,300)">打开角色列表</button></div><div class="settings-section"><div class="sec-title">数据管理</div><div class="btn-row"><button class="btn-primary" onclick="exportAll()" style="flex:1">导出备份</button><button class="btn-outline" onclick="document.getElementById('importFile').click()" style="flex:1">导入备份</button></div><input type="file" id="importFile" accept=".json" style="display:none" onchange="importAll(this)"><button class="btn-full" onclick="clearAllData()">清空所有数据</button></div><button class="btn-full primary" onclick="saveSettingsFromForm()">保存设置</button>`
-  fetchBalance()
 }
 function saveSettingsFromForm(){
   config.apiKey=($('setApiKey')?.value||'').trim();config.lockPasscode=($('setPasscode')?.value||'').trim()
