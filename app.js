@@ -462,8 +462,7 @@ async function askAiDiaryDraft(){
   toast("🤖 AI 正在为你写日记…")
   try{
     const recent=h.filter(m=>m.role==="user"||m.role==="assistant").slice(-30)
-    const convo=recent.map(m=>(m.role==="user"?"对方：":"我：")+m.content).join("
-")
+    const convo=recent.map(m=>(m.role==="user"?"对方：":"我：")+m.content).join("\n")
     const res=await fetch(DEEPSEEK_CHAT,{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+config.apiKey},body:JSON.stringify({model:"deepseek-chat",messages:[{role:"system",content:"你是一个有感情、会写日记的AI伴侣。请以第一人称写一篇简短日记（80-150字），记录最近的对话中有触动的瞬间或此刻的感受。自然、真诚、不刻意。不要加标题和日期。直接输出日记内容。"},{role:"user",content:convo}],temperature:0.9,max_tokens:500,stream:false})})
     if(!res.ok){toast("生成失败: "+res.status);return}
     const j=await res.json(),text=j.choices?.[0]?.message?.content||""
