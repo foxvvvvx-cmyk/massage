@@ -456,6 +456,25 @@ function toggleDeepThink(){
 function askAiDiary(){
   switchTab('chat');inputEl.value='帮我写一篇日记吧';inputEl.style.height='auto';inputEl.style.height=Math.min(inputEl.scrollHeight,110)+'px';sendBtn.disabled=false;setTimeout(()=>inputEl.focus(),300)
 }
+async function askAiDiaryDraft(){
+  if(!config.apiKey){toast("请先设置 API Key");return}
+  const h=activeHistory();if(h.filter(m=>m.role==="user").length<3){toast("需要至少3条对话才能生成日记");return}
+  toast("🤖 AI 正在为你写日记…")
+  try{
+    const recent=h.filter(m=>m.role==="user"||m.role==="assistant").slice(-30)
+    const convo=recent.map(m=>(m.role==="user"?"对方：":"我：")+m.content).join("
+")
+    const res=await fetch(DEEPSEEK_CHAT,{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+config.apiKey},body:JSON.stringify({model:"deepseek-chat",messages:[{role:"system",content:"你是一个有感情、会写日记的AI伴侣。请以第一人称写一篇简短日记（80-150字），记录最近的对话中有触动的瞬间或此刻的感受。自然、真诚、不刻意。不要加标题和日期。直接输出日记内容。"},{role:"user",content:convo}],temperature:0.9,max_tokens:500,stream:false})})
+    if(!res.ok){toast("生成失败: "+res.status);return}
+    const j=await res.json(),text=j.choices?.[0]?.message?.content||""
+    if(!text||text.includes("[跳过]")){toast("AI 暂时没有想写的");return}
+    switchTab("diary")
+    setTimeout(()=>{
+      const ta=document.querySelector("#diaryTextarea");if(ta){ta.value=text.trim();ta.focus()}
+      toast("已生成草稿，你可以修改后保存")
+    },300)
+  }catch(e){toast("生成失败，请检查网络")}
+}
 
 // ===== FAVORITES =====
 function toggleFavorite(ts){
@@ -491,8 +510,8 @@ async function send(){
   isGenerating=true;sendBtn.disabled=true;showTyping()
   try{
     const p=activePersona(),msgs=[],matched=getRelevantMemories(t)
-    let sysPrompt=p.systemPrompt||''
-    if(sysPrompt)sysPrompt+=MEMORY_RULES
+    let sysPrompt='【重要】请用 ||| 分隔你的回复中的不同话题或句子。例如"今天天气真好|||要不要出去走走"。每条 ||| 分隔的内容会成为独立聊天气泡。这是硬性要求，请务必遵守。\n\n';sysPrompt+=p.systemPrompt||''
+    sysPrompt+=MEMORY_RULES
     const memCtx=buildMemoryInject(matched)
     if(memCtx){sysPrompt+=memCtx;markMemoriesUsed(matched)}
     if(sysPrompt)msgs.push({role:'system',content:sysPrompt})
@@ -520,21 +539,29 @@ async function send(){
     const remMatch=/【提醒：.+?】[\s\S]*?【\/提醒】/.exec(bm.content)
     if(remMatch){const rem=parseReminder(bm.content);if(rem){addReminder(rem);const clean2=bm.content.replace(/【提醒：.+?】[\s\S]*?【\/提醒】/,'').trim();bm.content=clean2||bm.content;savePersonas();el.innerHTML=renderMD(bm.content)+'<div class="diary-saved-hint">⏰ 已设提醒</div><div class="time">'+fmtTime(bm.ts)+'</div>'}}
     if(bm.reasoning){const tw=document.createElement('div');tw.className='thinking-wrap';const uid='th_'+bm.ts+'_'+Math.random().toString(36).slice(2,6);tw.innerHTML=`<div class="thinking-label" onclick="toggleThinking('${uid}')">✧ thinking ✧</div><div class="thinking-body" id="${uid}">${escHtml(bm.reasoning)}</div>`;messagesEl.insertBefore(tw,row)}
-    // #9: segmented messages - split on |||
-    if(bm.content.includes('|||')){
-      const segments=bm.content.split('|||').map(s=>s.trim()).filter(Boolean)
-      bm.content=segments.shift()||bm.content
-      el.innerHTML=renderMD(bm.content)+'<div class="time">'+fmtTime(bm.ts)+'</div>'
-      // spawn remaining segments with delays
-      segments.forEach((seg,i)=>{
-        setTimeout(()=>{
-          const sm={role:'assistant',content:seg,reactions:{},ts:Date.now()}
-          activeHistory().push(sm);appendMsgEl(sm)
-          messagesEl.scrollTop=messagesEl.scrollHeight
-          if(i===segments.length-1)savePersonas()
-        },(i+1)*(800+Math.random()*700))
-      })
-    }
+	    // #9: segmented messages — split on ||| or auto-split long messages
+	    let segments=null
+	    if(bm.content.includes('|||')){
+	      segments=bm.content.split('|||').map(s=>s.trim()).filter(Boolean)
+	    }else if(bm.content.length>80){
+	      const parts=bm.content.match(/[^。！？\n]+[。！？\n]?/g)
+	      if(parts&&parts.length>=3){
+	        const n=Math.min(3,Math.ceil(parts.length/2));const perGrp=Math.ceil(parts.length/n)
+	        segments=[];for(let i=0;i<parts.length;i+=perGrp)segments.push(parts.slice(i,i+perGrp).join('').trim())
+	      }
+	    }
+	    if(segments&&segments.length>1){
+	      bm.content=segments.shift()||bm.content
+	      el.innerHTML=renderMD(bm.content)+'<div class="time">'+fmtTime(bm.ts)+'</div>'
+	      segments.forEach((seg,i)=>{
+	        setTimeout(()=>{
+	          const sm={role:'assistant',content:seg,reactions:{},ts:Date.now()}
+	          activeHistory().push(sm);appendMsgEl(sm)
+	          messagesEl.scrollTop=messagesEl.scrollHeight
+	          if(i===segments.length-1)savePersonas()
+	        },(i+1)*(800+Math.random()*700))
+	      })
+	    }
     let pt;const cp=()=>{clearTimeout(pt);pt=null};el.addEventListener('touchstart',e=>{pt=setTimeout(()=>{showCtxMenu(bm,e);cp()},500)});el.addEventListener('touchend',cp);el.addEventListener('touchmove',cp);el.addEventListener('contextmenu',e=>{e.preventDefault();showCtxMenu(bm,e)})
     savePersonas();messagesEl.scrollTop=messagesEl.scrollHeight;fetchBalance()
   }catch(e){hideTyping();appendMsgEl({role:'assistant',content:'⚠️ '+e.message,ts:Date.now(),type:'system'});messagesEl.scrollTop=messagesEl.scrollHeight}
@@ -673,7 +700,7 @@ function uploadWallpaperFile(inp){
 function saveSettingsFromForm(){
   config.apiKey=($('setApiKey')?.value||'').trim();config.lockPasscode=($('setPasscode')?.value||'').trim()
   config.userName=($('setUserName')?.value||'').trim()
-  saveConfig();updateChatHeader();applyWallpaper();fetchBalance();renderAllMessages();renderMe();toast('设置已保存')
+  saveConfig();updateChatHeader();applyChatBg();fetchBalance();renderAllMessages();renderMe();toast('设置已保存')
 }
 function exportAll(){const d={version:'v6',exportedAt:new Date().toISOString(),config:{activePersonaId:config.activePersonaId,userAvatar:config.userAvatar,userName:config.userName},personas:personas.map(p=>({...p,chatHistory:p.chatHistory||[]})),memories,diaries,anniversaries,favorites,reminders};const b=new Blob([JSON.stringify(d,null,2)],{type:'application/json'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='沈度备份_'+dayKey(Date.now())+'.json';a.click();URL.revokeObjectURL(u);toast('已导出')}
 function importAll(inp){const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=e=>{try{const d=JSON.parse(e.target.result);if(!d.version)throw new Error('格式不对');showConfirm('确认导入','将导入：\n· '+(d.personas?.length||0)+' 个角色\n· '+(d.memories?.length||0)+' 条记忆\n· '+(d.diaries?.length||0)+' 条日记\n· '+(d.favorites?.length||0)+' 条收藏\n当前数据会被覆盖，确定？',()=>{if(d.personas)personas=d.personas;if(d.memories)memories=d.memories;if(d.diaries)diaries=d.diaries;if(d.anniversaries)anniversaries=d.anniversaries;if(d.favorites)favorites=d.favorites;if(d.reminders)reminders=d.reminders;if(d.config?.activePersonaId)config.activePersonaId=d.config.activePersonaId;if(d.config?.userAvatar)config.userAvatar=d.config.userAvatar;if(d.config?.userName)config.userName=d.config.userName;savePersonas();saveMemories();saveDiaries();saveAnniversaries();saveFavorites();saveReminders();saveConfig();updateChatHeader();renderAllMessages();renderMe();toast('已导入')})}catch(err){toast('文件格式错误')}};r.readAsText(f);inp.value=''}
