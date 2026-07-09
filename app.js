@@ -30,9 +30,9 @@ let ctxTarget=null,reactTarget=null,unlocked=false,autoExtractCount=0,isExtracti
 let pendingImages=[],searchResults=[],searchIdx=-1,editTarget=null,reminderTimers={},moodRange=7,meSection='settings'
 
 const $=id=>document.getElementById(id)
-const messagesEl=$('messages'),inputEl=$('input'),sendBtn=$('sendBtn'),voiceBtn=$('voiceBtn')
+const messagesEl=$('messages'),inputEl=$('input'),sendBtn=$('sendBtn')
 const hintBox=$('hintBox'),hintTag=$('hintTag'),toastEl=$('toast')
-const drawerEl=$('drawer'),drawerOverlay=$('drawerOverlay'),personaListEl=$('personaList')
+const drawerEl=$('drawer'),drawerOverlay=$('drawerOverlay')
 const personaFormEl=$('personaForm'),personaModalOverlay=$('personaModalOverlay'),confirmModalOverlay=$('confirmModalOverlay')
 const ctxMenu=$('ctxMenu'),reactionPicker=$('reactionPicker'),lockScreen=$('lockScreen'),lockInput=$('lockInput'),lockError=$('lockError')
 
@@ -338,10 +338,11 @@ function scoreMemory(memory,keywords,now){
   return score
 }
 function getRelevantMemories(userMessage){
-  if(!memories.length)return[]
+  const myMemories=memories.filter(m=>(m.characterId||'shendu')===config.activePersonaId)
+  if(!myMemories.length)return[]
   const now=Date.now(),keywords=extractKeywords(userMessage)
   if(!keywords.length)return[]
-  return memories.map(m=>({mem:m,score:scoreMemory(m,keywords,now)})).filter(s=>s.score>=3).sort((a,b)=>b.score-a.score).slice(0,3).map(s=>s.mem)
+  return myMemories.map(m=>({mem:m,score:scoreMemory(m,keywords,now)})).filter(s=>s.score>=3).sort((a,b)=>b.score-a.score).slice(0,3).map(s=>s.mem)
 }
 function buildMemoryInject(matched){
   if(!matched||!matched.length)return ''
@@ -367,7 +368,7 @@ async function extractMemoriesFromChat(silent){
     const lines=text.split('\n').map(l=>l.trim()).filter(l=>l&&l.includes('｜')&&!l.startsWith('['))
     let added=0
     for(const line of lines){
-      const idx=line.indexOf('｜'),cat=line.slice(0,idx).trim(),fact=line.slice(idx+1).trim()
+      const parts=line.split('｜'),cat=(parts[0]||'').trim(),fact=(parts[1]||'').trim(),aiTags=(parts[2]||'').split(',').map(t=>t.trim()).filter(Boolean)
       if(!fact||fact.length<2)continue
       const exists=memories.some(m=>{const overlap=m.content.replace(/[^一-鿿]/g,''),nOverlap=fact.replace(/[^一-鿿]/g,'');if(overlap.length<2||nOverlap.length<2)return false;const shorter=overlap.length<nOverlap.length?overlap:nOverlap,longer=overlap.length>=nOverlap.length?overlap:nOverlap;return longer.includes(shorter)||shorter.includes(longer)})
       if(!exists){memories.unshift({id:Date.now()+added,content:fact,category:cat||'默认',tags:aiTags.length?aiTags:extractKeywords(fact).slice(0,3),usageCount:0,lastUsed:null,source:'auto',createdAt:Date.now(),characterId:config.activePersonaId});added++}
@@ -494,10 +495,7 @@ async function send(){
     const memCtx=buildMemoryInject(matched)
     if(memCtx){sysPrompt+=memCtx;markMemoriesUsed(matched)}
     if(sysPrompt)msgs.push({role:'system',content:sysPrompt})
-    activeHistory().slice(-24).forEach(m=>{
-      if(m.images&&m.images.length&&m.role==='user'){const parts=m.images.map(img=>({type:'image_url',image_url:{url:img.dataUrl}}));if(m.content)parts.push({type:'text',text:m.content});msgs.push({role:m.role,content:parts})}
-      else{msgs.push({role:m.role,content:m.content})}
-    })
+    activeHistory().slice(-24).forEach(m=>{msgs.push({role:m.role,content:m.content||''})})
     const useReasoner=config.deepThink||!!p.useReasoner
     const model=useReasoner?'deepseek-reasoner':(p.model||'deepseek-chat')
     const temp=matched.length>0?Math.max(0.3,(p.temperature??1.3)-0.15):(p.temperature??1.3)
@@ -686,7 +684,10 @@ function showMemoryAdd(){switchTab('memory');setTimeout(()=>{const i=document.qu
 function addMemory(){const inp=document.querySelector('#memInput');const t=inp?.value?.trim();if(!t)return;const c=document.querySelector('#memCatSelect')?.value||'默认';const tags=extractKeywords(t).slice(0,5);memories.unshift({id:Date.now(),content:t,category:c,tags,usageCount:0,lastUsed:null,source:'manual',createdAt:Date.now(),characterId:config.activePersonaId});saveMemories();if(inp)inp.value='';renderMemories()}
 function deleteMemory(id){memories=memories.filter(m=>m.id!==id);saveMemories();renderMemories()}
 function renderMemories(){
-  const c=$('memoryContent');if(!c)return;const uC=[...new Set(memories.map(m=>m.category||'默认'))]
+  const c=$('memoryContent');if(!c)return
+  const aid=config.activePersonaId
+  let f=memories.filter(m=>(m.characterId||'shendu')===aid)
+  const uC=[...new Set(f.map(m=>m.category||'默认'))]
   const kw=document.querySelector('#memSearch')?.value?.toLowerCase()||'';if(kw)f=f.filter(m=>m.content.toLowerCase().includes(kw))
   if(memCatFilter!=='all')f=f.filter(m=>(m.category||'默认')===memCatFilter)
   c.innerHTML=`<input class="mem-search" id="memSearch" placeholder="搜索记忆…" oninput="renderMemories()" value="${escHtml(document.querySelector('#memSearch')?.value||'')}"><div class="mem-cats" id="memCats"><button class="${memCatFilter==='all'?'active':''}" onclick="setMemCat('all')">全部</button>${uC.map(x=>`<button class="${memCatFilter===x?'active':''}" onclick="setMemCat('${escHtml(x)}')">${escHtml(x)}</button>`).join('')}</div><div style="display:flex;gap:6px;margin-bottom:12px"><input id="memInput" placeholder="记下点什么…" style="flex:1;background:var(--glass-light);border:1px solid var(--glass-border-strong);border-radius:var(--radius-sm);padding:8px 12px;font-size:12px;outline:none;color:var(--text);font-family:inherit" onkeydown="if(event.key==='Enter')addMemory()"><select id="memCatSelect" style="width:70px;font-size:10px;background:var(--glass-light);border:1px solid var(--glass-border-strong);border-radius:var(--radius-sm);padding:4px;outline:none;color:var(--text)"><option>默认</option><option>关于ta</option><option>约定</option><option>灵感</option><option>喜好</option></select><button onclick="addMemory()" style="background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);padding:0 14px;font-size:12px;cursor:pointer;font-family:inherit">＋</button></div><button class="mem-extract-btn" onclick="extractMemoriesFromChat(false)">🤖 从聊天中提取记忆</button><div class="mem-count-info">${memories.length} 条记忆 · ${memories.filter(m=>m.source==='auto').length} 条自动</div><div id="memList">${f.length===0?'<div class="mem-empty">'+(kw?'没找到':'写下第一条记忆吧')+'</div>':f.map(m=>`<div class="mem-item ${m.source==='auto'?'mem-auto':''}"><button class="mem-del" onclick="deleteMemory(${m.id})">✕</button><span class="mem-cat">${escHtml(m.category||'默认')}</span>${m.source==='auto'?'<span class="mem-auto-badge">🤖 自动</span>':''}<div class="mem-text">${escHtml(m.content)}</div><div class="mem-meta">${fmtDate(m.createdAt)}${m.usageCount>0?' · 引用 '+m.usageCount+' 次':''}${m.tags&&m.tags.length?' · '+m.tags.map(t=>'#'+t).join(' '):''}</div></div>`).join('')}</div>`
