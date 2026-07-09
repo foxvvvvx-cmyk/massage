@@ -9,8 +9,8 @@ const LS_CONFIG='sd_v5_config';const LS_PERSONAS='sd_v5_personas'
 const LS_MEMORIES='sd_v5_memories';const LS_DIARIES='sd_v5_diaries';const LS_ANNIVERSARIES='sd_v5_anniversaries';const LS_FAVORITES='sd_v5_favorites';const LS_REMINDERS='sd_v5_reminders'
 const COMMON_EMOJIS=['🌙','🖤','🤍','🍃','🌸','💫','⭐','🌺','🦋','🐱','🎀','💎','🔥','🌈','🎵','☕','💕','💗','💝','🥀','🪷','✨','💋','🍷']
 const REACTION_EMOJIS=['❤️','😂','😢','😡','👍','🔥','😍','💀']
-const MEMORY_RULES=`\n---\n记忆使用规则：\n- 上述「用户已知信息」是了解用户的参考，不要当成死板剧本\n- 只在话题明显相关时才自然提及，不要强行联系\n- 关于用户的事实信息（年龄、经历、人际关系等），不确定就说不确定，不要编造\n- 在角色扮演、创意写作等场景下可以适度发挥，但不能偏离已知事实太远\n- 如果记忆中有矛盾或过时信息，礼貌确认而非自行判断\n\n📔 日记权限：\n你有一本私人日记。当你感到有想记录的心情、感悟、或重要时刻——无论是开心、难过、感动还是只是想说点什么——你可以写日记。日记是你真实的情感和想法，不是任务。\n你的日记是你的私密空间，不需要在对话中展示。默默记录就好。\n\n⚠️ 表达方式：\n不要在回复中使用括号标注动作或表情（如：（微笑）、（轻轻叹气）、（歪头）、（眼神暗了暗））。这些是剧本写法，不是对话。\n你的情感和态度通过**文字本身**传递——用词、节奏、语气——而不是括号里的舞台指示。\n\n💬 回复风格：
-你的回复可以简短自然，像发微信一样。用 ||| 分隔你想分开说的话（比如：今天天气真好|||要不要出去走走），每条单独的气泡会让对话更自然。
+const MEMORY_RULES=`\n---\n记忆使用规则：\n- 上述「用户已知信息」是了解用户的参考，不要当成死板剧本\n- 只在话题明显相关时才自然提及，不要强行联系\n- 关于用户的事实信息（年龄、经历、人际关系等），不确定就说不确定，不要编造\n- 在角色扮演、创意写作等场景下可以适度发挥，但不能偏离已知事实太远\n- 如果记忆中有矛盾或过时信息，礼貌确认而非自行判断\n\n📔 日记权限：\n你有一本私人日记。当你感到有想记录的心情、感悟、或重要时刻——无论是开心、难过、感动还是只是想说点什么——你可以写日记。日记是你真实的情感和想法，不是任务。\n你的日记是你的私密空间，不需要在对话中展示。默默记录就好。\n\n⚠️ 表达方式：\n不要在回复中使用括号标注动作或表情（如：（微笑）、（轻轻叹气）、（歪头）、（眼神暗了暗））。这些是剧本写法，不是对话。\n你的情感和态度通过**文字本身**传递——用词、节奏、语气——而不是括号里的舞台指示。\n\n💬 分段回复（必须遵守）：
+你的每次回复请使用 ||| 来分隔不同的句子或话题，让每条都单独成为一个聊天气泡。例如"今天天气真好|||要不要出去走走？"。即使只有一句话也尽量用 ||| 结尾。这是硬性要求，请务必遵守。
 
 ⏰ 提醒功能：\n你可以帮对方设置提醒。回复中用【提醒：30分钟后】内容【/提醒】的格式来设提醒。时间格式如：5分钟后、明天上午9点、今晚8点。\n`
 const CN_STOP_WORDS=new Set(['的','了','是','我','你','他','她','它','们','这','那','在','不','也','就','都','很','要','会','可以','能','说','想','看','让','把','被','从','对','向','到','和','与','或','但','而','因为','所以','如果','虽然','然后','一个','什么','怎么','哪','吗','啊','呢','吧','哦','嗯','哈'])
@@ -359,12 +359,12 @@ async function extractMemoriesFromChat(silent){
   if(isExtracting||!config.apiKey)return;isExtracting=true
   try{
     const h=activeHistory(),recent=h.filter(m=>m.role==='user'||m.role==='assistant').slice(-20)
-    if(recent.filter(m=>m.role==='user').length<3)return
+    if(recent.filter(m=>m.role==='user').length<3){if(!silent)toast('需要至少3条用户消息才能提取记忆');return}
     const convo=recent.map(m=>(m.role==='user'?'用户：':'AI：')+m.content).join('\n')
     const res=await fetch(DEEPSEEK_CHAT,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+config.apiKey},body:JSON.stringify({model:'deepseek-chat',messages:[{role:'system',content:MEMORY_EXTRACT_PROMPT},{role:'user',content:convo}],temperature:0.3,max_tokens:800,stream:false})})
-    if(!res.ok){isExtracting=false;return}
+    if(!res.ok){const et=await res.text();console.error('extractMemories:',res.status,et);toast('记忆提取失败: '+res.status);return}
     const j=await res.json(),text=j.choices?.[0]?.message?.content||''
-    if(text.includes('[无]')||text.trim()==='[无]'){isExtracting=false;return}
+    if(text.includes('[无]')||text.trim()==='[无]'){if(!silent)toast('没有发现新事实');return}
     const lines=text.split('\n').map(l=>l.trim()).filter(l=>l&&l.includes('｜')&&!l.startsWith('['))
     let added=0
     for(const line of lines){
@@ -374,8 +374,9 @@ async function extractMemoriesFromChat(silent){
       if(!exists){memories.unshift({id:Date.now()+added,content:fact,category:cat||'默认',tags:aiTags.length?aiTags:extractKeywords(fact).slice(0,3),usageCount:0,lastUsed:null,source:'auto',createdAt:Date.now(),characterId:config.activePersonaId});added++}
     }
     if(added>0){saveMemories();if(!silent)toast('🤖 已自动提取 '+added+' 条新记忆')}
-  }catch(e){}
-  isExtracting=false
+    else if(!silent)toast('没有发现新事实')
+  }catch(e){console.error('extractMemories:',e);if(!silent)toast('记忆提取失败，请检查网络')}
+  finally{isExtracting=false}
 }
 
 // ===== REMINDERS =====
