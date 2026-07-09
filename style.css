@@ -439,5 +439,9 @@ button{-webkit-tap-highlight-color:transparent}
 .edit-overlay .edit-actions .ea-send{background:var(--accent);color:#fff}
 
 /* ===== Camera Button ===== */
-.camera-btn{width:38px;height:38px;border-radius:50%;border:none;background:transparent;font-size:20px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:var(--motion-fast);color:var(--text-muted)}
-.camera-btn:active{background:var(--glass-sheer);transform:scale(.92)}
+.plus-btn{width:36px;height:36px;border-radius:50%;border:1px solid var(--glass-border);background:var(--glass-light);font-size:20px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:var(--motion-fast);color:var(--text-soft)}
+.plus-btn:active{background:var(--glass-mid);transform:scale(.92)}
+.plus-panel{position:absolute;bottom:60px;left:10px;z-index:20;display:none;flex-direction:column;gap:2px;padding:6px;background:var(--glass-strong);border:1px solid var(--glass-border);border-radius:var(--radius);backdrop-filter:blur(30px);-webkit-backdrop-filter:blur(30px);box-shadow:0 4px 24px rgba(0,0,0,.15);animation:msgPop .2s var(--ease-soft)}
+.plus-panel.show{display:flex}
+.plus-panel button{display:flex;align-items:center;gap:8px;padding:10px 16px;border:none;background:transparent;color:var(--text);font-size:13px;cursor:pointer;font-family:inherit;border-radius:var(--radius-sm);white-space:nowrap}
+.plus-panel button:active{background:var(--glass-light)}

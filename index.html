@@ -13,7 +13,7 @@
 <link href="https://cdn.jsdelivr.net/npm/@fontsource/cormorant-garamond@5/500.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/@fontsource/noto-serif-sc@5/400.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/@fontsource/noto-serif-sc@5/500.min.css" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=11">
+<link rel="stylesheet" href="style.css?v=12">
 </head>
 <body>
 
@@ -63,9 +63,12 @@
       <div class="composer-inner">
         <input type="file" id="imageInput" accept="image/*" multiple style="display:none" onchange="attachImage(this)">
         <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none" onchange="attachImage(this)">
-        <button class="btn-icon camera-btn" id="cameraBtn" onclick="document.getElementById('cameraInput').click()" title="拍照">📷</button>
-        <button class="btn-icon attach-btn" id="attachBtn" onclick="document.getElementById('imageInput').click()" title="发送图片">📎</button>
-        <button class="btn-icon voice-btn" id="voiceBtn" onclick="toggleVoice()">🎤</button>
+        <button class="btn-icon plus-btn" id="plusBtn" onclick="togglePlusPanel()">＋</button>
+        <div class="plus-panel" id="plusPanel">
+          <button onclick="document.getElementById('cameraInput').click();togglePlusPanel()">📷 拍照</button>
+          <button onclick="document.getElementById('imageInput').click();togglePlusPanel()">🖼️ 相册</button>
+          <button onclick="toggleVoice();togglePlusPanel()">🎤 语音</button>
+        </div>
         <div class="field-wrap"><textarea id="input" rows="1" placeholder="说点什么…" enterkeyhint="send"></textarea></div>
         <button class="btn-send" id="sendBtn" onclick="send()" disabled>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
@@ -73,7 +76,7 @@
       </div>
     </div>
   </section>
-  <section class="page" id="page-diary"><header class="topbar"><button class="btn-icon" onclick="switchTab('chat')">←</button><span class="topbar-title">日记</span><button class="btn-icon" id="diaryAiBtn" onclick="askAiDiary()">🤖</button><button class="btn-icon" onclick="showDiaryAdd()">＋</button></header><div class="page-content" id="diaryContent"></div></section>
+  <section class="page" id="page-diary"><header class="topbar"><button class="btn-icon" onclick="switchTab('chat')">←</button><span class="topbar-title">日记</span><button class="btn-icon" id="diaryAiBtn" onclick="askAiDiaryDraft()">🤖</button><button class="btn-icon" onclick="showDiaryAdd()">＋</button></header><div class="page-content" id="diaryContent"></div></section>
   <section class="page" id="page-memory"><header class="topbar"><button class="btn-icon" onclick="switchTab('chat')">←</button><span class="topbar-title">记忆</span><button class="btn-icon" onclick="showMemoryAdd()">＋</button></header><div class="page-content" id="memoryContent"></div></section>
   <section class="page" id="page-me"><header class="topbar"><button class="btn-icon" onclick="switchTab('chat')">←</button><span class="topbar-title">设置</span><span style="width:36px"></span></header><div class="page-content" id="meContent"></div></section>
 </div>
@@ -127,6 +130,6 @@
   </div>
 </div>
 
-<script src="app.js?v=11"></script>
+<script src="app.js?v=12"></script>
 </body>
 </html>
