@@ -146,7 +146,11 @@ async function handleToyCmd(msg, ws) {
     switch (cmd) {
       case 'vibrate':
         console.log('[玩具] 振动', Math.round(intensity * 100) + '%', duration ? duration + 'ms' : '');
-        await vibrator.vibrate(intensity);
+        // Try both API versions
+        if(typeof vibrator.SendVibrateCmd==='function'){await vibrator.SendVibrateCmd(intensity)}
+        else if(typeof vibrator.vibrate==='function'){await vibrator.vibrate(intensity)}
+        else if(typeof vibrator.ScalarCmd==='function'){await vibrator.ScalarCmd(intensity,'Vibrate')}
+        else{console.log('[玩具] 无可用振动API');ws.send(JSON.stringify({type:'toy-error',message:'设备不支持振动API'}));return}
         ws.send(JSON.stringify({ type: 'toy-result', cmd: 'vibrate', success: true }));
         if (duration > 0) {
           stopTimer = setTimeout(async () => {
@@ -157,17 +161,21 @@ async function handleToyCmd(msg, ws) {
         break;
       case 'stop':
         console.log('[玩具] 停止');
-        await vibrator.stop();
+        if(typeof vibrator.SendStopDeviceCmd==='function'){await vibrator.SendStopDeviceCmd()}
+        else if(typeof vibrator.stop==='function'){await vibrator.stop()}
         ws.send(JSON.stringify({ type: 'toy-result', cmd: 'stop', success: true }));
         break;
       case 'pulse':
         console.log('[玩具] 脉冲', Math.round(intensity * 100) + '%');
+        const vibFn=typeof vibrator.SendVibrateCmd==='function'?vibrator.SendVibrateCmd.bind(vibrator):typeof vibrator.vibrate==='function'?vibrator.vibrate.bind(vibrator):null
+        const stopFn=typeof vibrator.SendStopDeviceCmd==='function'?vibrator.SendStopDeviceCmd.bind(vibrator):typeof vibrator.stop==='function'?vibrator.stop.bind(vibrator):null
+        if(!vibFn){ws.send(JSON.stringify({type:'toy-error',message:'无振动API'}));return}
         for (let i = 0; i < 8; i++) {
           if (!bpConnected || !deviceReady) break;
-          await vibrator.vibrate(i % 2 === 0 ? intensity : 0);
+          await vibFn(i % 2 === 0 ? intensity : 0);
           await sleep(duration || 300);
         }
-        await vibrator.stop();
+        if(stopFn)await stopFn();
         ws.send(JSON.stringify({ type: 'toy-result', cmd: 'pulse', success: true }));
         break;
     }

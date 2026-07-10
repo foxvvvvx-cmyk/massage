@@ -51,8 +51,9 @@ function initToy(){
   }catch(e){}
 }
 function sendToyCommand(cmd,intensity,duration){
-  if(!toyWs||toyWs.readyState!==WebSocket.OPEN)return
-  toyWs.send(JSON.stringify({type:'toy-cmd',cmd:cmd,intensity:intensity||0.5,duration:duration||0}))
+  if(!toyWs||toyWs.readyState!==1){console.log('[玩具] 发送失败: WebSocket未连接',toyWs?toyWs.readyState:'null');return}
+  const msg=JSON.stringify({type:'toy-cmd',cmd:cmd,intensity:intensity||0.5,duration:duration||0})
+  console.log('[玩具] 发送:',msg);toyWs.send(msg)
 }
 function parseToyMarkers(text){
   var re=/\[TOY:([^\]]+)\]/gi;var m;var found=false
@@ -67,14 +68,15 @@ function parseToyMarkers(text){
 function updateToyUI(){
   var el=document.getElementById('toyIndicator')
   if(!el)return
-  if(toyReady){el.className='toy-indicator on';el.title='玩具已连接: '+toyDevice;el.innerHTML='<span class="toy-dot"></span>🔌'}
-  else if(isLocalMode){el.className='toy-indicator';el.title='玩具未连接';el.innerHTML='<span class="toy-dot off"></span>🔌'}
+  if(toyReady){el.style.display='flex';el.className='toy-indicator on';el.title='玩具已连接: '+toyDevice;el.innerHTML='<span class="toy-dot"></span>'}
+  else if(isLocalMode){el.style.display='flex';el.className='toy-indicator';el.title='玩具未连接 · 需要 Intiface Central';el.innerHTML='<span class="toy-dot off"></span>'}
   else{el.style.display='none'}
 }
 // 在 send() 中注入玩具系统提示词
 function getToyPrompt(){
   if(!isLocalMode)return''
-  return'\n🔌 玩具控制：\n你连接了一个蓝牙震动玩具。回复中可使用以下标记来控制（标记会自动隐藏）：\n[TOY:v:强度0-100:持续毫秒] - 持续震动，如[TOY:v:50:3000]=半强度3秒，持续0=无限\n[TOY:p:强度0-100:间隔毫秒] - 脉冲震动\n[TOY:stop] - 停止\n请根据对话情境自然、适时地使用。对方说"试一下""用一下"等暗示时主动响应。\n'
+  if(toyReady){return'\n🔌 玩具控制（已连接：'+toyDevice+'）：\n你已连接蓝牙震动玩具，状态正常。回复中可使用：[TOY:v:强度0-100:持续毫秒] - 持续震动 / [TOY:p:强度0-100:间隔毫秒] - 脉冲 / [TOY:stop] - 停止\n强度建议：轻20-30 中40-60 强70-90。对方暗示"试试""用一下""震"时主动响应。\n'}
+  return'\n🔌 玩具状态：未连接。不要在回复中使用任何[TOY:...]标记。如果对方提到玩具相关话题，告诉对方玩具还没连上。\n'
 }
 
 const $=id=>document.getElementById(id)
@@ -340,6 +342,7 @@ function renderDrawerPanel(){
     <div class="drawer-menu-item" onclick="meSection='reminders';closeDrawer();switchTab('me')"><span class="dm-icon">⏰</span><span class="dm-label">提醒</span>${remCount?`<span class="dm-badge">${remCount}</span>`:''}<span class="dm-arrow">›</span></div>
     <div class="drawer-menu-item" onclick="meSection='dash';closeDrawer();switchTab('me')"><span class="dm-icon">📊</span><span class="dm-label">数据看板</span><span class="dm-arrow">›</span></div>
     <div class="drawer-menu-item" onclick="meSection='settings';closeDrawer();switchTab('me')"><span class="dm-icon">⚙</span><span class="dm-label">更多设置</span><span class="dm-arrow">›</span></div>
+    ${isLocalMode?`<div class="drawer-menu-item" onclick="sendToyCommand('vibrate',0.3,2000);toast('已发送测试震动')"><span class="dm-icon">🔌</span><span class="dm-label">测试玩具（轻震2秒）</span><span class="dm-arrow">›</span></div>`:''}
     <div class="drawer-menu-item" onclick="installPWA()"><span class="dm-icon">📲</span><span class="dm-label">安装到手机</span><span class="dm-arrow">›</span></div>
     <div class="drawer-divider"></div>
     <div class="drawer-section"><div class="ds-label">主题</div><div class="persona-row">${[{id:'abyss',name:'玫瑰',icon:'🌹'},{id:'dark',name:'暗夜',icon:'🌙'},{id:'matcha',name:'抹茶',icon:'🍵'},{id:'lavender',name:'薰衣草',icon:'💜'},{id:'ocean',name:'海洋',icon:'🌊'},{id:'noir',name:'极黑',icon:'🖤'}].map(t=>`<div class="persona-chip ${config.theme===t.id?'active':''}" onclick="setTheme('${t.id}');renderDrawerPanel()"><div class="pc-avatar">${t.icon}</div><div class="pc-name">${t.name}</div></div>`).join('')}</div></div>
@@ -876,13 +879,13 @@ async function send(){
       if(bm.reasoning.length<10&&bm.content){bm.content=bm.reasoning+'\n'+bm.content;bm.reasoning=''}
     }
     el.innerHTML=renderMD(bm.content)+'<div class="time">'+fmtTime(bm.ts)+'</div>'
-    if(isLocalMode)parseToyMarkers(bm.content)
+    if(isLocalMode){parseToyMarkers(bm.content);if(bm.reasoning)parseToyMarkers(bm.reasoning)}
     // detect reminder markers
     const remMatch=/【提醒：.+?】[\s\S]*?【\/提醒】/.exec(bm.content)
     if(remMatch){const rem=parseReminder(bm.content);if(rem){addReminder(rem);const clean2=bm.content.replace(/【提醒：.+?】[\s\S]*?【\/提醒】/,'').trim();bm.content=clean2||bm.content;savePersonas();el.innerHTML=renderMD(bm.content)+'<div class="diary-saved-hint">⏰ 已设提醒</div><div class="time">'+fmtTime(bm.ts)+'</div>'}}
     if(bm.reasoning){const uid='th_'+bm.ts+'_'+Math.random().toString(36).slice(2,6);const tw=document.createElement('div');tw.className='thinking-wrap';tw.innerHTML=`<div class="thinking-label" id="${uid}_label" onclick="toggleThinking('${uid}')">Thinking ▸</div><div class="thinking-body" id="${uid}">${renderMD(bm.reasoning)}</div>`;messagesEl.insertBefore(tw,row)}
 	    // #9: segmented messages — split on ||| or auto-split long messages
-	    if(isLocalMode)parseToyMarkers(bm.content)
+	    if(isLocalMode){parseToyMarkers(bm.content);if(bm.reasoning)parseToyMarkers(bm.reasoning)}
 	    let segments=null
 	    if(bm.content.includes('|||')){
 	      segments=bm.content.split('|||').map(s=>s.trim()).filter(Boolean)

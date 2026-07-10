@@ -465,10 +465,10 @@ button{-webkit-tap-highlight-color:transparent}
 
 
 /* ===== Toy Indicator ===== */
-.toy-indicator{font-size:12px;cursor:default;gap:5px}
-.toy-indicator.on .toy-dot{background:#e898a8;box-shadow:0 0 6px rgba(232,152,168,.6)}
-.toy-dot{width:5px;height:5px;border-radius:50%;background:#888;display:inline-block;flex-shrink:0;transition:.3s}
-.toy-dot.off{background:#666;box-shadow:none}
+.toy-indicator{font-size:12px;cursor:default;gap:5px;display:inline-flex;align-items:center;margin-left:auto;margin-right:8px}
+.toy-indicator.on .toy-dot{background:#6d8;box-shadow:0 0 6px rgba(100,220,140,.6)}
+.toy-dot{width:6px;height:6px;border-radius:50%;background:#888;display:inline-block;flex-shrink:0;transition:.3s}
+.toy-dot.off{background:#888;box-shadow:none}
 
 /* ===== THEMES ===== */
 [data-theme="abyss"]{/* default warm rose — already in :root */}
