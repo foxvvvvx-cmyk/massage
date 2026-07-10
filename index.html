@@ -49,6 +49,7 @@
       <div class="topbar-actions"><button class="btn-icon" onclick="toggleSearch()" title="搜索">🔍</button></div>
     </header>
     <div class="search-wrap" id="searchWrap"><input id="searchInput" placeholder="搜索聊天记录…" oninput="searchMessages()"><span class="search-info" id="searchInfo"></span><button class="search-close" onclick="toggleSearch()">✕</button></div>
+    <div class="mood-bar" id="moodBar" style="display:none"><span class="mood-item" onclick="openDrawer()"><span class="mood-dot cool" id="moodDot"></span><span id="moodText">温柔</span></span><span class="mood-item" id="jealousyMood" style="display:none" onclick="openDrawer()">🍋 <span id="jealousyLabel">醋意 50%</span></span><span class="mood-item" id="milestoneMood" style="display:none" onclick="openDrawer()">🎉 <span id="milestoneText"></span></span></div>
     <div class="scroll" id="messages"><button class="scroll-bottom-btn" id="scrollBottomBtn" onclick="messagesEl.scrollTop=messagesEl.scrollHeight" title="回到底部">↓</button>
       <div class="hint" id="hintBox">
         <div class="hint-avatar">🌙</div>
@@ -139,6 +140,6 @@
   </div>
 </div>
 
-<script src="app.js?v=25"></script>
+<script src="app.js?v=27"></script>
 </body>
 </html>

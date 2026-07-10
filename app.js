@@ -298,7 +298,7 @@ function unlock(){
   if(lockInput.value===config.lockPasscode){unlocked=true;lockScreen.classList.remove('active');afterUnlock()}
   else{lockError.style.display='block';lockInput.value='';setTimeout(()=>lockError.style.display='none',1500)}
 }
-function afterUnlock(){var loadingEl=document.getElementById('initLoading');if(loadingEl)loadingEl.style.display='none';applyTheme();updateChatHeader();if(hintBox)hintBox.querySelector('.hint-greeting').textContent=getGreeting();renderAllMessages();if(getActiveApiKey())fetchBalance();applyChatBg();applyFontSize();updateStatusBar();updateThinkToggle();restoreReminders();if(isDesktop()){renderDrawerPanel();drawerEl.style.transform='none'};startIdleGreeting()}
+function afterUnlock(){var loadingEl=document.getElementById('initLoading');if(loadingEl)loadingEl.style.display='none';applyTheme();checkAutoNight();updateChatHeader();updateMoodBar();if(hintBox)hintBox.querySelector('.hint-greeting').textContent=getGreeting();renderAllMessages();if(getActiveApiKey())fetchBalance();applyChatBg();applyFontSize();updateStatusBar();updateThinkToggle();restoreReminders();checkMilestones();if(isDesktop()){renderDrawerPanel();drawerEl.style.transform='none'};startIdleGreeting()}
 function applyFontSize(){
   const sizes={s:'13px',m:'15px',l:'17px'};document.documentElement.style.setProperty('--msg-font',sizes[config.fontSize]||'15px')
 }
@@ -324,50 +324,25 @@ function openDrawer(){renderDrawerPanel();if(!isDesktop()){drawerEl.classList.ad
 function closeDrawer(){if(!isDesktop()){drawerEl.classList.remove('open');drawerOverlay.classList.remove('open')}}
 function renderDrawerPanel(){
   const dp=$('drawerPanel');if(!dp)return
-  const p=activePersona()
-  const favCount=favorites.length,remCount=reminders.filter(r=>r.triggerAt>Date.now()).length
+  const p=activePersona();const favCount=favorites.length,remCount=reminders.filter(r=>r.triggerAt>Date.now()).length
   const hasKey=!!getActiveApiKey(),prov=config.apiProvider||'deepseek'
-  let keyInputHTML=''
+  let keyHTML=''
   if(!hasKey){
-    if(prov==='openrouter'){
-      keyInputHTML=`<div style="padding:4px 8px 8px"><input id="drawerApiKey" type="password" value="${escHtml(config.openrouterKey||'')}" placeholder="输入 OpenRouter API Key（sk-or-...）" style="width:100%;background:var(--glass-light);border:1px solid var(--glass-border-strong);border-radius:var(--radius-sm);padding:8px 10px;font-size:11px;outline:none;color:var(--text);font-family:inherit" onchange="config.openrouterKey=this.value.trim();saveConfig();updateChatHeader();fetchBalance()"><div style="font-size:9px;color:var(--text-muted);margin-top:3px;text-align:center">粘贴后自动保存 · <a href="https://openrouter.ai/keys" target="_blank">获取 Key</a></div></div><div class="drawer-divider"></div>`
-    }else if(prov==='custom'){
-      keyInputHTML=`<div style="padding:4px 8px 8px"><input id="drawerApiKey" type="password" value="${escHtml(config.customApiKey||'')}" placeholder="输入自定义 API Key" style="width:100%;background:var(--glass-light);border:1px solid var(--glass-border-strong);border-radius:var(--radius-sm);padding:8px 10px;font-size:11px;outline:none;color:var(--text);font-family:inherit" onchange="config.customApiKey=this.value.trim();saveConfig();updateChatHeader();fetchBalance()"><div style="font-size:9px;color:var(--text-muted);margin-top:3px;text-align:center">粘贴后自动保存</div></div><div class="drawer-divider"></div>`
-    }else{
-      keyInputHTML=`<div style="padding:4px 8px 8px"><input id="drawerApiKey" type="password" value="${escHtml(config.apiKey||'')}" placeholder="输入 DeepSeek API Key（sk-...）" style="width:100%;background:var(--glass-light);border:1px solid var(--glass-border-strong);border-radius:var(--radius-sm);padding:8px 10px;font-size:11px;outline:none;color:var(--text);font-family:inherit" onchange="config.apiKey=this.value.trim();saveConfig();updateChatHeader();fetchBalance()"><div style="font-size:9px;color:var(--text-muted);margin-top:3px;text-align:center">粘贴后自动保存 · <a href="https://platform.deepseek.com/api_keys" target="_blank">获取 Key</a></div></div><div class="drawer-divider"></div>`
-    }
+    const phs={deepseek:'DeepSeek API Key（sk-...）',openrouter:'OpenRouter API Key（sk-or-...）',custom:'自定义 API Key'}
+    const links={deepseek:'https://platform.deepseek.com/api_keys',openrouter:'https://openrouter.ai/keys',custom:''}
+    keyHTML='<div style="padding:4px 8px 8px"><input id="drawerApiKey" type="password" value="'+escHtml(prov==='openrouter'?config.openrouterKey:prov==='custom'?config.customApiKey:config.apiKey||'')+'" placeholder="'+phs[prov]+'" style="width:100%;background:var(--glass-light);border:1px solid var(--glass-border-strong);border-radius:var(--radius-sm);padding:8px 10px;font-size:11px;outline:none;color:var(--text);font-family:inherit" onchange="var v=this.value.trim();if(config.apiProvider===\x27openrouter\x27)config.openrouterKey=v;else if(config.apiProvider===\x27custom\x27)config.customApiKey=v;else config.apiKey=v;saveConfig();updateChatHeader();fetchBalance()"><div style="font-size:9px;color:var(--text-muted);margin-top:3px;text-align:center">粘贴后自动保存'+(links[prov]?' · <a href="'+links[prov]+'" target="_blank">获取 Key</a>':'')+'</div></div><div class="drawer-divider"></div>'
   }
-  dp.innerHTML=`
-    ${keyInputHTML}
-    <div class="drawer-section">
-      <div class="ds-label">角色切换</div>
-      <div class="persona-row">
-        ${personas.map(pp=>`<div class="persona-chip ${pp.id===config.activePersonaId?'active':''}" onclick="switchPersona('${pp.id}')"><div class="pc-avatar">${avatarHTML(pp.avatar)}</div><div class="pc-name">${escHtml(pp.name)}</div></div>`).join('')}
-        <div class="persona-chip" onclick="newPersona()" style="opacity:.6"><div class="pc-avatar" style="font-size:14px;border-style:dashed">＋</div><div class="pc-name">新建</div></div>
-      </div>
-    </div>
-    <div class="drawer-divider"></div>
-    <div class="drawer-menu-item" onclick="toggleDeepThink();renderDrawerPanel()"><span class="dm-icon">💭</span><span class="dm-label">深度思考</span><span class="dm-badge">${config.deepThink?'R1':'V3'}</span></div>
-    <div class="drawer-divider"></div>
-    <div class="drawer-menu-item" onclick="closeDrawer();switchTab('diary')"><span class="dm-icon">📔</span><span class="dm-label">日记</span><span class="dm-arrow">›</span></div>
-    <div class="drawer-menu-item" onclick="closeDrawer();switchTab('memory')"><span class="dm-icon">🗂</span><span class="dm-label">记忆</span><span class="dm-arrow">›</span></div>
-    <div class="drawer-menu-item" onclick="closeDrawer();toggleSearch()"><span class="dm-icon">🔍</span><span class="dm-label">搜索消息</span><span class="dm-arrow">›</span></div>
-    <div class="drawer-divider"></div>
-    <div class="drawer-menu-item" onclick="meSection='favs';closeDrawer();switchTab('me')"><span class="dm-icon">⭐</span><span class="dm-label">收藏夹</span>${favCount?`<span class="dm-badge">${favCount}</span>`:''}<span class="dm-arrow">›</span></div>
-    <div class="drawer-menu-item" onclick="meSection='bookmarks';closeDrawer();switchTab('me')"><span class="dm-icon">🔖</span><span class="dm-label">书签</span>${bookmarks.length?`<span class="dm-badge">${bookmarks.length}</span>`:''}<span class="dm-arrow">›</span></div>
-    <div class="drawer-menu-item" onclick="closeDrawer();switchTab('moments');renderMoments()"><span class="dm-icon">📱</span><span class="dm-label">朋友圈</span>${moments.length?`<span class="dm-badge">${moments.length}</span>`:''}<span class="dm-arrow">›</span></div>
-    <div class="drawer-menu-item" onclick="meSection='reminders';closeDrawer();switchTab('me')"><span class="dm-icon">⏰</span><span class="dm-label">提醒</span>${remCount?`<span class="dm-badge">${remCount}</span>`:''}<span class="dm-arrow">›</span></div>
-    <div class="drawer-menu-item" onclick="meSection='dash';closeDrawer();switchTab('me')"><span class="dm-icon">📊</span><span class="dm-label">数据看板</span><span class="dm-arrow">›</span></div>
-    <div class="drawer-menu-item" onclick="meSection='settings';closeDrawer();switchTab('me')"><span class="dm-icon">⚙</span><span class="dm-label">更多设置</span><span class="dm-arrow">›</span></div>
-    <div class="drawer-divider"></div>
-    <div class="drawer-menu-item" onclick="createGroupRoom()"><span class="dm-icon">👥</span><span class="dm-label">新建群聊</span><span class="dm-arrow">›</span></div>
-    ${rooms.map(r=>`<div class="drawer-menu-item" onclick="openGroupRoom('${r.id}')"><span class="dm-icon">💬</span><span class="dm-label">${escHtml(r.name)}</span><span class="dm-badge">${r.messages.length}</span></div>`).join('')}
-    <div class="drawer-divider"></div>
-    ${isLocalMode?`<div class="drawer-menu-item" onclick="sendToyCommand('vibrate',0.3,2000);toast('已发送测试震动')"><span class="dm-icon">🔌</span><span class="dm-label">测试玩具（轻震2秒）</span><span class="dm-arrow">›</span></div>`:''}
-    <div class="drawer-menu-item" onclick="installPWA()"><span class="dm-icon">📲</span><span class="dm-label">安装到手机</span><span class="dm-arrow">›</span></div>
-    <div class="drawer-divider"></div>
-    <div class="drawer-section"><div class="ds-label">主题</div><div class="persona-row">${[{id:'abyss',name:'玫瑰',icon:'🌹'},{id:'dark',name:'暗夜',icon:'🌙'},{id:'matcha',name:'抹茶',icon:'🍵'},{id:'lavender',name:'薰衣草',icon:'💜'},{id:'ocean',name:'海洋',icon:'🌊'},{id:'noir',name:'极黑',icon:'🖤'}].map(t=>`<div class="persona-chip ${config.theme===t.id?'active':''}" onclick="setTheme('${t.id}');renderDrawerPanel()"><div class="pc-avatar">${t.icon}</div><div class="pc-name">${t.name}</div></div>`).join('')}</div></div>
-  `
+  const q=String.fromCharCode(39) // single quote for JS in HTML attrs
+  const I=(icon,label,click,badge)=>'<div class="drawer-menu-item" onclick="'+escHtml(click)+'"><span class="dm-icon">'+icon+'</span><span class="dm-label">'+label+'</span>'+(badge?'<span class="dm-badge">'+badge+'</span>':'')+'<span class="dm-arrow">›</span></div>'
+  const S=(title,icon,content)=>{const id='sec_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);return'<div class="drawer-section"><div class="ds-label" onclick="var e=document.getElementById(\x27'+id+'\x27);e.classList.toggle(\x27open\x27);this.classList.toggle(\x27collapsed\x27)" style="cursor:pointer;display:flex;align-items:center;gap:4px"><span style="font-size:8px;transition:.2s;display:inline-block" class="sec-arrow">▼</span> '+icon+' '+title+'</div><div class="sec-body" id="'+id+'">'+content+'</div></div><div class="drawer-divider"></div>'}
+  dp.innerHTML=keyHTML+
+    '<div class="drawer-section"><div class="persona-row" style="margin-bottom:4px">'+personas.map(pp=>'<div class="persona-chip '+(pp.id===config.activePersonaId?'active':'')+'" onclick="switchPersona(\x27'+pp.id+'\x27)"><div class="pc-avatar">'+avatarHTML(pp.avatar)+'</div><div class="pc-name">'+escHtml(pp.name)+'</div></div>').join('')+'<div class="persona-chip" onclick="newPersona()" style="opacity:.6"><div class="pc-avatar" style="font-size:14px;border-style:dashed">＋</div><div class="pc-name">新建</div></div></div></div>'+
+    S('日常','📔',I('📔','日记','closeDrawer();switchTab(\x27diary\x27)')+I('🗂','记忆','closeDrawer();switchTab(\x27memory\x27)')+I('🔍','搜索','closeDrawer();toggleSearch()')+I('💭','深度思考','toggleDeepThink();renderDrawerPanel()',config.deepThink?'R1':'V3'))+
+    S('社交','👥',I('💬','新建群聊','addGroupRoomMembers()')+rooms.map(r=>I('','　'+escHtml(r.name),'openGroupRoom(\x27'+r.id+'\x27)',r.messages.length)).join('')+I('📱','朋友圈','closeDrawer();switchTab(\x27moments\x27);renderMoments()',moments.length))+
+    S('收藏','⭐',I('⭐','收藏夹','meSection=\x27favs\x27;closeDrawer();switchTab(\x27me\x27)',favCount)+I('🔖','书签','meSection=\x27bookmarks\x27;closeDrawer();switchTab(\x27me\x27)',bookmarks.length)+I('⏰','提醒','meSection=\x27reminders\x27;closeDrawer();switchTab(\x27me\x27)',remCount))+
+    S('数据','📊',I('📊','数据看板','meSection=\x27dash\x27;closeDrawer();switchTab(\x27me\x27)')+I('⚙','设置','meSection=\x27settings\x27;closeDrawer();switchTab(\x27me\x27)'))+
+    '<div class="drawer-section"><div class="ds-label">主题</div><div class="persona-row">'+[{id:'abyss',name:'玫瑰',icon:'🌹'},{id:'dark',name:'暗夜',icon:'🌙'},{id:'matcha',name:'抹茶',icon:'🍵'},{id:'lavender',name:'薰衣草',icon:'💜'},{id:'ocean',name:'海洋',icon:'🌊'},{id:'noir',name:'极黑',icon:'🖤'}].map(t=>'<div class="persona-chip '+(config.theme===t.id?'active':'')+'" onclick="setTheme(\x27'+t.id+'\x27);renderDrawerPanel()"><div class="pc-avatar">'+t.icon+'</div><div class="pc-name">'+t.name+'</div></div>').join('')+'</div></div>'+
+    (isLocalMode?I('🔌','测试玩具','sendToyCommand(\x27vibrate\x27,0.3,2000);toast(\x27已发送测试震动\x27)')+I('📲','安装','installPWA()'):I('📲','安装到手机','installPWA()'))
 }
 function switchPersona(id){if(id===config.activePersonaId){closeDrawer();return};config.activePersonaId=id;saveConfig();closeDrawer();updateChatHeader();renderAllMessages();const np=activePersona();toast('💫 '+np.name+' · '+np.description)}
 function newPersona(){editPersonaId=null;renderPersonaForm({name:'',avatar:'✨',description:'',systemPrompt:'',model:'deepseek-chat',temperature:1.3,topP:0.9,useReasoner:false});personaModalOverlay.classList.add('show')}
@@ -419,6 +394,68 @@ function updateThinkToggle(){
 
 function getGreeting(){const h=new Date().getHours();if(h<6)return '夜深了 🌙';if(h<9)return '早安 ☀️';if(h<12)return '上午好 🌤';if(h<14)return '中午好 🌻';if(h<18)return '下午好 🍃';if(h<21)return '傍晚好 🌅';return '晚上好 🌙'}
 
+// ===== MOOD BAR + NIGHT AUTO + MILESTONES =====
+function updateMoodBar(){
+  const bar=$('moodBar');if(!bar)return
+  bar.style.display='flex'
+  // Mood estimation
+  const h=activeHistory(),recent=h.slice(-5).filter(m=>m.role==='user'||m.role==='assistant')
+  const moods=['温柔','开心','平静','担忧','撒娇','吃醋中'],moodIcons=['cool','warm','cool','warm','warm','hot']
+  let moodIdx=0;if(recent.length){const last=recent[recent.length-1];if(/爱|喜欢|想|抱|吻|亲/.test(last.content||''))moodIdx=1;else if(/担心|怕|不安|难过|哭/.test(last.content||''))moodIdx=3;else if(/吃醋|别人|他|她|TA/.test(last.content||''))moodIdx=5}
+  const mood=moods[moodIdx];$('moodDot').className='mood-dot '+moodIcons[moodIdx];$('moodText').textContent=mood
+  // Jealousy
+  const jEl=$('jealousyMood'),jLabel=$('jealousyLabel')
+  if(config.jealousyLevel>0){jEl.style.display='flex';const level=config.jealousyLevel||50;jLabel.textContent='醋意 '+level+'%'}
+  else{jEl.style.display='none'}
+  // Milestone
+  updateMilestoneUI()
+}
+function updateMilestoneUI(){
+  const mEl=$('milestoneMood'),mText=$('milestoneText');if(!mEl||!mText)return
+  const ms=getCurrentMilestone();if(ms){mEl.style.display='flex';mText.textContent=ms}else{mEl.style.display='none'}
+}
+function getCurrentMilestone(){
+  const allMsgs=[];personas.forEach(p=>{if(p.chatHistory)allMsgs.push(...p.chatHistory)})
+  const total=allMsgs.filter(m=>m.role==='user'||m.role==='assistant')
+  if(!total.length)return null
+  const days=Math.max(1,Math.ceil((Date.now()-total[0].ts)/86400000))
+  const msgs=total.length
+  const milestones=[]
+  if(days>=365)milestones.push(days+'天')
+  else if(days>=100&&days%100<3)milestones.push(days+'天')
+  else if(days===30||days===60||days===90)milestones.push(days+'天')
+  if(msgs>=10000)milestones.push('一万条消息')
+  else if(msgs>=1000&&msgs%1000<50)milestones.push(msgs+'条消息')
+  if(milestones.length)return'在一起 '+milestones[0]
+  return null
+}
+function checkMilestones(){
+  const ms=getCurrentMilestone();if(ms){updateMilestoneUI();updateMoodBar()}
+}
+function checkAutoNight(){
+  if(config.themeAutoNight===false)return
+  const h=new Date().getHours()
+  const shouldDark=h<6||h>=19
+  const currentDark=document.documentElement.getAttribute('data-theme')==='dark'||document.documentElement.getAttribute('data-theme')==='noir'
+  if(shouldDark&&!currentDark){setTheme('dark')}
+  else if(!shouldDark&&currentDark){setTheme('abyss')}
+  // Re-check every 30min
+  if(!window._nightTimer)window._nightTimer=setInterval(checkAutoNight,1800000)
+}
+function addGroupRoomMembers(){
+  const avails=personas.filter(p=>p.id!==config.activePersonaId)
+  if(!avails.length){toast('需要至少1个其他角色');return}
+  const names=avails.map(p=>p.name+'('+p.id+')').join('\n')
+  const selected=prompt('选择要加入的角色（输入角色名用逗号分隔）：\n可选：'+avails.map(p=>p.name).join('、'),avails.map(p=>p.name).slice(0,2).join(','))
+  if(!selected||!selected.trim())return
+  const selNames=selected.split(/[,，、]/).map(s=>s.trim()).filter(Boolean)
+  const members=[config.activePersonaId];selNames.forEach(n=>{const p=personas.find(x=>x.name===n||x.id===n);if(p&&!members.includes(p.id))members.push(p.id)})
+  if(members.length<2){toast('至少选1个角色');return}
+  const name=members.map(id=>personas.find(x=>x.id===id)?.name||id).join('+')
+  rooms.unshift({id:'r_'+Date.now(),name,members,messages:[]})
+  saveRooms();activeRoomId=rooms[0].id;switchTab('group');renderGroupChat();toast('群聊已创建：'+name)
+}
+
 // ===== IDLE GREETING =====
 let idleTimer=null
 function startIdleGreeting(){
@@ -453,10 +490,30 @@ function saveMoments(){localStorage.setItem(LS_MOMENTS,JSON.stringify(moments))}
 function addMoment(){
   const text=prompt('发一条朋友圈：','')
   if(!text||!text.trim())return
-  moments.unshift({id:'m_'+Date.now(),authorId:'user',content:text.trim(),ts:Date.now(),likes:[],comments:[]})
-  saveMoments();renderMoments();toast('已发布')
-  // AI auto-interact after 2 seconds
-  setTimeout(()=>aiInteractMoment(moments[0]),2000)
+  const m={id:'m_'+Date.now(),authorId:'user',content:text.trim(),ts:Date.now(),likes:[],comments:[]}
+  moments.unshift(m);saveMoments();renderMoments();toast('已发布')
+  // AI auto-comment from active persona
+  setTimeout(async()=>{
+    if(!getActiveApiKey())return
+    const p=activePersona(),api=getApiConfig()
+    try{
+      const res=await fetch(api.baseUrl,{method:'POST',headers:api.headers,body:JSON.stringify({model:config.apiProvider==='deepseek'?'deepseek-chat':api.model,messages:[{role:'system',content:`你是${p.name}。${config.userName||'对方'}发了一条朋友圈："${text}"。请写一条简短评论（15字以内），表达你的感受或互动。`}],temperature:0.9,max_tokens:60,stream:false})})
+      if(!res.ok)return
+      const j=await res.json(),reply=j.choices?.[0]?.message?.content
+      if(reply&&reply.trim()){m.comments.push({personaId:config.activePersonaId,content:reply.trim(),ts:Date.now()});m.likes.push(config.activePersonaId);saveMoments();renderMoments();toast('💬 AI已评论')}
+    }catch(e){}
+    // Other personas also interact
+    const others=personas.filter(pp=>pp.id!==config.activePersonaId)
+    for(const op of others.slice(0,1)){
+      try{
+        const res2=await fetch(api.baseUrl,{method:'POST',headers:api.headers,body:JSON.stringify({model:config.apiProvider==='deepseek'?'deepseek-chat':api.model,messages:[{role:'system',content:`你是${op.name}。${config.userName||'对方'}发了一条朋友圈："${text}"。请写一条简短评论（15字以内），可以调侃或表达看法。`}],temperature:0.9,max_tokens:60,stream:false})})
+        if(!res2.ok)continue
+        const j2=await res2.json(),r2=j2.choices?.[0]?.message?.content
+        if(r2&&r2.trim()){m.comments.push({personaId:op.id,content:r2.trim(),ts:Date.now()});m.likes.push(op.id)}
+      }catch(e){}
+    }
+    saveMoments();renderMoments()
+  },3000)
 }
 async function aiInteractMoment(moment){
   if(!getActiveApiKey()||moment.authorId==='user')return
@@ -496,15 +553,7 @@ function renderMoments(){
 // ===== GROUP CHAT =====
 let activeRoomId=null
 function saveRooms(){localStorage.setItem(LS_ROOMS,JSON.stringify(rooms))}
-function createGroupRoom(){
-  const avails=personas.filter(p=>p.id!==config.activePersonaId)
-  if(avails.length<1){toast('至少需要1个其他角色');return}
-  const p1=avails[0],p2=avails.length>1?avails[1]:null
-  const members=[config.activePersonaId,p1.id];if(p2)members.push(p2.id)
-  const name=members.map(id=>personas.find(p=>p.id===id)?.name||id).join('+')
-  rooms.unshift({id:'r_'+Date.now(),name,members,messages:[]})
-  saveRooms();activeRoomId=rooms[0].id;switchTab('group');renderGroupChat()
-}
+function createGroupRoom(){addGroupRoomMembers()}
 function openGroupRoom(id){activeRoomId=id;switchTab('group');renderGroupChat()}
 function deleteGroupRoom(id){rooms=rooms.filter(r=>r.id!==id);saveRooms();if(activeRoomId===id){activeRoomId=rooms.length?rooms[0].id:null;if(!activeRoomId)switchTab('chat');else renderGroupChat()};renderDrawerPanel()}
 async function sendGroupMsg(){

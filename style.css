@@ -256,6 +256,15 @@ button{-webkit-tap-highlight-color:transparent}
 .drawer-panel::-webkit-scrollbar-thumb{background:rgba(255,255,255,.08);border-radius:2px}
 .drawer-section{margin-bottom:6px}
 .drawer-section .ds-label{font-size:9px;color:var(--text-muted);letter-spacing:1.5px;padding:6px 10px 4px}
+.ds-label.collapsed .sec-arrow{transform:rotate(-90deg)}
+.sec-body{overflow:hidden;transition:max-height .25s var(--ease-soft);max-height:800px}
+.sec-body:not(.open){max-height:0!important}
+/* Mood bar */
+.mood-bar{display:flex;align-items:center;gap:8px;padding:4px 14px;background:var(--glass-mid);border-bottom:1px solid var(--glass-border);font-size:10px;color:var(--text-soft);overflow-x:auto;white-space:nowrap;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);z-index:4;position:relative}
+.mood-bar .mood-item{display:flex;align-items:center;gap:3px;padding:2px 8px;border-radius:10px;background:var(--glass-light);cursor:pointer;transition:var(--motion-fast);flex-shrink:0}
+.mood-bar .mood-item:active,.mood-bar .mood-item:hover{background:var(--glass-mid)}
+.mood-bar .mood-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0}
+.mood-bar .mood-dot.hot{background:#e89888}.mood-bar .mood-dot.warm{background:#d8a878}.mood-bar .mood-dot.cool{background:#98b8c8}
 .persona-row{display:flex;gap:6px;padding:4px 6px;overflow-x:auto;scrollbar-width:none}
 .persona-row::-webkit-scrollbar{display:none}
 .persona-chip{display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 8px;border-radius:var(--radius);cursor:pointer;min-width:52px;transition:var(--motion-fast);border:1px solid transparent}
