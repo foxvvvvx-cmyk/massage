@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no,viewport-fit=cover">
 <title>沈度</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="theme-color" content="#f8f0f3">
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='192' height='192' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='40' fill='%23f8f0f3'/%3E%3Ctext x='96' y='110' text-anchor='middle' font-size='80'%3E🌙%3C/text%3E%3C/svg%3E">
 <link rel="manifest" href="manifest.json">
@@ -13,7 +13,7 @@
 <link href="https://cdn.jsdelivr.net/npm/@fontsource/cormorant-garamond@5/500.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/@fontsource/noto-serif-sc@5/400.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/@fontsource/noto-serif-sc@5/500.min.css" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=13">
+<link rel="stylesheet" href="style.css?v=18">
 </head>
 <body>
 
@@ -31,8 +31,13 @@
   </div>
 </aside>
 
+<noscript><div style="text-align:center;padding:40px;font-family:sans-serif">请启用 JavaScript 以加载沈度</div></noscript>
 <div class="app" id="app">
   <section class="page active" id="page-chat">
+    <div id="initLoading" style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;z-index:999;font-family:var(--font-cn);color:var(--text-soft)">
+      <div style="font-size:40px;animation:float 3s ease-in-out infinite">🌙</div>
+      <div style="margin-top:12px;font-size:14px">沈度 正在加载...</div>
+    </div>
     <header class="topbar">
       <button class="btn-avatar" id="topAvatar" onclick="openDrawer()">🌙</button>
       <div class="persona-info" onclick="openDrawer()">
@@ -57,6 +62,7 @@
       <span class="sb-item">
         <span class="sb-dot ctx"></span>上下文 <span class="sb-val" id="sbContextVal">--</span>
       </span>
+      <span class="sb-item" id="toyIndicator" style="display:none"><span class="toy-dot"></span>🔌</span>
     </div>
     <div class="composer">
       <div class="image-preview-row" id="imagePreview"></div>
@@ -130,6 +136,6 @@
   </div>
 </div>
 
-<script src="app.js?v=16"></script>
+<script src="app.js?v=19"></script>
 </body>
 </html>

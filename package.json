@@ -1,0 +1,13 @@
+{
+  "name": "shendu-local",
+  "version": "1.0.0",
+  "private": true,
+  "description": "沈度本地服务器 - 玩具控制桥接",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "buttplug": "^3.2.2",
+    "ws": "^8.16.0"
+  }
+}

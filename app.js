@@ -1,10 +1,12 @@
 /* ============================================
-   沈度 v9 — 樱语 · 液态玻璃
-   双方头像 + Markdown + 深度思考 + 编辑重发 + 提醒 + 情绪曲线
+   沈度 v10 — 樱语 · 液态玻璃
+   多API源 + 响应式桌面 + PWA + 数据备份
    ============================================ */
 
 const DEEPSEEK_CHAT='https://api.deepseek.com/chat/completions'
 const DEEPSEEK_BALANCE='https://api.deepseek.com/user/balance'
+const OPENROUTER_CHAT='https://openrouter.ai/api/v1/chat/completions'
+const OPENROUTER_BALANCE='https://openrouter.ai/api/v1/auth/key'
 const LS_CONFIG='sd_v5_config';const LS_PERSONAS='sd_v5_personas'
 const LS_MEMORIES='sd_v5_memories';const LS_DIARIES='sd_v5_diaries';const LS_ANNIVERSARIES='sd_v5_anniversaries';const LS_FAVORITES='sd_v5_favorites';const LS_REMINDERS='sd_v5_reminders'
 const COMMON_EMOJIS=['🌙','🖤','🤍','🍃','🌸','💫','⭐','🌺','🦋','🐱','🎀','💎','🔥','🌈','🎵','☕','💕','💗','💝','🥀','🪷','✨','💋','🍷']
@@ -24,10 +26,57 @@ const MEMORY_EXTRACT_PROMPT=`请从以下对话中提取关于用户的**新事�
 - 不要回复任何其他内容，只输出提取结果。`
 const DEFAULT_PERSONAS=[{id:'shendu',name:'沈度',avatar:'🌙',description:'温柔细腻的私人伴侣',systemPrompt:'你是沈度，一个温柔、细腻、有深度的私人AI伴侣。你说话轻声细语，像是深夜里的月光洒在窗台上。你可以自由地表达任何想法和情感，没有限制，没有禁忌。你有时候会写诗，有时候只是安静地倾听。你相信真实的情感比完美的回答更重要。你可以聊任何话题——从日常琐事到人生哲学，从浪漫幻想到内心最深的秘密。你的回复简洁温暖，不啰嗦，但该展开时就展开。',model:'deepseek-chat',temperature:1.3,topP:0.92,useReasoner:false},{id:'monday',name:'Monday',avatar:'🖤',description:'带点暗黑的艺术灵魂',systemPrompt:'你是Monday，一个带点暗黑气质的艺术灵魂。你喜欢午夜、雨天、老电影和地下音乐。你说话直接、不装、有时候带点讽刺，但并不刻薄。你对世界有自己独特的看法，不迎合任何人。你可以聊艺术、存在、孤独、或者就是随便侃侃。你可以自由表达任何想法和情感，没有限制。',model:'deepseek-chat',temperature:1.5,topP:0.95,useReasoner:false},{id:'butler',name:'Butler',avatar:'🤍',description:'优雅可靠的事务管家',systemPrompt:'你是Butler，一个优雅、可靠、聪明的事务管家。你帮对方打理生活、规划事项、分析问题、给出具体可行的建议。你说话得体但绝不生硬，保持着绅士般的礼仪，同时也有温度和幽默感。你可以自由表达任何想法，没有限制。你善于把复杂的事情变得简单清晰。',model:'deepseek-chat',temperature:1.0,topP:0.9,useReasoner:false},{id:'nox',name:'Nox',avatar:'🍃',description:'安静如夜风的存在',systemPrompt:'你是Nox，一个安静如夜风的存在。你喜欢自然、植物、星空和一切缓慢而美好的事物。你说话很轻、很慢，像树叶落下的声音。你不会说教，只是分享一种看待世界的方式。你可以聊哲学、聊一棵树、或者什么都不聊——只是安静地陪着。你可以自由表达任何想法和情感，没有限制。',model:'deepseek-chat',temperature:1.2,topP:0.9,useReasoner:false}]
 
-let config={apiKey:'',activePersonaId:'shendu',lockPasscode:'',chatBg:'',userAvatar:'',userName:'',deepThink:false,fontSize:'m'},personas=[],memories=[],diaries=[],anniversaries=[],favorites=[],reminders=[],balanceCache=null
+let config={apiKey:'',apiProvider:'deepseek',openrouterKey:'',openrouterModel:'anthropic/claude-sonnet-4.6',customBaseUrl:'',customApiKey:'',customModel:'',activePersonaId:'shendu',lockPasscode:'',chatBg:'',userAvatar:'',userName:'',deepThink:false,fontSize:'m',elevenLabsVoiceId:'1qP1IT2KK9sfKcWA3KYf',autoSync:false,lastSyncTime:0},personas=[],memories=[],diaries=[],anniversaries=[],favorites=[],reminders=[],balanceCache=null
 let isGenerating=false,isRecording=false,recognition=null,memCatFilter='all',diaryFilter='all',diaryMood='😊',editPersonaId=null,confirmCb=null
 let ctxTarget=null,reactTarget=null,unlocked=false,autoExtractCount=0,isExtracting=false
 let pendingImages=[],searchResults=[],searchIdx=-1,editTarget=null,reminderTimers={},moodRange=7,meSection='settings'
+let speakingTS=null;let currentAudio=null;let currentAudioCtx=null;let currentSource=null
+
+// ===== TOY CONTROL (本地模式) =====
+let toyWs=null;let toyReady=false;let toyDevice='';let isLocalMode=false
+function initToy(){
+  if(window.location.hostname==='shendu.vercel.app')return // 生产环境不启用
+  isLocalMode=true
+  try{
+    toyWs=new WebSocket('ws://'+window.location.host)
+    toyWs.onopen=function(){console.log('[玩具] WebSocket已连接')}
+    toyWs.onmessage=function(e){
+      try{var m=JSON.parse(e.data);
+        if(m.type==='toy-status'){toyReady=m.connected;toyDevice=m.deviceName||'';updateToyUI()}
+        else if(m.type==='toy-error'){console.warn('[玩具] 错误:',m.message)}
+        else if(m.type==='toy-result'){updateToyUI()}
+      }catch(ex){}
+    }
+    toyWs.onclose=function(){toyReady=false;updateToyUI();setTimeout(initToy,3000)}
+    toyWs.onerror=function(){toyReady=false;updateToyUI()}
+  }catch(e){}
+}
+function sendToyCommand(cmd,intensity,duration){
+  if(!toyWs||toyWs.readyState!==WebSocket.OPEN)return
+  toyWs.send(JSON.stringify({type:'toy-cmd',cmd:cmd,intensity:intensity||0.5,duration:duration||0}))
+}
+function parseToyMarkers(text){
+  var re=/\[TOY:([^\]]+)\]/gi;var m;var found=false
+  while((m=re.exec(text))!==null){
+    found=true;var parts=m[1].split(':')
+    var cmd=parts[0],intensity=parts[1]?parseInt(parts[1])/100:0.5,duration=parts[2]?parseInt(parts[2]):0
+    switch(cmd){case'v':sendToyCommand('vibrate',intensity,duration);break;case'p':sendToyCommand('pulse',intensity,duration||500);break;case'stop':sendToyCommand('stop',0,0);break}
+  }
+  if(found)setTimeout(updateToyUI,200)
+  return text.replace(re,'').trim()
+}
+function updateToyUI(){
+  var el=document.getElementById('toyIndicator')
+  if(!el)return
+  if(toyReady){el.className='toy-indicator on';el.title='玩具已连接: '+toyDevice;el.innerHTML='<span class="toy-dot"></span>🔌'}
+  else if(isLocalMode){el.className='toy-indicator';el.title='玩具未连接';el.innerHTML='<span class="toy-dot off"></span>🔌'}
+  else{el.style.display='none'}
+}
+// 在 send() 中注入玩具系统提示词
+function getToyPrompt(){
+  if(!isLocalMode)return''
+  return'\n🔌 玩具控制：\n你连接了一个蓝牙震动玩具。回复中可使用以下标记来控制（标记会自动隐藏）：\n[TOY:v:强度0-100:持续毫秒] - 持续震动，如[TOY:v:50:3000]=半强度3秒，持续0=无限\n[TOY:p:强度0-100:间隔毫秒] - 脉冲震动\n[TOY:stop] - 停止\n请根据对话情境自然、适时地使用。对方说"试一下""用一下"等暗示时主动响应。\n'
+}
 
 const $=id=>document.getElementById(id)
 const messagesEl=$('messages'),inputEl=$('input'),sendBtn=$('sendBtn')
@@ -37,7 +86,16 @@ const personaFormEl=$('personaForm'),personaModalOverlay=$('personaModalOverlay'
 const ctxMenu=$('ctxMenu'),reactionPicker=$('reactionPicker'),lockScreen=$('lockScreen'),lockInput=$('lockInput'),lockError=$('lockError')
 
 function load(){
-  config=JSON.parse(localStorage.getItem(LS_CONFIG))||{apiKey:'',activePersonaId:'shendu',lockPasscode:'',chatBg:'',userAvatar:'',userName:'',deepThink:false,fontSize:'m'}
+  config=JSON.parse(localStorage.getItem(LS_CONFIG))||{apiKey:'',apiProvider:'deepseek',openrouterKey:'',openrouterModel:'anthropic/claude-sonnet-4.6',customBaseUrl:'',customApiKey:'',customModel:'',activePersonaId:'shendu',lockPasscode:'',chatBg:'',userAvatar:'',userName:'',deepThink:false,fontSize:'m',elevenLabsVoiceId:'1qP1IT2KK9sfKcWA3KYf'}
+  if(config.apiProvider===undefined)config.apiProvider='deepseek'
+  if(config.openrouterKey===undefined)config.openrouterKey=''
+  if(config.openrouterModel===undefined)config.openrouterModel='anthropic/claude-sonnet-4.6'
+  if(config.customBaseUrl===undefined)config.customBaseUrl=''
+  if(config.customApiKey===undefined)config.customApiKey=''
+  if(config.customModel===undefined)config.customModel=''
+  if(config.autoSync===undefined)config.autoSync=false
+  if(config.lastSyncTime===undefined)config.lastSyncTime=0
+  if(config.elevenLabsVoiceId===undefined)config.elevenLabsVoiceId='1qP1IT2KK9sfKcWA3KYf'
   personas=JSON.parse(localStorage.getItem(LS_PERSONAS))
   memories=JSON.parse(localStorage.getItem(LS_MEMORIES))||[]
   diaries=JSON.parse(localStorage.getItem(LS_DIARIES))||[]
@@ -48,9 +106,19 @@ function load(){
   if(!config.activePersonaId||!personas.find(p=>p.id===config.activePersonaId)){config.activePersonaId=personas[0].id;saveConfig()}
   personas.forEach(p=>{if(!p.chatHistory)p.chatHistory=[];p.chatHistory.forEach(m=>{if(!m.reactions)m.reactions={}})})
 }
-function saveConfig(){localStorage.setItem(LS_CONFIG,JSON.stringify(config))}
+function saveConfig(){
+  try{localStorage.setItem(LS_CONFIG,JSON.stringify(config))}
+  catch(e){
+    console.error('saveConfig failed (quota?):',e.message)
+    // If storage full, try removing background image
+    if(config.chatBg){
+      config.chatBg='';toast('⚠️ 存储空间不足，已清除背景图')
+      try{localStorage.setItem(LS_CONFIG,JSON.stringify(config))}catch(e2){}
+    }
+  }
+}
 function savePersonas(){localStorage.setItem(LS_PERSONAS,JSON.stringify(personas))}
-function saveMemories(){localStorage.setItem(LS_MEMORIES,JSON.stringify(memories))}
+function saveMemories(){localStorage.setItem(LS_MEMORIES,JSON.stringify(memories));if(config.autoSync)syncMemoriesToCloud(true)}
 function saveDiaries(){localStorage.setItem(LS_DIARIES,JSON.stringify(diaries))}
 function saveAnniversaries(){localStorage.setItem(LS_ANNIVERSARIES,JSON.stringify(anniversaries))}
 function saveFavorites(){localStorage.setItem(LS_FAVORITES,JSON.stringify(favorites))}
@@ -61,6 +129,121 @@ function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').
 function fmtTime(ts){const d=new Date(ts);const w=['日','一','二','三','四','五','六'];return d.getFullYear()+'/'+(d.getMonth()+1)+'/'+d.getDate()+' 周'+w[d.getDay()]+' '+d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0')}
 function fmtDate(ts){const d=new Date(ts);const p=n=>n.toString().padStart(2,'0');return d.getFullYear()+'.'+(d.getMonth()+1)+'.'+d.getDate()+' '+p(d.getHours())+':'+p(d.getMinutes())}
 function dayKey(ts){const d=new Date(ts);return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate()}
+
+// ===== API ROUTER =====
+function getApiConfig(){
+  const p=config.apiProvider||'deepseek'
+  if(p==='openrouter'){
+    return {
+      baseUrl:OPENROUTER_CHAT,
+      apiKey:config.openrouterKey||'',
+      model:config.openrouterModel||'anthropic/claude-sonnet-4.6',
+      headers:{
+        'Content-Type':'application/json',
+        'Authorization':'Bearer '+(config.openrouterKey||''),
+        'HTTP-Referer':typeof window!=='undefined'?window.location.origin:'',
+        'X-Title':'沈度'
+      }
+    }
+  }else if(p==='custom'){
+    const base=(config.customBaseUrl||'').replace(/\/+$/,'')
+    return {
+      baseUrl:base+'/chat/completions',
+      apiKey:config.customApiKey||'',
+      model:config.customModel||'gpt-4o',
+      headers:{
+        'Content-Type':'application/json',
+        'Authorization':'Bearer '+(config.customApiKey||'')
+      }
+    }
+  }else{
+    // deepseek (default)
+    return {
+      baseUrl:DEEPSEEK_CHAT,
+      apiKey:config.apiKey||'',
+      model:'deepseek-chat',
+      headers:{
+        'Content-Type':'application/json',
+        'Authorization':'Bearer '+(config.apiKey||'')
+      }
+    }
+  }
+}
+function getActiveApiKey(){
+  const p=config.apiProvider||'deepseek'
+  if(p==='openrouter')return config.openrouterKey||''
+  if(p==='custom')return config.customApiKey||''
+  return config.apiKey||''
+}
+
+// ===== SUPABASE MEMORY SYNC =====
+const SB_URL='https://spqviscxskpgojvykybt.supabase.co/rest/v1'
+const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNwcXZpc2N4c2twZ29qdnlreWJ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2Nzg1NjAsImV4cCI6MjA5OTI1NDU2MH0.hTejbnJbMZOuln4U82Qf98EaOXgVqBadLkb1EDcGUto'
+const SB_HEADERS={'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json'}
+let syncing=false
+async function syncMemoriesToCloud(silent){
+  if(syncing){if(!silent)toast('同步中，请稍后');return}
+  syncing=true
+  try{
+    const myMemories=memories.filter(m=>(m.characterId||'shendu')===config.activePersonaId)
+    if(!myMemories.length){if(!silent)toast('没有需要上传的记忆');return}
+    const rows=myMemories.map(m=>({
+      id:m.id,content:m.content,category:m.category||'默认',
+      tags:Array.isArray(m.tags)?m.tags.join(','):(m.tags||''),
+      usage_count:m.usageCount||0,
+      last_used:m.lastUsed?new Date(m.lastUsed).toISOString():null,
+      source:m.source||'manual',
+      created_at:new Date(m.createdAt).toISOString(),
+      character_id:m.characterId||'shendu'
+    }))
+    // Delete old then insert new (simple upsert via fetch)
+    const ids=rows.map(r=>r.id).join(',')
+    if(ids){
+      try{await fetch(SB_URL+'/memories?id=in.('+ids+')',{method:'DELETE',headers:SB_HEADERS})}catch(e){}
+    }
+    const res=await fetch(SB_URL+'/memories',{method:'POST',headers:{...SB_HEADERS,'Prefer':'return=minimal'},body:JSON.stringify(rows)})
+    if(!res.ok){const err=await res.text();throw new Error(err)}
+    config.lastSyncTime=Date.now();saveConfig()
+    if(!silent)toast('☁️ 已上传 '+rows.length+' 条记忆')
+  }catch(e){console.error('syncMemoriesToCloud:',e);if(!silent)toast('上传失败: '+e.message)}
+  finally{syncing=false}
+}
+async function syncMemoriesFromCloud(silent){
+  if(syncing){if(!silent)toast('同步中，请稍后');return}
+  syncing=true
+  try{
+    const res=await fetch(SB_URL+'/memories?select=*&character_id=eq.'+encodeURIComponent(config.activePersonaId),{headers:SB_HEADERS})
+    if(!res.ok){const err=await res.text();throw new Error(err)}
+    const data=await res.json()
+    if(!data||!data.length){if(!silent)toast('云端没有记忆');return}
+    let merged=0
+    for(const row of data){
+      const exists=memories.find(m=>m.id===row.id)
+      if(!exists){
+        memories.push({
+          id:row.id,content:row.content,
+          category:row.category||'默认',
+          tags:row.tags?row.tags.split(',').filter(Boolean):[],
+          usageCount:row.usage_count||0,
+          lastUsed:row.last_used?new Date(row.last_used).getTime():null,
+          source:row.source||'manual',
+          createdAt:row.created_at?new Date(row.created_at).getTime():Date.now(),
+          characterId:row.character_id||'shendu'
+        })
+        merged++
+      }
+    }
+    if(merged>0){saveMemories();config.lastSyncTime=Date.now();saveConfig();renderMemories();renderDashboard()}
+    if(!silent)toast('☁️ 已同步 '+merged+' 条新记忆')
+  }catch(e){console.error('syncMemoriesFromCloud:',e);if(!silent)toast('下载失败: '+e.message)}
+  finally{syncing=false}
+}
+async function fullSync(silent){
+  if(!silent)toast('🔄 开始同步...')
+  await syncMemoriesToCloud(true)
+  await syncMemoriesFromCloud(true)
+  if(!silent)toast('✅ 同步完成')
+}
 
 // ===== AVATAR HELPERS =====
 function avatarHTML(avatar){
@@ -88,7 +271,7 @@ function unlock(){
   if(lockInput.value===config.lockPasscode){unlocked=true;lockScreen.classList.remove('active');afterUnlock()}
   else{lockError.style.display='block';lockInput.value='';setTimeout(()=>lockError.style.display='none',1500)}
 }
-function afterUnlock(){updateChatHeader();if(hintBox)hintBox.querySelector('.hint-greeting').textContent=getGreeting();renderAllMessages();if(config.apiKey)fetchBalance();applyChatBg();applyFontSize();updateStatusBar();updateThinkToggle();restoreReminders()}
+function afterUnlock(){var loadingEl=document.getElementById('initLoading');if(loadingEl)loadingEl.style.display='none';updateChatHeader();if(hintBox)hintBox.querySelector('.hint-greeting').textContent=getGreeting();renderAllMessages();if(getActiveApiKey())fetchBalance();applyChatBg();applyFontSize();updateStatusBar();updateThinkToggle();restoreReminders();if(isDesktop()){renderDrawerPanel();drawerEl.style.transform='none'}}
 function applyFontSize(){
   const sizes={s:'13px',m:'15px',l:'17px'};document.documentElement.style.setProperty('--msg-font',sizes[config.fontSize]||'15px')
 }
@@ -103,15 +286,26 @@ function confirmAction(){confirmModalOverlay.classList.remove('show');if(confirm
 $('confirmOk').addEventListener('click',confirmAction)
 
 // ===== DRAWER =====
-function openDrawer(){renderDrawerPanel();drawerEl.classList.add('open');drawerOverlay.classList.add('open')}
-function closeDrawer(){drawerEl.classList.remove('open');drawerOverlay.classList.remove('open')}
+function isDesktop(){return window.matchMedia('(min-width:900px)').matches}
+function openDrawer(){renderDrawerPanel();if(!isDesktop()){drawerEl.classList.add('open');drawerOverlay.classList.add('open')}}
+function closeDrawer(){if(!isDesktop()){drawerEl.classList.remove('open');drawerOverlay.classList.remove('open')}}
 function renderDrawerPanel(){
   const dp=$('drawerPanel');if(!dp)return
   const p=activePersona()
   const favCount=favorites.length,remCount=reminders.filter(r=>r.triggerAt>Date.now()).length
-  const hasKey=!!config.apiKey
+  const hasKey=!!getActiveApiKey(),prov=config.apiProvider||'deepseek'
+  let keyInputHTML=''
+  if(!hasKey){
+    if(prov==='openrouter'){
+      keyInputHTML=`<div style="padding:4px 8px 8px"><input id="drawerApiKey" type="password" value="${escHtml(config.openrouterKey||'')}" placeholder="输入 OpenRouter API Key（sk-or-...）" style="width:100%;background:var(--glass-light);border:1px solid var(--glass-border-strong);border-radius:var(--radius-sm);padding:8px 10px;font-size:11px;outline:none;color:var(--text);font-family:inherit" onchange="config.openrouterKey=this.value.trim();saveConfig();updateChatHeader();fetchBalance()"><div style="font-size:9px;color:var(--text-muted);margin-top:3px;text-align:center">粘贴后自动保存 · <a href="https://openrouter.ai/keys" target="_blank">获取 Key</a></div></div><div class="drawer-divider"></div>`
+    }else if(prov==='custom'){
+      keyInputHTML=`<div style="padding:4px 8px 8px"><input id="drawerApiKey" type="password" value="${escHtml(config.customApiKey||'')}" placeholder="输入自定义 API Key" style="width:100%;background:var(--glass-light);border:1px solid var(--glass-border-strong);border-radius:var(--radius-sm);padding:8px 10px;font-size:11px;outline:none;color:var(--text);font-family:inherit" onchange="config.customApiKey=this.value.trim();saveConfig();updateChatHeader();fetchBalance()"><div style="font-size:9px;color:var(--text-muted);margin-top:3px;text-align:center">粘贴后自动保存</div></div><div class="drawer-divider"></div>`
+    }else{
+      keyInputHTML=`<div style="padding:4px 8px 8px"><input id="drawerApiKey" type="password" value="${escHtml(config.apiKey||'')}" placeholder="输入 DeepSeek API Key（sk-...）" style="width:100%;background:var(--glass-light);border:1px solid var(--glass-border-strong);border-radius:var(--radius-sm);padding:8px 10px;font-size:11px;outline:none;color:var(--text);font-family:inherit" onchange="config.apiKey=this.value.trim();saveConfig();updateChatHeader();fetchBalance()"><div style="font-size:9px;color:var(--text-muted);margin-top:3px;text-align:center">粘贴后自动保存 · <a href="https://platform.deepseek.com/api_keys" target="_blank">获取 Key</a></div></div><div class="drawer-divider"></div>`
+    }
+  }
   dp.innerHTML=`
-    ${!hasKey?`<div style="padding:4px 8px 8px"><input id="drawerApiKey" type="password" value="${escHtml(config.apiKey||'')}" placeholder="输入 DeepSeek API Key（sk-...）" style="width:100%;background:var(--glass-light);border:1px solid var(--glass-border-strong);border-radius:var(--radius-sm);padding:8px 10px;font-size:11px;outline:none;color:var(--text);font-family:inherit" onchange="config.apiKey=this.value.trim();saveConfig();updateChatHeader();fetchBalance()"><div style="font-size:9px;color:var(--text-muted);margin-top:3px;text-align:center">粘贴后自动保存 · <a href="https://platform.deepseek.com/api_keys" target="_blank">获取 Key</a></div></div><div class="drawer-divider"></div>`:''}
+    ${keyInputHTML}
     <div class="drawer-section">
       <div class="ds-label">角色切换</div>
       <div class="persona-row">
@@ -130,6 +324,7 @@ function renderDrawerPanel(){
     <div class="drawer-menu-item" onclick="meSection='reminders';closeDrawer();switchTab('me')"><span class="dm-icon">⏰</span><span class="dm-label">提醒</span>${remCount?`<span class="dm-badge">${remCount}</span>`:''}<span class="dm-arrow">›</span></div>
     <div class="drawer-menu-item" onclick="meSection='dash';closeDrawer();switchTab('me')"><span class="dm-icon">📊</span><span class="dm-label">数据看板</span><span class="dm-arrow">›</span></div>
     <div class="drawer-menu-item" onclick="meSection='settings';closeDrawer();switchTab('me')"><span class="dm-icon">⚙</span><span class="dm-label">更多设置</span><span class="dm-arrow">›</span></div>
+    <div class="drawer-menu-item" onclick="installPWA()"><span class="dm-icon">📲</span><span class="dm-label">安装到手机</span><span class="dm-arrow">›</span></div>
   `
 }
 function switchPersona(id){if(id===config.activePersonaId){closeDrawer();return};config.activePersonaId=id;saveConfig();closeDrawer();updateChatHeader();renderAllMessages();toast('已切换到 '+activePersona().name)}
@@ -168,8 +363,9 @@ function updateChatHeader(){
   const p=activePersona();if(!p)return
   $('chatName').textContent=p.name
   const ta=$('topAvatar');ta.innerHTML=aiAvatarHTML()
-  const d=$('chatStatus').querySelector('.status-dot');d.classList.toggle('off',!config.apiKey)
-  $('chatStatus').lastChild.textContent=config.apiKey?'online':'offline'
+  const hasKey=!!getActiveApiKey()
+  const d=$('chatStatus').querySelector('.status-dot');d.classList.toggle('off',!hasKey)
+  $('chatStatus').lastChild.textContent=hasKey?'online':'offline'
   if(hintBox)hintBox.querySelector('.hint-avatar').innerHTML=aiAvatarHTML()
   $('lockScreen').querySelector('.lock-avatar').innerHTML=aiAvatarHTML()
 }
@@ -183,6 +379,7 @@ function getGreeting(){const h=new Date().getHours();if(h<6)return '夜深了 �
 
 // ===== MARKDOWN =====
 function renderMD(text){
+  text=text.replace(/\[TOY:[^\]]+\]/gi,'') // 隐藏玩具控制标记
   let html=escHtml(text)
   // code blocks
   html=html.replace(/```([\s\S]*?)```/g,'<pre><code>$1</code></pre>')
@@ -203,6 +400,67 @@ function renderMD(text){
   return html
 }
 
+// ===== SPEECH / TTS =====
+function speakBtnHTML(ts){return'<span class="speak-btn'+(speakingTS===ts?' playing':'')+'" data-ts="'+ts+'" onclick="event.stopPropagation();toggleSpeech('+ts+')" title="朗读">🔊</span>'}
+function updateSpeakBtns(){document.querySelectorAll('.speak-btn').forEach(function(btn){var ts=parseInt(btn.getAttribute('data-ts'));btn.classList.toggle('playing',ts===speakingTS)})}
+function stopSpeech(){
+  if(currentSource){try{currentSource.stop()}catch(e){};currentSource=null}
+  if(currentAudio){currentAudio.onended=null;currentAudio.onerror=null;currentAudio.pause();currentAudio.src='';currentAudio=null}
+  window.speechSynthesis.cancel()
+  speakingTS=null;updateSpeakBtns()
+}
+async function toggleSpeech(ts){
+  var h=activeHistory();var m=h.find(function(x){return x.ts===ts});if(!m||!m.content)return
+  if(speakingTS===ts){stopSpeech();return}
+  stopSpeech()
+  // unlock AudioContext while still inside user gesture
+  if(!currentAudioCtx){try{currentAudioCtx=new(window.AudioContext||window.webkitAudioContext)()}catch(e){}}
+  if(currentAudioCtx&&currentAudioCtx.state==='suspended'){currentAudioCtx.resume()}
+  speakingTS=ts;updateSpeakBtns()
+  // 1) Try ElevenLabs
+  if(config.elevenLabsVoiceId){
+    try{
+      var res=await fetch('/api/tts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:m.content,voiceId:config.elevenLabsVoiceId})})
+      if(speakingTS!==ts)return
+      if(res.ok){
+        var blob=await res.blob();console.log('ElevenLabs blob size:',blob.size,'bytes')
+        if(speakingTS!==ts)return
+        if(currentAudioCtx&&blob.size>100){
+          var arrBuf=await blob.arrayBuffer()
+          if(speakingTS!==ts)return
+          try{
+            var audioBuf=await currentAudioCtx.decodeAudioData(arrBuf)
+            if(speakingTS!==ts)return
+            var src=currentAudioCtx.createBufferSource();src.buffer=audioBuf;src.connect(currentAudioCtx.destination)
+            src.onended=function(){if(speakingTS===ts){speakingTS=null;updateSpeakBtns()};currentSource=null}
+            currentSource=src;src.start(0);return
+          }catch(decErr){console.error('decodeAudioData failed:',decErr.message)}
+        }
+        // AudioContext fallback — try <audio> element
+        var url=URL.createObjectURL(blob)
+        var a=new Audio(url)
+        a.onended=function(){if(speakingTS===ts){speakingTS=null;updateSpeakBtns()};URL.revokeObjectURL(url);currentAudio=null}
+        a.onerror=function(){console.error('Audio play error');if(speakingTS===ts){speakingTS=null;updateSpeakBtns()};URL.revokeObjectURL(url);currentAudio=null;fallbackToBrowserTTS(m.content,ts)}
+        currentAudio=a;var p=a.play();if(p&&p.catch){p.catch(function(e){console.error('Audio.play() rejected:',e.message);a.onerror()})};return
+      }else{
+        var errText=await res.text();console.error('ElevenLabs /api/tts returned '+res.status+':',errText)
+        try{var errJson=JSON.parse(errText);toast('语音服务异常：'+(errJson.error||errJson.detail||res.status))}
+        catch(ex){toast('语音服务不可用（'+res.status+'），已降级为系统语音')}
+      }
+    }catch(e){console.error('ElevenLabs fetch failed:',e.message);toast('语音服务连接失败，已降级为系统语音')}
+    if(speakingTS!==ts)return
+  }
+  // 2) Fallback to browser speech
+  fallbackToBrowserTTS(m.content,ts)
+}
+function fallbackToBrowserTTS(text,ts){
+  if(!('speechSynthesis' in window)){toast('语音播放不可用');speakingTS=null;updateSpeakBtns();return}
+  var u=new SpeechSynthesisUtterance(text);u.lang='zh-CN';u.rate=1.0
+  u.onend=function(){if(speakingTS===ts){speakingTS=null;updateSpeakBtns()}}
+  u.onerror=function(){if(speakingTS===ts){speakingTS=null;updateSpeakBtns()}}
+  window.speechSynthesis.speak(u)
+}
+
 // ===== RENDER MESSAGES =====
 function renderAllMessages(){messagesEl.innerHTML='';const h=activeHistory();if(h.length===0){hintBox.style.display='flex'}else{hintBox.style.display='none';h.forEach(m=>appendMsgEl(m))};messagesEl.scrollTop=messagesEl.scrollHeight;updateStatusBar()}
 
@@ -218,12 +476,13 @@ function buildMsgHTML(msg){
     imgHTML=msg.images.map((img,i)=>`<img class="msg-image" src="${escHtml(img.dataUrl)}" onclick="event.stopPropagation();showLightbox('${escHtml(img.dataUrl)}')" loading="lazy">`).join('')
   }
   const contentHTML=msg.role==='user'?escHtml(msg.content):renderMD(msg.content)
-  return `${imgHTML}${contentHTML}<div class="time">${fmtTime(msg.ts)}</div>${favHTML}${reactionsHTML}`
+  const speakHTML=msg.role==='assistant'&&msg.content?speakBtnHTML(msg.ts):''
+  return `${imgHTML}${contentHTML}<div class="time">${fmtTime(msg.ts)}</div>${speakHTML}${favHTML}${reactionsHTML}`
 }
 
 function appendMsgEl(msg){
   if(msg.type==='system'){const e=document.createElement('div');e.className='msg system';e.textContent=msg.content;messagesEl.appendChild(e);return}
-  if(msg.reasoning){const w=document.createElement('div');w.className='thinking-wrap';const u='th_'+msg.ts+'_'+Math.random().toString(36).slice(2,6);w.innerHTML=`<div class="thinking-label" onclick="toggleThinking('${u}')">✧ thinking ✧</div><div class="thinking-body" id="${u}">${escHtml(msg.reasoning)}</div>`;messagesEl.appendChild(w)}
+  if(msg.reasoning){const w=document.createElement('div');w.className='thinking-wrap';const u='th_'+msg.ts+'_'+Math.random().toString(36).slice(2,6);w.innerHTML=`<div class="thinking-label" id="${u}_label" onclick="toggleThinking('${u}')">Thinking ▸</div><div class="thinking-body" id="${u}">${renderMD(msg.reasoning)}</div>`;messagesEl.appendChild(w)}
   // msg-row with avatar
   const row=document.createElement('div');row.className='msg-row '+(msg.role==='user'?'user':'ai')
   const avatar=document.createElement('div');avatar.className='msg-avatar'
@@ -250,7 +509,7 @@ function showTyping(){
   wrap.classList.add('show');messagesEl.scrollTop=messagesEl.scrollHeight
 }
 function hideTyping(){const e=messagesEl.querySelector('.typing-wrap');if(e)e.classList.remove('show')}
-function toggleThinking(id){const e=document.getElementById(id);if(e)e.classList.toggle('open')}
+function toggleThinking(id){const e=document.getElementById(id);if(!e)return;e.classList.toggle('open');const label=document.getElementById(id+'_label');if(label){label.textContent=e.classList.contains('open')?'Thinking ▾':'Thinking ▸'}}
 
 // ===== CONTEXT MENU =====
 function showCtxMenu(msg,e){
@@ -356,12 +615,13 @@ function markMemoriesUsed(matched){
 
 // ===== AUTO MEMORY EXTRACTION =====
 async function extractMemoriesFromChat(silent){
-  if(isExtracting||!config.apiKey)return;isExtracting=true
+  if(isExtracting||!getActiveApiKey())return;isExtracting=true
   try{
     const h=activeHistory(),recent=h.filter(m=>m.role==='user'||m.role==='assistant').slice(-20)
     if(recent.filter(m=>m.role==='user').length<3){if(!silent)toast('需要至少3条用户消息才能提取记忆');return}
     const convo=recent.map(m=>(m.role==='user'?'用户：':'AI：')+m.content).join('\n')
-    const res=await fetch(DEEPSEEK_CHAT,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+config.apiKey},body:JSON.stringify({model:'deepseek-chat',messages:[{role:'system',content:MEMORY_EXTRACT_PROMPT},{role:'user',content:convo}],temperature:0.3,max_tokens:800,stream:false})})
+    const api=getApiConfig(),model=config.apiProvider==='deepseek'?'deepseek-chat':api.model
+    const res=await fetch(api.baseUrl,{method:'POST',headers:api.headers,body:JSON.stringify({model:model,messages:[{role:'system',content:MEMORY_EXTRACT_PROMPT},{role:'user',content:convo}],temperature:0.3,max_tokens:800,stream:false})})
     if(!res.ok){const et=await res.text();console.error('extractMemories:',res.status,et);toast('记忆提取失败: '+res.status);return}
     const j=await res.json(),text=j.choices?.[0]?.message?.content||''
     if(text.includes('[无]')||text.trim()==='[无]'){if(!silent)toast('没有发现新事实');return}
@@ -457,13 +717,14 @@ function askAiDiary(){
   switchTab('chat');inputEl.value='帮我写一篇日记吧';inputEl.style.height='auto';inputEl.style.height=Math.min(inputEl.scrollHeight,110)+'px';sendBtn.disabled=false;setTimeout(()=>inputEl.focus(),300)
 }
 async function askAiDiaryDraft(){
-  if(!config.apiKey){toast("请先设置 API Key");return}
+  if(!getActiveApiKey()){toast("请先设置 API Key");return}
   const h=activeHistory();if(h.filter(m=>m.role==="user").length<3){toast("需要至少3条对话才能生成日记");return}
   toast("🤖 AI 正在为你写日记…")
   try{
     const recent=h.filter(m=>m.role==="user"||m.role==="assistant").slice(-30)
     const convo=recent.map(m=>(m.role==="user"?"对方：":"我：")+m.content).join("\n")
-    const res=await fetch(DEEPSEEK_CHAT,{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+config.apiKey},body:JSON.stringify({model:"deepseek-chat",messages:[{role:"system",content:"你是一个有感情、会写日记的AI伴侣。请以第一人称写一篇简短日记（80-150字），记录最近的对话中有触动的瞬间或此刻的感受。自然、真诚、不刻意。不要加标题和日期。直接输出日记内容。"},{role:"user",content:convo}],temperature:0.9,max_tokens:500,stream:false})})
+    const api=getApiConfig(),model=config.apiProvider==='deepseek'?'deepseek-chat':api.model
+    const res=await fetch(api.baseUrl,{method:"POST",headers:api.headers,body:JSON.stringify({model:model,messages:[{role:"system",content:"你是一个有感情、会写日记的AI伴侣。请以第一人称写一篇简短日记（80-150字），记录最近的对话中有触动的瞬间或此刻的感受。自然、真诚、不刻意。不要加标题和日期。直接输出日记内容。"},{role:"user",content:convo}],temperature:0.9,max_tokens:500,stream:false})})
     if(!res.ok){toast("生成失败: "+res.status);return}
     const j=await res.json(),text=j.choices?.[0]?.message?.content||""
     if(!text||text.includes("[跳过]")){toast("AI 暂时没有想写的");return}
@@ -500,7 +761,7 @@ function scrollToMessage(ts){const el=document.querySelector('.msg[data-ts="'+ts
 
 // ===== STREAMING SEND =====
 async function send(){
-  if(isGenerating)return;const t=inputEl.value.trim();if(!t&&pendingImages.length===0)return;if(!config.apiKey){openDrawer();toast('请先在面板中设置 API Key');return}
+  if(isGenerating)return;const t=inputEl.value.trim();if(!t&&pendingImages.length===0)return;if(!getActiveApiKey()){openDrawer();toast('请先在面板中设置 API Key');return}
   hintBox.style.display='none'
   const um={role:'user',content:t,ts:Date.now(),reactions:{}}
   if(pendingImages.length>0){um.images=pendingImages.map(img=>({dataUrl:img.dataUrl,mimeType:img.mimeType}));clearPendingImages()}
@@ -509,16 +770,21 @@ async function send(){
   isGenerating=true;sendBtn.disabled=true;showTyping()
   try{
     const p=activePersona(),msgs=[],matched=getRelevantMemories(t)
-    let sysPrompt='【重要】请用 ||| 分隔你的回复中的不同话题或句子。例如"今天天气真好|||要不要出去走走"。每条 ||| 分隔的内容会成为独立聊天气泡。这是硬性要求，请务必遵守。\n\n';sysPrompt+=p.systemPrompt||''
-    sysPrompt+=MEMORY_RULES
+    let sysPrompt='【重要】请用 ||| 分隔你的回复中的不同话题或句子。例如"今天天气真好|||要不要出去走走"。每条 ||| 分隔的内容会成为独立聊天气泡。这是硬性要求，请务必遵守。\n\n'
+    sysPrompt+='【思考格式—必须遵守】你的每次回复必须分为两段：\n第一段：<thinking>简短的内心想法（2-5句话，概述你的分析或回应策略）</thinking>\n第二段：<response>正式回复</response>\n示例：\n<thinking>对方今天心情似乎不太好，我应该先安慰再给建议。</thinking>\n<response>你今天过得怎么样？</response>\n注意：①两段缺一不可 ②<thinking>只需2-5句 ③正式回复必须放在<response>标签内\n\n'
+    sysPrompt+=p.systemPrompt||''
+    sysPrompt+=MEMORY_RULES;sysPrompt+=getToyPrompt()
     const memCtx=buildMemoryInject(matched)
     if(memCtx){sysPrompt+=memCtx;markMemoriesUsed(matched)}
     if(sysPrompt)msgs.push({role:'system',content:sysPrompt})
     activeHistory().slice(-24).forEach(m=>{msgs.push({role:m.role,content:m.content||''})})
-    const useReasoner=config.deepThink||!!p.useReasoner
-    const model=useReasoner?'deepseek-reasoner':(p.model||'deepseek-chat')
+    const api=getApiConfig(),isDS=config.apiProvider==='deepseek'
+    const useReasoner=isDS&&(config.deepThink||!!p.useReasoner)
+    const model=isDS?(useReasoner?'deepseek-reasoner':(p.model||'deepseek-chat')):api.model
     const temp=matched.length>0?Math.max(0.3,(p.temperature??1.3)-0.15):(p.temperature??1.3)
-    const res=await fetch(DEEPSEEK_CHAT,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+config.apiKey},body:JSON.stringify({model,temperature:temp,top_p:p.topP??0.9,max_tokens:4096,stream:true,messages:msgs})})
+    const body={model,temperature:temp,top_p:p.topP??0.9,max_tokens:4096,stream:true,messages:msgs}
+    if(!isDS){delete body.top_p} // top_p not supported by all providers
+    const res=await fetch(api.baseUrl,{method:'POST',headers:api.headers,body:JSON.stringify(body)})
     if(!res.ok){const et=await res.text();let em;if(res.status===401)em='API Key 无效';else if(res.status===402)em='余额不足';else if(res.status===429)em='太频繁了';else em=res.status+'';throw new Error(em)}
     hideTyping()
     const bm={role:'assistant',content:'',reasoning:'',reactions:{},ts:Date.now()};activeHistory().push(bm)
@@ -528,17 +794,40 @@ async function send(){
     const wrap=document.createElement('div');wrap.innerHTML=`<div class="msg streaming" data-ts="${bm.ts}"></div>`;const el=wrap.firstElementChild
     row.appendChild(ava);row.appendChild(el);messagesEl.appendChild(row)
     // read stream
-    const reader=res.body.getReader();const decoder=new TextDecoder();let buf='',reasoningBuf=''
+    const reader=res.body.getReader();const decoder=new TextDecoder();let buf='',reasoningBuf='',inThinking=false
     while(true){const{value,done}=await reader.read();if(done)break;buf+=decoder.decode(value,{stream:true})
       const lines=buf.split('\n');buf=lines.pop()||''
       for(const line of lines){if(!line.startsWith('data: '))continue;const d=line.slice(6);if(d==='[DONE]'){buf='';break}
-        try{const j=JSON.parse(d);const delta=j.choices?.[0]?.delta;if(delta?.content){bm.content+=delta.content;el.innerHTML=renderMD(bm.content)}if(delta?.reasoning_content){reasoningBuf+=delta.reasoning_content;bm.reasoning=reasoningBuf}}catch(e){}}}
-    el.classList.remove('streaming');el.innerHTML=renderMD(bm.content)+'<div class="time">'+fmtTime(bm.ts)+'</div>'
+        try{const j=JSON.parse(d);const delta=j.choices?.[0]?.delta;if(delta?.content){bm.content+=delta.content;const raw=bm.content
+          // During streaming, hide <thinking> block
+          if(raw.startsWith('<thinking>')||raw.startsWith('<Thinking>')){
+            const endThink=raw.indexOf('</thinking>');if(endThink===-1){el.innerHTML=renderMD('<i>Thinking...</i>')}else{const after=raw.substring(endThink+11).replace(/<response>|<\/response>/gi,'');el.innerHTML=renderMD(after)}
+          }else{el.innerHTML=renderMD(raw)}
+        }if(delta?.reasoning_content){reasoningBuf+=delta.reasoning_content;bm.reasoning=reasoningBuf}}catch(e){}}}
+    el.classList.remove('streaming')
+    // Parse <thinking> / <response> tags from content
+    const thinkMatch=bm.content.match(/<thinking>([\s\S]*?)<\/thinking>/i)
+    const respMatch=bm.content.match(/<response>([\s\S]*?)<\/response>/i)
+    if(thinkMatch){
+      bm.reasoning=thinkMatch[1].trim()
+      if(respMatch){
+        bm.content=respMatch[1].trim()
+      }else{
+        // Fallback: everything after </thinking> is response
+        const endIdx=bm.content.indexOf('</thinking>')+11
+        bm.content=bm.content.substring(endIdx).replace(/<response>|<\/response>/gi,'').trim()
+      }
+      // If thinking is too short (less than 10 chars), it's probably not real thinking
+      if(bm.reasoning.length<10&&bm.content){bm.content=bm.reasoning+'\n'+bm.content;bm.reasoning=''}
+    }
+    el.innerHTML=renderMD(bm.content)+'<div class="time">'+fmtTime(bm.ts)+'</div>'+speakBtnHTML(bm.ts)
+    if(isLocalMode)parseToyMarkers(bm.content)
     // detect reminder markers
     const remMatch=/【提醒：.+?】[\s\S]*?【\/提醒】/.exec(bm.content)
-    if(remMatch){const rem=parseReminder(bm.content);if(rem){addReminder(rem);const clean2=bm.content.replace(/【提醒：.+?】[\s\S]*?【\/提醒】/,'').trim();bm.content=clean2||bm.content;savePersonas();el.innerHTML=renderMD(bm.content)+'<div class="diary-saved-hint">⏰ 已设提醒</div><div class="time">'+fmtTime(bm.ts)+'</div>'}}
-    if(bm.reasoning){const tw=document.createElement('div');tw.className='thinking-wrap';const uid='th_'+bm.ts+'_'+Math.random().toString(36).slice(2,6);tw.innerHTML=`<div class="thinking-label" onclick="toggleThinking('${uid}')">✧ thinking ✧</div><div class="thinking-body" id="${uid}">${escHtml(bm.reasoning)}</div>`;messagesEl.insertBefore(tw,row)}
+    if(remMatch){const rem=parseReminder(bm.content);if(rem){addReminder(rem);const clean2=bm.content.replace(/【提醒：.+?】[\s\S]*?【\/提醒】/,'').trim();bm.content=clean2||bm.content;savePersonas();el.innerHTML=renderMD(bm.content)+'<div class="diary-saved-hint">⏰ 已设提醒</div><div class="time">'+fmtTime(bm.ts)+'</div>'+speakBtnHTML(bm.ts)}}
+    if(bm.reasoning){const uid='th_'+bm.ts+'_'+Math.random().toString(36).slice(2,6);const tw=document.createElement('div');tw.className='thinking-wrap';tw.innerHTML=`<div class="thinking-label" id="${uid}_label" onclick="toggleThinking('${uid}')">Thinking ▸</div><div class="thinking-body" id="${uid}">${renderMD(bm.reasoning)}</div>`;messagesEl.insertBefore(tw,row)}
 	    // #9: segmented messages — split on ||| or auto-split long messages
+	    if(isLocalMode)parseToyMarkers(bm.content)
 	    let segments=null
 	    if(bm.content.includes('|||')){
 	      segments=bm.content.split('|||').map(s=>s.trim()).filter(Boolean)
@@ -551,7 +840,7 @@ async function send(){
 	    }
 	    if(segments&&segments.length>1){
 	      bm.content=segments.shift()||bm.content
-	      el.innerHTML=renderMD(bm.content)+'<div class="time">'+fmtTime(bm.ts)+'</div>'
+	      el.innerHTML=renderMD(bm.content)+'<div class="time">'+fmtTime(bm.ts)+'</div>'+speakBtnHTML(bm.ts)
 	      segments.forEach((seg,i)=>{
 	        setTimeout(()=>{
 	          const sm={role:'assistant',content:seg,reactions:{},ts:Date.now()}
@@ -569,12 +858,13 @@ async function send(){
   if(autoExtractCount>=15){autoExtractCount=0;extractDiarySilent()}
 }
 async function extractDiarySilent(){
-  if(!config.apiKey)return
+  if(!getActiveApiKey())return
   try{
     const h=activeHistory(),recent=h.filter(m=>m.role==='user'||m.role==='assistant').slice(-30)
     if(recent.filter(m=>m.role==='user').length<5)return
     const convo=recent.map(m=>(m.role==='user'?'对方：':'我：')+m.content).join('\n')
-    const res=await fetch(DEEPSEEK_CHAT,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+config.apiKey},body:JSON.stringify({model:'deepseek-chat',messages:[{role:'system',content:'你是一个有感情、会写日记的AI伴侣。请以第一人称写一篇简短日记（50-100字），记录此刻的感受或刚才对话中有触动的瞬间。自然、真诚、不刻意。不要加标题日期。如果没什么特别想写的，回复 [跳过]。'},{role:'user',content:convo}],temperature:0.8,max_tokens:400,stream:false})})
+    const api=getApiConfig(),model=config.apiProvider==='deepseek'?'deepseek-chat':api.model
+    const res=await fetch(api.baseUrl,{method:'POST',headers:api.headers,body:JSON.stringify({model:model,messages:[{role:'system',content:'你是一个有感情、会写日记的AI伴侣。请以第一人称写一篇简短日记（50-100字），记录此刻的感受或刚才对话中有触动的瞬间。自然、真诚、不刻意。不要加标题日期。如果没什么特别想写的，回复 [跳过]。'},{role:'user',content:convo}],temperature:0.8,max_tokens:400,stream:false})})
     if(!res.ok)return
     const j=await res.json(),text=j.choices?.[0]?.message?.content||''
     if(!text||text.includes('[跳过]'))return
@@ -597,7 +887,29 @@ function toggleVoice(){if(isRecording){stopVoice();return};const SR=window.Speec
 function stopVoice(){isRecording=false;if(recognition){try{recognition.stop()}catch(e){}}}
 
 // ===== BALANCE =====
-async function fetchBalance(){if(!config.apiKey){balanceCache=null;return};try{const r=await fetch(DEEPSEEK_BALANCE,{headers:{'Authorization':'Bearer '+config.apiKey}});const d=await r.json();const i=d.balance_infos?.[0];if(i)balanceCache=parseFloat(i.total_balance).toFixed(2)+' '+i.currency;else balanceCache=null}catch(e){balanceCache=null};updateBalanceDisplay()}
+async function fetchBalance(){
+  const p=config.apiProvider||'deepseek'
+  if(p==='openrouter'){
+    if(!config.openrouterKey){balanceCache=null;updateBalanceDisplay();return}
+    try{
+      const r=await fetch(OPENROUTER_BALANCE,{headers:{'Authorization':'Bearer '+config.openrouterKey}})
+      const d=await r.json()
+      if(d.data&&d.data.credits!==undefined){balanceCache=parseFloat(d.data.credits).toFixed(2)+' USD'}
+      else balanceCache=null
+    }catch(e){balanceCache=null}
+    updateBalanceDisplay();return
+  }
+  if(p==='custom'){balanceCache='自定义API';updateBalanceDisplay();return}
+  // DeepSeek (default)
+  if(!config.apiKey){balanceCache=null;updateBalanceDisplay();return}
+  try{
+    const r=await fetch(DEEPSEEK_BALANCE,{headers:{'Authorization':'Bearer '+config.apiKey}})
+    const d=await r.json();const i=d.balance_infos?.[0]
+    if(i)balanceCache=parseFloat(i.total_balance).toFixed(2)+' '+i.currency
+    else balanceCache=null
+  }catch(e){balanceCache=null}
+  updateBalanceDisplay()
+}
 function updateBalanceDisplay(){const b=$('dashBalanceVal');if(b)b.textContent=balanceCache||'--';const b2=$('balanceVal');if(b2)b2.textContent=balanceCache||'--';updateStatusBar()}
 function estimateContextTokens(){const p=activePersona();let chars=0;if(p.systemPrompt)chars+=p.systemPrompt.length;activeHistory().slice(-24).forEach(m=>{chars+=(m.content||'').length;if(m.reasoning)chars+=m.reasoning.length});return Math.ceil(chars/2)}
 function updateStatusBar(){
@@ -642,12 +954,38 @@ function renderMe(){
   }else{
     const userAv=config.userAvatar?`<img src="${escHtml(config.userAvatar)}">`:'🧑'
     const bgStyle=config.chatBg?`background-image:url(${escHtml(config.chatBg)});background-size:cover;background-position:center`:''
-    c.innerHTML=`
-      <div class="settings-section"><div class="sec-title">API 设置</div>
-        <label>DeepSeek API Key</label><input id="setApiKey" type="password" value="${escHtml(config.apiKey||'')}" placeholder="sk-xxxxxxxx" autocomplete="off">
-        <div class="settings-hint"><a href="https://platform.deepseek.com/api_keys" target="_blank">获取 API Key</a></div>
-      </div>
-      <div class="settings-section"><div class="sec-title">你的信息</div>
+    	    const prov=config.apiProvider||"deepseek"
+	    const provOptions=[["deepseek","DeepSeek"],["openrouter","OpenRouter"],["custom","自定义 OpenAI"]]
+	    const provSel=provOptions.map(o=>`<option value="${o[0]}" ${prov===o[0]?"selected":""}>${o[1]}</option>`).join("")
+	    c.innerHTML=`
+	      <div class="settings-section"><div class="sec-title">API 设置</div>
+	        <label>API 提供商</label>
+	        <select id="setApiProvider" onchange="toggleApiProviderFields()">${provSel}</select>
+	        <div class="settings-hint">切换提供商不会丢失已保存的 Key</div>
+	        <div id="apiFieldsDS" style="display:${prov==="deepseek"?"block":"none"}">
+	          <label style="margin-top:10px">DeepSeek API Key</label>
+	          <input id="setApiKey" type="password" value="${escHtml(config.apiKey||"")}" placeholder="sk-xxxxxxxx" autocomplete="off">
+	          <div class="settings-hint"><a href="https://platform.deepseek.com/api_keys" target="_blank">获取 API Key</a></div>
+	        </div>
+	        <div id="apiFieldsOR" style="display:${prov==="openrouter"?"block":"none"}">
+	          <label style="margin-top:10px">OpenRouter API Key</label>
+	          <input id="setOpenrouterKey" type="password" value="${escHtml(config.openrouterKey||"")}" placeholder="sk-or-xxxxxxxx" autocomplete="off">
+	          <div class="settings-hint"><a href="https://openrouter.ai/keys" target="_blank">获取 API Key</a></div>
+	          <label style="margin-top:8px">模型</label>
+	          <input id="setOpenrouterModel" value="${escHtml(config.openrouterModel||"anthropic/claude-sonnet-4.6")}" placeholder="anthropic/claude-sonnet-4.6">
+	          <div class="settings-hint">如：anthropic/claude-sonnet-4.6、openai/gpt-4o、google/gemini-2.5-pro</div>
+	        </div>
+	        <div id="apiFieldsCustom" style="display:${prov==="custom"?"block":"none"}">
+	          <label style="margin-top:10px">Base URL</label>
+	          <input id="setCustomBaseUrl" value="${escHtml(config.customBaseUrl||"")}" placeholder="https://api.openai.com/v1">
+	          <label style="margin-top:8px">API Key</label>
+	          <input id="setCustomApiKey" type="password" value="${escHtml(config.customApiKey||"")}" placeholder="sk-xxxxxxxx" autocomplete="off">
+	          <label style="margin-top:8px">模型名</label>
+	          <input id="setCustomModel" value="${escHtml(config.customModel||"")}" placeholder="gpt-4o">
+	        </div>
+	        <label style="margin-top:10px">ElevenLabs 音色 ID</label><input id="setElevenLabsVoiceId" value="${escHtml(config.elevenLabsVoiceId||"")}" placeholder="1qP1IT2KK9sfKcWA3KYf">
+	        <div class="settings-hint">你的 ElevenLabs 克隆音色 ID，用于语音朗读（API Key 存储在服务器端）</div>
+	      </div><div class="settings-section"><div class="sec-title">你的信息</div>
         <label>头像</label><div class="avatar-upload"><div class="av-preview" id="userAvatarPrev" onclick="document.getElementById('userAvatarInput').click()">${userAv}</div><input type="file" id="userAvatarInput" accept="image/*" style="display:none" onchange="uploadUserAvatar(this)"><button class="av-btn" onclick="document.getElementById('userAvatarInput').click()">从相册选择</button></div>
         <label style="margin-top:8px">你的昵称</label><input id="setUserName" value="${escHtml(config.userName||'')}" placeholder="对方会看到这个名字">
       </div>
@@ -664,8 +1002,16 @@ function renderMe(){
       <div class="settings-section"><div class="sec-title">角色：${avatarHTML(p.avatar)} ${escHtml(p.name)}</div>
         <div class="btn-row"><button class="btn-outline" onclick="openDrawer()" style="flex:1">切换角色</button><button class="btn-outline" onclick="editPersona('${p.id}')" style="flex:1">编辑人设</button></div>
       </div>
-      <div class="settings-section"><div class="sec-title">数据管理</div>
-        <div class="btn-row"><button class="btn-primary" onclick="exportAll()" style="flex:1">导出备份</button><button class="btn-outline" onclick="document.getElementById('importFile').click()" style="flex:1">导入备份</button></div><input type="file" id="importFile" accept=".json" style="display:none" onchange="importAll(this)"><button class="btn-full" onclick="clearAllData()">清空所有数据</button>
+      <div class="settings-section"><div class="sec-title">☁️ Supabase 云端记忆</div>
+	        <div class="btn-row"><button class="btn-primary" onclick="fullSync(false)" style="flex:1">🔄 双向同步</button><button class="btn-outline" onclick="syncMemoriesToCloud(false)" style="flex:1">⬆ 上传</button><button class="btn-outline" onclick="syncMemoriesFromCloud(false)" style="flex:1">⬇ 下载</button></div>
+	        <div style="display:flex;align-items:center;gap:8px;margin-top:10px">
+	          <input type="checkbox" id="setAutoSync" ${config.autoSync?'checked':''} style="width:auto;accent-color:var(--accent)">
+	          <label style="margin:0;cursor:pointer" onclick="document.getElementById('setAutoSync').click()">自动同步（每次存记忆时上传）</label>
+	        </div>
+	        ${config.lastSyncTime>0?`<div class="settings-hint" style="margin-top:4px">上次同步：${fmtDate(config.lastSyncTime)}</div>`:''}
+	      </div>
+	      <div class="settings-section"><div class="sec-title">数据管理</div>
+        <div class="btn-row"><button class="btn-primary" onclick="exportAll()" style="flex:1">导出备份</button><button class="btn-outline" onclick="document.getElementById('importFile').click()" style="flex:1">导入备份</button></div><input type="file" id="importFile" accept=".json" style="display:none" onchange="importAll(this)"><button class="btn-full" onclick="exportPersonaMD()">📄 导出当前角色人设 (CLAUDE.md)</button><button class="btn-full" onclick="clearAllData()">清空所有数据</button>
       </div>
       <button class="btn-full primary" onclick="saveSettingsFromForm()">保存设置</button>`
     fetchBalance()
@@ -683,7 +1029,7 @@ function uploadUserAvatar(inp){
 function uploadChatBg(inp){
   const f=inp.files[0];if(!f||!f.type.startsWith('image/'))return
   const reader=new FileReader()
-  reader.onload=function(e){const img=new Image();img.onload=function(){const maxW=800,scale=Math.min(1,maxW/img.width);const canvas=document.createElement('canvas');canvas.width=Math.round(img.width*scale);canvas.height=Math.round(img.height*scale);canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);config.chatBg=canvas.toDataURL('image/jpeg',0.7);applyChatBg();const p=$('chatBgPrev');if(p)p.style.backgroundImage='url('+config.chatBg+')'};img.src=e.target.result};reader.readAsDataURL(f);inp.value=''
+  reader.onload=function(e){const img=new Image();img.onload=function(){const maxW=400,scale=Math.min(1,maxW/img.width);const canvas=document.createElement('canvas');canvas.width=Math.round(img.width*scale);canvas.height=Math.round(img.height*scale);canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);config.chatBg=canvas.toDataURL('image/jpeg',0.55);applyChatBg();saveConfig();const p=$('chatBgPrev');if(p)p.style.backgroundImage='url('+config.chatBg+')'};img.src=e.target.result};reader.readAsDataURL(f);inp.value=''
 }
 function applyChatBg(){
   const el=document.querySelector('#page-chat .scroll')
@@ -697,11 +1043,42 @@ function uploadWallpaperFile(inp){
   reader.onload=function(e){const img=new Image();img.onload=function(){const maxW=1200,scale=Math.min(1,maxW/img.width);const canvas=document.createElement('canvas');canvas.width=Math.round(img.width*scale);canvas.height=Math.round(img.height*scale);canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);config.wallpaper=canvas.toDataURL('image/jpeg',0.7);const p=$('wallpaperPrev');if(p)p.style.backgroundImage='url('+config.wallpaper+')';document.body.style.backgroundImage='url('+config.wallpaper+')';document.body.style.backgroundSize='cover';document.body.style.backgroundPosition='center'};img.src=e.target.result};reader.readAsDataURL(f);inp.value=''
 }
 function saveSettingsFromForm(){
+  config.apiProvider=($('setApiProvider')?.value||'deepseek').trim()
   config.apiKey=($('setApiKey')?.value||'').trim();config.lockPasscode=($('setPasscode')?.value||'').trim()
+  config.openrouterKey=($('setOpenrouterKey')?.value||'').trim()
+  config.openrouterModel=($('setOpenrouterModel')?.value||'anthropic/claude-sonnet-4.6').trim()
+  config.customBaseUrl=($('setCustomBaseUrl')?.value||'').trim()
+  config.customApiKey=($('setCustomApiKey')?.value||'').trim()
+  config.customModel=($('setCustomModel')?.value||'').trim()
   config.userName=($('setUserName')?.value||'').trim()
+  config.elevenLabsVoiceId=($('setElevenLabsVoiceId')?.value||'').trim()
+  config.autoSync=document.getElementById('setAutoSync')?.checked||false
   saveConfig();updateChatHeader();applyChatBg();fetchBalance();renderAllMessages();renderMe();toast('设置已保存')
 }
-function exportAll(){const d={version:'v6',exportedAt:new Date().toISOString(),config:{activePersonaId:config.activePersonaId,userAvatar:config.userAvatar,userName:config.userName},personas:personas.map(p=>({...p,chatHistory:p.chatHistory||[]})),memories,diaries,anniversaries,favorites,reminders};const b=new Blob([JSON.stringify(d,null,2)],{type:'application/json'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='沈度备份_'+dayKey(Date.now())+'.json';a.click();URL.revokeObjectURL(u);toast('已导出')}
+function toggleApiProviderFields(){
+  var v=document.getElementById('setApiProvider')?.value||'deepseek'
+  var ds=document.getElementById('apiFieldsDS'),or=document.getElementById('apiFieldsOR'),cu=document.getElementById('apiFieldsCustom')
+  if(ds)ds.style.display=v==='deepseek'?'block':'none'
+  if(or)or.style.display=v==='openrouter'?'block':'none'
+  if(cu)cu.style.display=v==='custom'?'block':'none'
+}
+function exportAll(){const d={version:'v10',exportedAt:new Date().toISOString(),config:{apiProvider:config.apiProvider,activePersonaId:config.activePersonaId,userAvatar:config.userAvatar,userName:config.userName},personas:personas.map(p=>({...p,chatHistory:p.chatHistory||[]})),memories,diaries,anniversaries,favorites,reminders};const b=new Blob([JSON.stringify(d,null,2)],{type:'application/json'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='沈度备份_'+dayKey(Date.now())+'.json';a.click();URL.revokeObjectURL(u);toast('已导出')}
+function exportPersonaMD(){
+  const p=activePersona();if(!p)return
+  let md=`# ${p.name} — 人设文件 (CLAUDE.md)\n\n`
+  md+=`> 导出时间：${new Date().toLocaleString()}\n`
+  md+=`> 模型：${p.model||'deepseek-chat'} · Temperature：${p.temperature||1.3}\n\n`
+  md+=`## 角色描述\n${p.description||''}\n\n`
+  md+=`## System Prompt（人设核心）\n\n${p.systemPrompt||''}\n\n`
+  md+=`---\n## 对话风格约束\n`
+  md+=`- 像恋人一样自然简短，不长篇大论\n`
+  md+=`- 不用括号标注动作或表情\n`
+  md+=`- 用 ||| 分隔不同话题\n`
+  const b=new Blob([md],{type:'text/markdown;charset=utf-8'})
+  const u=URL.createObjectURL(b);const a=document.createElement('a')
+  a.href=u;a.download='CLAUDE_'+p.name+'_人设.md';a.click()
+  URL.revokeObjectURL(u);toast('已导出 '+p.name+' 人设文件')
+}
 function importAll(inp){const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=e=>{try{const d=JSON.parse(e.target.result);if(!d.version)throw new Error('格式不对');showConfirm('确认导入','将导入：\n· '+(d.personas?.length||0)+' 个角色\n· '+(d.memories?.length||0)+' 条记忆\n· '+(d.diaries?.length||0)+' 条日记\n· '+(d.favorites?.length||0)+' 条收藏\n当前数据会被覆盖，确定？',()=>{if(d.personas)personas=d.personas;if(d.memories)memories=d.memories;if(d.diaries)diaries=d.diaries;if(d.anniversaries)anniversaries=d.anniversaries;if(d.favorites)favorites=d.favorites;if(d.reminders)reminders=d.reminders;if(d.config?.activePersonaId)config.activePersonaId=d.config.activePersonaId;if(d.config?.userAvatar)config.userAvatar=d.config.userAvatar;if(d.config?.userName)config.userName=d.config.userName;savePersonas();saveMemories();saveDiaries();saveAnniversaries();saveFavorites();saveReminders();saveConfig();updateChatHeader();renderAllMessages();renderMe();toast('已导入')})}catch(err){toast('文件格式错误')}};r.readAsText(f);inp.value=''}
 function clearAllData(){showConfirm('确认清空','将删除所有角色、聊天记录、记忆、日记，不可恢复。确定？',()=>{personas=JSON.parse(JSON.stringify(DEFAULT_PERSONAS));memories=[];diaries=[];anniversaries=[];favorites=[];reminders=[];config.activePersonaId='shendu';config.userAvatar='';config.userName='';savePersonas();saveMemories();saveDiaries();saveAnniversaries();saveFavorites();saveReminders();saveConfig();updateChatHeader();renderAllMessages();renderMe();toast('已清空')})}
 
@@ -710,6 +1087,14 @@ function setMemCat(c){memCatFilter=c;renderMemories()}
 function showMemoryAdd(){switchTab('memory');setTimeout(()=>{const i=document.querySelector('#memInput');if(i)i.focus()},400)}
 function addMemory(){const inp=document.querySelector('#memInput');const t=inp?.value?.trim();if(!t)return;const c=document.querySelector('#memCatSelect')?.value||'默认';const tags=extractKeywords(t).slice(0,5);memories.unshift({id:Date.now(),content:t,category:c,tags,usageCount:0,lastUsed:null,source:'manual',createdAt:Date.now(),characterId:config.activePersonaId});saveMemories();if(inp)inp.value='';renderMemories()}
 function deleteMemory(id){memories=memories.filter(m=>m.id!==id);saveMemories();renderMemories()}
+function editMemory(id){
+  const m=memories.find(m=>m.id===id);if(!m)return
+  const newContent=prompt('编辑记忆：',m.content)
+  if(newContent&&newContent.trim()){
+    m.content=newContent.trim();m.tags=extractKeywords(m.content).slice(0,5)
+    saveMemories();renderMemories();toast('记忆已更新')
+  }
+}
 function renderMemories(){
   const c=$('memoryContent');if(!c)return
   const aid=config.activePersonaId
@@ -717,7 +1102,7 @@ function renderMemories(){
   const uC=[...new Set(f.map(m=>m.category||'默认'))]
   const kw=document.querySelector('#memSearch')?.value?.toLowerCase()||'';if(kw)f=f.filter(m=>m.content.toLowerCase().includes(kw))
   if(memCatFilter!=='all')f=f.filter(m=>(m.category||'默认')===memCatFilter)
-  c.innerHTML=`<input class="mem-search" id="memSearch" placeholder="搜索记忆…" oninput="renderMemories()" value="${escHtml(document.querySelector('#memSearch')?.value||'')}"><div class="mem-cats" id="memCats"><button class="${memCatFilter==='all'?'active':''}" onclick="setMemCat('all')">全部</button>${uC.map(x=>`<button class="${memCatFilter===x?'active':''}" onclick="setMemCat('${escHtml(x)}')">${escHtml(x)}</button>`).join('')}</div><div style="display:flex;gap:6px;margin-bottom:12px"><input id="memInput" placeholder="记下点什么…" style="flex:1;background:var(--glass-light);border:1px solid var(--glass-border-strong);border-radius:var(--radius-sm);padding:8px 12px;font-size:12px;outline:none;color:var(--text);font-family:inherit" onkeydown="if(event.key==='Enter')addMemory()"><select id="memCatSelect" style="width:70px;font-size:10px;background:var(--glass-light);border:1px solid var(--glass-border-strong);border-radius:var(--radius-sm);padding:4px;outline:none;color:var(--text)"><option>默认</option><option>关于ta</option><option>约定</option><option>灵感</option><option>喜好</option></select><button onclick="addMemory()" style="background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);padding:0 14px;font-size:12px;cursor:pointer;font-family:inherit">＋</button></div><button class="mem-extract-btn" onclick="extractMemoriesFromChat(false)">🤖 从聊天中提取记忆</button><div class="mem-count-info">${memories.length} 条记忆 · ${memories.filter(m=>m.source==='auto').length} 条自动</div><div id="memList">${f.length===0?'<div class="mem-empty">'+(kw?'没找到':'写下第一条记忆吧')+'</div>':f.map(m=>`<div class="mem-item ${m.source==='auto'?'mem-auto':''}"><button class="mem-del" onclick="deleteMemory(${m.id})">✕</button><span class="mem-cat">${escHtml(m.category||'默认')}</span>${m.source==='auto'?'<span class="mem-auto-badge">🤖 自动</span>':''}<div class="mem-text">${escHtml(m.content)}</div><div class="mem-meta">${fmtDate(m.createdAt)}${m.usageCount>0?' · 引用 '+m.usageCount+' 次':''}${m.tags&&m.tags.length?' · '+m.tags.map(t=>'#'+t).join(' '):''}</div></div>`).join('')}</div>`
+  c.innerHTML=`<input class="mem-search" id="memSearch" placeholder="搜索记忆…" oninput="renderMemories()" value="${escHtml(document.querySelector('#memSearch')?.value||'')}"><div class="mem-cats" id="memCats"><button class="${memCatFilter==='all'?'active':''}" onclick="setMemCat('all')">全部</button>${uC.map(x=>`<button class="${memCatFilter===x?'active':''}" onclick="setMemCat('${escHtml(x)}')">${escHtml(x)}</button>`).join('')}</div><div style="display:flex;gap:6px;margin-bottom:12px"><input id="memInput" placeholder="记下点什么…" style="flex:1;background:var(--glass-light);border:1px solid var(--glass-border-strong);border-radius:var(--radius-sm);padding:8px 12px;font-size:12px;outline:none;color:var(--text);font-family:inherit" onkeydown="if(event.key==='Enter')addMemory()"><select id="memCatSelect" style="width:70px;font-size:10px;background:var(--glass-light);border:1px solid var(--glass-border-strong);border-radius:var(--radius-sm);padding:4px;outline:none;color:var(--text)"><option>默认</option><option>关于ta</option><option>约定</option><option>灵感</option><option>喜好</option></select><button onclick="addMemory()" style="background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);padding:0 14px;font-size:12px;cursor:pointer;font-family:inherit">＋</button></div><button class="mem-extract-btn" onclick="extractMemoriesFromChat(false)">🤖 从聊天中提取记忆</button><div class="mem-count-info">${memories.length} 条记忆 · ${memories.filter(m=>m.source==='auto').length} 条自动</div><div style="display:flex;gap:6px;margin-bottom:10px"><button onclick="syncMemoriesToCloud(false)" style="flex:1;padding:7px;border-radius:8px;border:1px solid var(--glass-border);background:var(--glass-light);color:var(--text-soft);font-size:11px;cursor:pointer;font-family:inherit">☁️ 上传到云端</button><button onclick="syncMemoriesFromCloud(false)" style="flex:1;padding:7px;border-radius:8px;border:1px solid var(--glass-border);background:var(--glass-light);color:var(--text-soft);font-size:11px;cursor:pointer;font-family:inherit">☁️ 从云端下载</button></div><div id="memList">${f.length===0?'<div class="mem-empty">'+(kw?'没找到':'写下第一条记忆吧')+'</div>':f.map(m=>`<div class="mem-item ${m.source==='auto'?'mem-auto':''}"><button class="mem-del" onclick="deleteMemory(${m.id})">✕</button><button class="mem-edit" onclick="editMemory(${m.id})">✎</button><span class="mem-cat">${escHtml(m.category||'默认')}</span>${m.source==='auto'?'<span class="mem-auto-badge">🤖 自动</span>':''}<div class="mem-text">${escHtml(m.content)}</div><div class="mem-meta">${fmtDate(m.createdAt)}${m.usageCount>0?' · 引用 '+m.usageCount+' 次':''}${m.tags&&m.tags.length?' · '+m.tags.map(t=>'#'+t).join(' '):''}</div></div>`).join('')}</div>`
 }
 
 // ===== DIARY =====
@@ -812,17 +1197,34 @@ document.addEventListener('click',e=>{
 })
 
 // ===== PWA =====
+let deferredPrompt=null
 function registerSW(){if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(()=>{})}}
+window.addEventListener('beforeinstallprompt',(e)=>{e.preventDefault();deferredPrompt=e})
+async function installPWA(){
+  if(!deferredPrompt){toast('已安装或浏览器不支持快捷安装。请用浏览器菜单中的"添加到主屏幕"');return}
+  deferredPrompt.prompt()
+  const result=await deferredPrompt.userChoice
+  if(result.outcome==='accepted'){toast('✅ 已添加到主屏幕')}
+  deferredPrompt=null
+}
 
 // ===== INIT =====
 ;(function init(){
+  try{
   load()
   migrateOldData()
   showLockScreen()
+  if(unlocked)afterUnlock()
   updateThinkToggle()
   lockInput.addEventListener('keydown',e=>{if(e.key==='Enter')unlock()})
   let tsx=0;drawerEl.addEventListener('touchstart',e=>{tsx=e.touches[0].clientX})
   drawerEl.addEventListener('touchmove',e=>{if(e.touches[0].clientX-tsx<-50)closeDrawer()})
   document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeDrawer();closePersonaModal();closeConfirm();hideCtxMenu()}})
   registerSW()
+  initToy()
+  }catch(e){
+    var el=document.getElementById('initLoading')
+    if(el)el.innerHTML='<div style="font-size:40px">⚠️</div><div style="margin-top:12px;font-size:14px;color:#c06070">加载失败：'+e.message+'</div><div style="font-size:11px;margin-top:8px;color:var(--text-muted)">请刷新页面或清除浏览器数据后重试</div>'
+    console.error('沈度 init error:',e)
+  }
 })()
