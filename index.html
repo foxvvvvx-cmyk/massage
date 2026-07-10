@@ -34,7 +34,8 @@
 <noscript><div style="text-align:center;padding:40px;font-family:sans-serif">请启用 JavaScript 以加载沈度</div></noscript>
 <div class="app" id="app">
   <section class="page active" id="page-chat">
-    <div id="initLoading" style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;z-index:999;font-family:var(--font-cn);color:var(--text-soft)">
+    <div id="touchBubble" style="position:fixed;width:24px;height:24px;border-radius:50%;background:var(--accent);opacity:.3;pointer-events:none;z-index:50;transition:transform .15s,width .2s,height .2s,opacity .3s;display:none;transform:translate(-50%,-50%)"></div>
+<div id="initLoading" style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;z-index:999;font-family:var(--font-cn);color:var(--text-soft)">
       <div style="font-size:40px;animation:float 3s ease-in-out infinite">🌙</div>
       <div style="margin-top:12px;font-size:14px">沈度 正在加载...</div>
     </div>
@@ -85,6 +86,8 @@
   <section class="page" id="page-diary"><header class="topbar"><button class="btn-icon" onclick="switchTab('chat')">←</button><span class="topbar-title">日记</span><button class="btn-icon" id="diaryAiBtn" onclick="askAiDiaryDraft()">🤖</button><button class="btn-icon" onclick="showDiaryAdd()">＋</button></header><div class="page-content" id="diaryContent"></div></section>
   <section class="page" id="page-memory"><header class="topbar"><button class="btn-icon" onclick="switchTab('chat')">←</button><span class="topbar-title">记忆</span><button class="btn-icon" onclick="showMemoryAdd()">＋</button></header><div class="page-content" id="memoryContent"></div></section>
   <section class="page" id="page-me"><header class="topbar"><button class="btn-icon" onclick="switchTab('chat')">←</button><span class="topbar-title">设置</span><span style="width:36px"></span></header><div class="page-content" id="meContent"></div></section>
+  <section class="page" id="page-group"><header class="topbar"><button class="btn-icon" onclick="switchTab('chat')">←</button><span class="topbar-title" id="groupTitle">群聊</span><span style="width:36px"></span></header><div class="scroll" id="groupMessages" style="padding-bottom:var(--composer-zone)"><div class="mem-empty" id="groupHint">选两个角色开始群聊吧</div></div><div class="composer"><div class="composer-inner"><div class="field-wrap"><textarea id="groupInput" rows="1" placeholder="群聊消息…" enterkeyhint="send"></textarea></div><button class="btn-send" id="groupSendBtn" onclick="sendGroupMsg()" disabled><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg></button></div></div></section>
+  <section class="page" id="page-moments"><header class="topbar"><button class="btn-icon" onclick="switchTab('chat')">←</button><span class="topbar-title">朋友圈</span><button class="btn-icon" onclick="addMoment()">＋</button></header><div class="page-content" id="momentsContent"></div></section>
 </div>
 
 <nav class="tabbar" id="tabbar">
@@ -136,6 +139,6 @@
   </div>
 </div>
 
-<script src="app.js?v=24"></script>
+<script src="app.js?v=25"></script>
 </body>
 </html>
