@@ -13,7 +13,7 @@
 <link href="https://cdn.jsdelivr.net/npm/@fontsource/cormorant-garamond@5/500.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/@fontsource/noto-serif-sc@5/400.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/@fontsource/noto-serif-sc@5/500.min.css" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=18">
+<link rel="stylesheet" href="style.css?v=23">
 </head>
 <body>
 
@@ -47,7 +47,7 @@
       <div class="topbar-actions"><button class="btn-icon" onclick="toggleSearch()" title="搜索">🔍</button></div>
     </header>
     <div class="search-wrap" id="searchWrap"><input id="searchInput" placeholder="搜索聊天记录…" oninput="searchMessages()"><span class="search-info" id="searchInfo"></span><button class="search-close" onclick="toggleSearch()">✕</button></div>
-    <div class="scroll" id="messages">
+    <div class="scroll" id="messages"><button class="scroll-bottom-btn" id="scrollBottomBtn" onclick="messagesEl.scrollTop=messagesEl.scrollHeight" title="回到底部">↓</button>
       <div class="hint" id="hintBox">
         <div class="hint-avatar">🌙</div>
         <p class="hint-greeting" id="greetingText">欢迎回来</p>
@@ -135,6 +135,6 @@
   </div>
 </div>
 
-<script src="app.js?v=22"></script>
+<script src="app.js?v=23"></script>
 </body>
 </html>

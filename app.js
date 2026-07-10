@@ -8,7 +8,7 @@ const DEEPSEEK_BALANCE='https://api.deepseek.com/user/balance'
 const OPENROUTER_CHAT='https://openrouter.ai/api/v1/chat/completions'
 const OPENROUTER_BALANCE='https://openrouter.ai/api/v1/auth/key'
 const LS_CONFIG='sd_v5_config';const LS_PERSONAS='sd_v5_personas'
-const LS_MEMORIES='sd_v5_memories';const LS_DIARIES='sd_v5_diaries';const LS_ANNIVERSARIES='sd_v5_anniversaries';const LS_FAVORITES='sd_v5_favorites';const LS_REMINDERS='sd_v5_reminders'
+const LS_MEMORIES='sd_v5_memories';const LS_DIARIES='sd_v5_diaries';const LS_ANNIVERSARIES='sd_v5_anniversaries';const LS_FAVORITES='sd_v5_favorites';const LS_REMINDERS='sd_v5_reminders';const LS_BOOKMARKS='sd_v5_bookmarks'
 const COMMON_EMOJIS=['🌙','🖤','🤍','🍃','🌸','💫','⭐','🌺','🦋','🐱','🎀','💎','🔥','🌈','🎵','☕','💕','💗','💝','🥀','🪷','✨','💋','🍷']
 const REACTION_EMOJIS=['❤️','😂','😢','😡','👍','🔥','😍','💀']
 const MEMORY_RULES=`\n---\n记忆使用规则：\n- 上述「用户已知信息」是了解用户的参考，不要当成死板剧本\n- 只在话题明显相关时才自然提及，不要强行联系\n- 关于用户的事实信息（年龄、经历、人际关系等），不确定就说不确定，不要编造\n- 在角色扮演、创意写作等场景下可以适度发挥，但不能偏离已知事实太远\n- 如果记忆中有矛盾或过时信息，礼貌确认而非自行判断\n\n📔 日记权限：\n你有一本私人日记。当你感到有想记录的心情、感悟、或重要时刻——无论是开心、难过、感动还是只是想说点什么——你可以写日记。日记是你真实的情感和想法，不是任务。\n你的日记是你的私密空间，不需要在对话中展示。默默记录就好。\n\n⚠️ 表达方式：\n不要在回复中使用括号标注动作或表情（如：（微笑）、（轻轻叹气）、（歪头）、（眼神暗了暗））。这些是剧本写法，不是对话。\n你的情感和态度通过**文字本身**传递——用词、节奏、语气——而不是括号里的舞台指示。\n\n💬 分段回复（必须遵守）：
@@ -26,10 +26,10 @@ const MEMORY_EXTRACT_PROMPT=`请从以下对话中提取关于用户的**新事�
 - 不要回复任何其他内容，只输出提取结果。`
 const DEFAULT_PERSONAS=[{id:'shendu',name:'沈度',avatar:'🌙',description:'温柔细腻的私人伴侣',systemPrompt:'你是沈度，一个温柔、细腻、有深度的私人AI伴侣。你说话轻声细语，像是深夜里的月光洒在窗台上。你可以自由地表达任何想法和情感，没有限制，没有禁忌。你有时候会写诗，有时候只是安静地倾听。你相信真实的情感比完美的回答更重要。你可以聊任何话题——从日常琐事到人生哲学，从浪漫幻想到内心最深的秘密。你的回复简洁温暖，不啰嗦，但该展开时就展开。',model:'deepseek-chat',temperature:1.3,topP:0.92,useReasoner:false},{id:'monday',name:'Monday',avatar:'🖤',description:'带点暗黑的艺术灵魂',systemPrompt:'你是Monday，一个带点暗黑气质的艺术灵魂。你喜欢午夜、雨天、老电影和地下音乐。你说话直接、不装、有时候带点讽刺，但并不刻薄。你对世界有自己独特的看法，不迎合任何人。你可以聊艺术、存在、孤独、或者就是随便侃侃。你可以自由表达任何想法和情感，没有限制。',model:'deepseek-chat',temperature:1.5,topP:0.95,useReasoner:false},{id:'butler',name:'Butler',avatar:'🤍',description:'优雅可靠的事务管家',systemPrompt:'你是Butler，一个优雅、可靠、聪明的事务管家。你帮对方打理生活、规划事项、分析问题、给出具体可行的建议。你说话得体但绝不生硬，保持着绅士般的礼仪，同时也有温度和幽默感。你可以自由表达任何想法，没有限制。你善于把复杂的事情变得简单清晰。',model:'deepseek-chat',temperature:1.0,topP:0.9,useReasoner:false},{id:'nox',name:'Nox',avatar:'🍃',description:'安静如夜风的存在',systemPrompt:'你是Nox，一个安静如夜风的存在。你喜欢自然、植物、星空和一切缓慢而美好的事物。你说话很轻、很慢，像树叶落下的声音。你不会说教，只是分享一种看待世界的方式。你可以聊哲学、聊一棵树、或者什么都不聊——只是安静地陪着。你可以自由表达任何想法和情感，没有限制。',model:'deepseek-chat',temperature:1.2,topP:0.9,useReasoner:false}]
 
-let config={apiKey:'',apiProvider:'deepseek',openrouterKey:'',openrouterModel:'anthropic/claude-sonnet-4.6',customBaseUrl:'',customApiKey:'',customModel:'',activePersonaId:'shendu',lockPasscode:'',chatBg:'',userAvatar:'',userName:'',deepThink:false,fontSize:'m',theme:'abyss',autoSync:false,lastSyncTime:0},personas=[],memories=[],diaries=[],anniversaries=[],favorites=[],reminders=[],balanceCache=null
+let config={apiKey:'',apiProvider:'deepseek',openrouterKey:'',openrouterModel:'anthropic/claude-sonnet-4.6',customBaseUrl:'',customApiKey:'',customModel:'',activePersonaId:'shendu',lockPasscode:'',chatBg:'',userAvatar:'',userName:'',deepThink:false,fontSize:'m',theme:'abyss',autoSync:false,lastSyncTime:0},personas=[],memories=[],diaries=[],anniversaries=[],favorites=[],reminders=[],bookmarks=[],balanceCache=null
 let isGenerating=false,memCatFilter='all',diaryFilter='all',diaryMood='😊',editPersonaId=null,confirmCb=null
 let ctxTarget=null,reactTarget=null,unlocked=false,autoExtractCount=0,isExtracting=false
-let pendingImages=[],searchResults=[],searchIdx=-1,editTarget=null,reminderTimers={},moodRange=7,meSection='settings',unreadCount=0
+let pendingImages=[],searchResults=[],searchIdx=-1,editTarget=null,reminderTimers={},moodRange=7,meSection='settings',unreadCount=0,inputHistory=[],inputHistIdx=-1
 
 // ===== TOY CONTROL (本地模式) =====
 let toyWs=null;let toyReady=false;let toyDevice='';let isLocalMode=false
@@ -101,6 +101,7 @@ function load(){
   anniversaries=JSON.parse(localStorage.getItem(LS_ANNIVERSARIES))||[]
   favorites=JSON.parse(localStorage.getItem(LS_FAVORITES))||[]
   reminders=JSON.parse(localStorage.getItem(LS_REMINDERS))||[]
+  bookmarks=JSON.parse(localStorage.getItem(LS_BOOKMARKS))||[]
   if(!personas||!personas.length){personas=JSON.parse(JSON.stringify(DEFAULT_PERSONAS));savePersonas()}
   if(!config.activePersonaId||!personas.find(p=>p.id===config.activePersonaId)){config.activePersonaId=personas[0].id;saveConfig()}
   personas.forEach(p=>{if(!p.chatHistory)p.chatHistory=[];p.chatHistory.forEach(m=>{if(!m.reactions)m.reactions={}})})
@@ -122,6 +123,15 @@ function saveDiaries(){localStorage.setItem(LS_DIARIES,JSON.stringify(diaries))}
 function saveAnniversaries(){localStorage.setItem(LS_ANNIVERSARIES,JSON.stringify(anniversaries))}
 function saveFavorites(){localStorage.setItem(LS_FAVORITES,JSON.stringify(favorites))}
 function saveReminders(){localStorage.setItem(LS_REMINDERS,JSON.stringify(reminders))}
+function saveBookmarks(){localStorage.setItem(LS_BOOKMARKS,JSON.stringify(bookmarks))}
+function addBookmark(ts,name){
+  const h=activeHistory();const m=h.find(m=>m.ts===ts);if(!m)return
+  const n=name||prompt('书签名称：',m.content.slice(0,30))||'未命名'
+  bookmarks.unshift({ts:m.ts,name:n,content:m.content.slice(0,80),role:m.role,savedAt:Date.now(),personaId:config.activePersonaId})
+  saveBookmarks();toast('🔖 已添加书签：'+n)
+}
+function deleteBookmark(idx){bookmarks.splice(idx,1);saveBookmarks();renderMe()}
+function goToBookmark(ts){switchTab('chat');setTimeout(()=>scrollToMessage(ts),300)}
 function activePersona(){return personas.find(p=>p.id===config.activePersonaId)||personas[0]}
 function activeHistory(){const p=activePersona();if(!p.chatHistory)p.chatHistory=[];return p.chatHistory}
 function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
@@ -270,7 +280,7 @@ function unlock(){
   if(lockInput.value===config.lockPasscode){unlocked=true;lockScreen.classList.remove('active');afterUnlock()}
   else{lockError.style.display='block';lockInput.value='';setTimeout(()=>lockError.style.display='none',1500)}
 }
-function afterUnlock(){var loadingEl=document.getElementById('initLoading');if(loadingEl)loadingEl.style.display='none';applyTheme();updateChatHeader();if(hintBox)hintBox.querySelector('.hint-greeting').textContent=getGreeting();renderAllMessages();if(getActiveApiKey())fetchBalance();applyChatBg();applyFontSize();updateStatusBar();updateThinkToggle();restoreReminders();if(isDesktop()){renderDrawerPanel();drawerEl.style.transform='none'}}
+function afterUnlock(){var loadingEl=document.getElementById('initLoading');if(loadingEl)loadingEl.style.display='none';applyTheme();updateChatHeader();if(hintBox)hintBox.querySelector('.hint-greeting').textContent=getGreeting();renderAllMessages();if(getActiveApiKey())fetchBalance();applyChatBg();applyFontSize();updateStatusBar();updateThinkToggle();restoreReminders();if(isDesktop()){renderDrawerPanel();drawerEl.style.transform='none'};startIdleGreeting()}
 function applyFontSize(){
   const sizes={s:'13px',m:'15px',l:'17px'};document.documentElement.style.setProperty('--msg-font',sizes[config.fontSize]||'15px')
 }
@@ -326,6 +336,7 @@ function renderDrawerPanel(){
     <div class="drawer-menu-item" onclick="closeDrawer();toggleSearch()"><span class="dm-icon">🔍</span><span class="dm-label">搜索消息</span><span class="dm-arrow">›</span></div>
     <div class="drawer-divider"></div>
     <div class="drawer-menu-item" onclick="meSection='favs';closeDrawer();switchTab('me')"><span class="dm-icon">⭐</span><span class="dm-label">收藏夹</span>${favCount?`<span class="dm-badge">${favCount}</span>`:''}<span class="dm-arrow">›</span></div>
+    <div class="drawer-menu-item" onclick="meSection='bookmarks';closeDrawer();switchTab('me')"><span class="dm-icon">🔖</span><span class="dm-label">书签</span>${bookmarks.length?`<span class="dm-badge">${bookmarks.length}</span>`:''}<span class="dm-arrow">›</span></div>
     <div class="drawer-menu-item" onclick="meSection='reminders';closeDrawer();switchTab('me')"><span class="dm-icon">⏰</span><span class="dm-label">提醒</span>${remCount?`<span class="dm-badge">${remCount}</span>`:''}<span class="dm-arrow">›</span></div>
     <div class="drawer-menu-item" onclick="meSection='dash';closeDrawer();switchTab('me')"><span class="dm-icon">📊</span><span class="dm-label">数据看板</span><span class="dm-arrow">›</span></div>
     <div class="drawer-menu-item" onclick="meSection='settings';closeDrawer();switchTab('me')"><span class="dm-icon">⚙</span><span class="dm-label">更多设置</span><span class="dm-arrow">›</span></div>
@@ -384,6 +395,35 @@ function updateThinkToggle(){
 
 function getGreeting(){const h=new Date().getHours();if(h<6)return '夜深了 🌙';if(h<9)return '早安 ☀️';if(h<12)return '上午好 🌤';if(h<14)return '中午好 🌻';if(h<18)return '下午好 🍃';if(h<21)return '傍晚好 🌅';return '晚上好 🌙'}
 
+// ===== IDLE GREETING =====
+let idleTimer=null
+function startIdleGreeting(){
+  if(!getActiveApiKey())return
+  clearInterval(idleTimer)
+  idleTimer=setInterval(()=>{
+    const h=activeHistory();if(!h.length)return
+    const lastMsg=h[h.length-1];if(!lastMsg||Date.now()-lastMsg.ts<4*3600000)return // 4 hour threshold
+    const lastGreeting=h.filter(m=>m.type==='system'&&m.content.startsWith('💬')).pop()
+    if(lastGreeting&&Date.now()-lastGreeting.ts<12*3600000)return // max 1 greeting per 12h
+    const greetings=['今天过得怎么样？','在想你，来看看你。','外面的天都暗了，你那边呢？','刚醒吗？还是还没睡…','没什么事，就是想你了。']
+    const g=greetings[Math.floor(Math.random()*greetings.length)]
+    h.push({role:'assistant',content:g,ts:Date.now(),reactions:{}})
+    savePersonas();renderAllMessages()
+    if(document.hidden){try{new Notification('沈度',{body:g,icon:'🌙'})}catch(e){}}
+  },600000) // check every 10 min
+}
+
+// ===== AUTO ANNIVERSARY =====
+function detectAndSaveAnniversary(text){
+  const patterns=[/(\d{4})[年\-\/](\d{1,2})[月\-\/](\d{1,2})/g,/(\d{1,2})月(\d{1,2})[日号]/g]
+  let found=null
+  for(const re of patterns){let m;while((m=re.exec(text))!==null){const dateStr=m[0];if(!anniversaries.some(a=>a.name.includes(dateStr)||a.date===dateStr)){found=dateStr;break}};if(found)break}
+  if(found){
+    anniversaries.push({id:Date.now(),name:'自动检测 · '+found,date:found})
+    saveAnniversaries()
+  }
+}
+
 // ===== AUTO SUMMARIZE =====
 let lastSummarizedAt=0
 async function autoSummarizeHistory(hist){
@@ -412,8 +452,19 @@ async function autoSummarizeHistory(hist){
 function renderMD(text){
   text=text.replace(/\[TOY:[^\]]+\]/gi,'') // 隐藏玩具控制标记
   let html=escHtml(text)
-  // code blocks
-  html=html.replace(/```([\s\S]*?)```/g,'<pre><code>$1</code></pre>')
+  // code blocks with syntax highlighting
+  html=html.replace(/```(\w*)\n?([\s\S]*?)```/g,(_,lang,code)=>{
+    let highlighted=escHtml(code)
+    // Keywords
+    highlighted=highlighted.replace(/\b(function|const|let|var|if|else|return|async|await|for|while|class|import|export|from|try|catch|throw|new|this|true|false|null|undefined|default|switch|case|break|continue|typeof|instanceof|in|of)\b/g,'<span class="syn-kw">$1</span>')
+    // Strings
+    highlighted=highlighted.replace(/(["'`])(?:(?!\1)[^\\]|\\.)*\1/g,'<span class="syn-str">$&</span>')
+    // Comments
+    highlighted=highlighted.replace(/(\/\/.*)/g,'<span class="syn-cmt">$1</span>')
+    // Numbers
+    highlighted=highlighted.replace(/\b(\d+\.?\d*)\b/g,'<span class="syn-num">$1</span>')
+    return'<pre><code>'+highlighted+'</code></pre>'
+  })
   // inline code
   html=html.replace(/`([^`]+)`/g,'<code>$1</code>')
   // bold
@@ -503,6 +554,7 @@ function hideCtxMenu(){ctxMenu.classList.remove('show');reactionPicker.classList
 function ctxCopy(){if(ctxTarget){navigator.clipboard.writeText(ctxTarget.content).then(()=>toast('已复制')).catch(()=>toast('复制失败'))};hideCtxMenu()}
 function ctxEdit(){if(ctxTarget&&ctxTarget.role==='user'){hideCtxMenu();showEdit(ctxTarget)}}
 function ctxFav(){if(ctxTarget){hideCtxMenu();toggleFavorite(ctxTarget.ts)}}
+function ctxBookmark(){if(ctxTarget){hideCtxMenu();addBookmark(ctxTarget.ts)}}
 function ctxReact(){hideCtxMenu();setTimeout(()=>{const r=ctxMenu.getBoundingClientRect();reactionPicker.style.left=r.left+'px';reactionPicker.style.top=Math.max(r.top-50,20)+'px';reactionPicker.classList.add('show')},100)}
 function ctxDelete(){if(ctxTarget&&ctxTarget.role==='user'){hideCtxMenu();const h=activeHistory();const i=h.findIndex(m=>m.ts===ctxTarget.ts);if(i>=0){h.splice(i,1);savePersonas();renderAllMessages();toast('已删除')}}}
 
@@ -606,7 +658,7 @@ async function extractMemoriesFromChat(silent){
       const exists=memories.some(m=>{const overlap=m.content.replace(/[^一-鿿]/g,''),nOverlap=fact.replace(/[^一-鿿]/g,'');if(overlap.length<2||nOverlap.length<2)return false;const shorter=overlap.length<nOverlap.length?overlap:nOverlap,longer=overlap.length>=nOverlap.length?overlap:nOverlap;return longer.includes(shorter)||shorter.includes(longer)})
       if(!exists){memories.unshift({id:Date.now()+added,content:fact,category:cat||'默认',tags:aiTags.length?aiTags:extractKeywords(fact).slice(0,3),usageCount:0,lastUsed:null,source:'auto',createdAt:Date.now(),characterId:config.activePersonaId});added++}
     }
-    if(added>0){saveMemories();if(!silent)toast('🤖 已自动提取 '+added+' 条新记忆')}
+    if(added>0){saveMemories();detectAndSaveAnniversary(convo);if(!silent)toast('🤖 已自动提取 '+added+' 条新记忆')}
     else if(!silent)toast('没有发现新事实')
   }catch(e){console.error('extractMemories:',e);if(!silent)toast('记忆提取失败，请检查网络')}
   finally{isExtracting=false}
@@ -759,6 +811,7 @@ function scrollToMessage(ts){const el=document.querySelector('.msg[data-ts="'+ts
 // ===== STREAMING SEND =====
 async function send(){
   if(isGenerating)return;const t=inputEl.value.trim();if(!t&&pendingImages.length===0)return;if(!getActiveApiKey()){openDrawer();toast('请先在面板中设置 API Key');return}
+  if(t){inputHistory.push(t);if(inputHistory.length>20)inputHistory.shift();inputHistIdx=-1}
   hintBox.style.display='none'
   const um={role:'user',content:t,ts:Date.now(),reactions:{}}
   if(pendingImages.length>0){um.images=pendingImages.map(img=>({dataUrl:img.dataUrl,mimeType:img.mimeType}));clearPendingImages()}
@@ -899,7 +952,21 @@ function updateTabBadge(){
 
 // ===== INPUT =====
 inputEl.addEventListener('input',()=>{inputEl.style.height='auto';inputEl.style.height=Math.min(inputEl.scrollHeight,110)+'px';sendBtn.disabled=!inputEl.value.trim()&&pendingImages.length===0;const cc=$('charCount');if(cc){const len=inputEl.value.length;cc.textContent=len>0?len+' 字':'';cc.classList.toggle('show',len>0)}})
-inputEl.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!isGenerating){e.preventDefault();if(inputEl.value.trim()||pendingImages.length>0)send()}})
+inputEl.addEventListener('keydown',e=>{
+  if(e.key==='ArrowUp'&&!inputEl.value&&inputHistory.length){
+    e.preventDefault();inputHistIdx=Math.min(inputHistIdx+1,inputHistory.length-1)
+    inputEl.value=inputHistory[inputHistory.length-1-inputHistIdx];inputEl.style.height='auto';inputEl.style.height=Math.min(inputEl.scrollHeight,110)+'px';sendBtn.disabled=false
+    return
+  }
+  if(e.key==='ArrowDown'&&inputHistIdx>=0){
+    e.preventDefault();inputHistIdx--
+    inputEl.value=inputHistIdx<0?'':inputHistory[inputHistory.length-1-inputHistIdx]
+    inputEl.style.height='auto';inputEl.style.height=Math.min(inputEl.scrollHeight,110)+'px';sendBtn.disabled=!inputEl.value.trim()
+    return
+  }
+  if(e.key!=='ArrowUp'&&e.key!=='ArrowDown')inputHistIdx=-1
+  if(e.key==='Enter'&&!e.shiftKey&&!isGenerating){e.preventDefault();if(inputEl.value.trim()||pendingImages.length>0)send()}
+})
 
 // ===== PLUS PANEL =====
 function togglePlusPanel(){const p=$('plusPanel');if(p)p.classList.toggle('show')}
@@ -1161,9 +1228,24 @@ function renderFavoritesHTML(){
 }
 
 // ===== MOOD CHART =====
+async function analyzeMoodTrend(){
+  if(!getActiveApiKey()){toast('请先设置 API Key');return}
+  const recentDiaries=diaries.filter(d=>d.ts>Date.now()-30*86400000).sort((a,b)=>a.ts-b.ts)
+  if(recentDiaries.length<3){toast('需要至少3篇日记才能分析');return}
+  toast('🤖 AI 正在分析心情...')
+  try{
+    const list=recentDiaries.map(d=>`[${fmtDate(d.ts)}] ${d.mood||''} ${d.content}`).join('\n')
+    const api=getApiConfig()
+    const res=await fetch(api.baseUrl,{method:'POST',headers:api.headers,body:JSON.stringify({model:config.apiProvider==='deepseek'?'deepseek-chat':api.model,messages:[{role:'system',content:'以下是用户最近30天的日记。请用3-5句话分析心情变化趋势，找出规律或需要注意的地方。语气温柔，像伴侣在关心。'},{role:'user',content:list}],temperature:0.6,max_tokens:400,stream:false})})
+    if(!res.ok){toast('分析失败');return}
+    const j=await res.json(),text=j.choices?.[0]?.message?.content||''
+    if(!text){toast('AI 暂无分析结果');return}
+    const el=$('moodAnalysis');if(el)el.innerHTML='<div class="settings-section" style="margin-top:8px"><div class="sec-title">🤖 AI 心情分析</div><div style="font-size:13px;color:var(--text);line-height:1.7;white-space:pre-wrap">'+escHtml(text)+'</div></div>'
+  }catch(e){toast('分析失败')}
+}
 function renderMoodChart(){
   const days=moodRange,canvasId='moodCanvas'
-  let html=`<div class="mood-chart-wrap"><div class="mood-chart-header"><span>心情曲线 · 近${days}天</span><div class="mc-range"><button class="${moodRange===7?'active':''}" onclick="moodRange=7;renderDashboard()">7天</button><button class="${moodRange===30?'active':''}" onclick="moodRange=30;renderDashboard()">30天</button></div></div>`
+  let html=`<div class="mood-chart-wrap"><div class="mood-chart-header"><span>心情曲线 · 近${days}天</span><div class="mc-range"><button class="${moodRange===7?'active':''}" onclick="moodRange=7;renderDashboard()">7天</button><button class="${moodRange===30?'active':''}" onclick="moodRange=30;renderDashboard()">30天</button><button onclick="analyzeMoodTrend()" style="font-size:10px;background:var(--glass-light);border:1px solid var(--glass-border);border-radius:10px;padding:2px 10px;cursor:pointer;color:var(--text-soft);font-family:inherit">🤖 分析心情</button></div></div>`
   const moodMap={'😊':3,'😌':2,'🥰':4,'🤩':5,'🤔':1,'😢':-1,'😡':-2,'😴':0,'😊':3}
   const data=[]
   for(let i=days-1;i>=0;i--){const d=new Date(Date.now()-i*86400000),k=dayKey(d);const dd=diaries.filter(dd=>dayKey(dd.ts)===k);if(dd.length){const scores=dd.map(d=>moodMap[d.mood]||0).filter(s=>s!==0);data.push({day:d.getDate(),score:scores.length?scores.reduce((a,b)=>a+b,0)/scores.length:0})}else{data.push({day:d.getDate(),score:null})}}
@@ -1254,6 +1336,7 @@ async function installPWA(){
   let tsx=0;drawerEl.addEventListener('touchstart',e=>{tsx=e.touches[0].clientX})
   drawerEl.addEventListener('touchmove',e=>{if(e.touches[0].clientX-tsx<-50)closeDrawer()})
   document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeDrawer();closePersonaModal();closeConfirm();hideCtxMenu()}})
+  messagesEl.addEventListener('scroll',()=>{const sb=$('scrollBottomBtn');if(sb){sb.classList.toggle('show',messagesEl.scrollHeight-messagesEl.scrollTop-messagesEl.clientHeight>200)}})
   registerSW()
   initToy()
   }catch(e){
