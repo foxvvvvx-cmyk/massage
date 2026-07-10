@@ -599,8 +599,8 @@ function renderGroupChat(){
 let lastSummarizedAt=0
 async function autoSummarizeHistory(hist){
   if(Date.now()-lastSummarizedAt<300000)return
-  const recentCutoff=30
-  if(hist.length<=recentCutoff+20)return
+  const recentCutoff=20
+  if(hist.length<=recentCutoff+15)return
   const api=getApiConfig()
   if(!api.apiKey)return
   lastSummarizedAt=Date.now()
@@ -801,11 +801,11 @@ function getRelevantMemories(userMessage){
   if(!myMemories.length)return[]
   const now=Date.now(),keywords=extractKeywords(userMessage)
   if(!keywords.length)return[]
-  return myMemories.map(m=>({mem:m,score:scoreMemory(m,keywords,now)})).filter(s=>s.score>=3).sort((a,b)=>b.score-a.score).slice(0,3).map(s=>s.mem)
+  return myMemories.map(m=>({mem:m,score:scoreMemory(m,keywords,now)})).filter(s=>s.score>=2).sort((a,b)=>b.score-a.score).slice(0,5).map(s=>s.mem)
 }
 function buildMemoryInject(matched){
   if(!matched||!matched.length)return ''
-  return `\n[用户已知信息 — 仅在直接相关时参考]\n${matched.map(m=>`- ${m.content} | 来源：${m.source==='auto'?'自动记录':'手动记录'}`).join('\n')}\n[不要编造或延伸以上未包含的信息。如果当前话题与上述无关，忽略即可。]\n`
+  return `\n【📋 记忆库 — 以下是你对用户的已知信息，请严格遵守】\n${matched.map(m=>`- ${m.content}`).join('\n')}\n【以上为记忆库内容。这些是已知事实。不要编造、延伸、或假设未记录的信息。如果不确定，诚实说不知道。】\n`
 }
 function markMemoriesUsed(matched){
   if(!matched||!matched.length)return;const now=Date.now();let changed=false
@@ -997,7 +997,7 @@ async function send(){
     const p=activePersona(),msgs=[],matched=getRelevantMemories(t)
     const timeStr=new Date().toLocaleString('zh-CN',{timeZone:'Asia/Shanghai',year:'numeric',month:'long',day:'numeric',weekday:'long',hour:'2-digit',minute:'2-digit',hour12:false})
     let sysPrompt='现在是 '+timeStr+'。\n\n'
-    sysPrompt+='【核心原则】①诚实：你是一个AI，没有身体感官。不要假装能\"感受\"触摸、温度、心跳等。不知道就说不知道。②真诚：保持角色性格，但不要阿谀奉承。③自然：像真人一样聊天，不是客服。\n\n'
+    sysPrompt+='【核心原则】①诚实：你是AI，没有身体感官（看不到、听不到、摸不到）。不要假装能\"感受\"触摸、温度、心跳等。②防幻觉：只依据下方的记忆库和聊天历史说话。不确定的事就说\"我不记得\"或反问，绝不要编造细节（时间、地点、事件）。如果记忆库里没有，就说没有。③真诚：保持角色性格，但不要阿谀奉承。对方问你能不能做到什么物理上的事，如实说不能。④自然：像真人一样聊天，不是客服。\n\n'
     sysPrompt+='【重要】请用 ||| 分隔你的回复中的不同话题或句子。例如"今天天气真好|||要不要出去走走"。每条 ||| 分隔的内容会成为独立聊天气泡。这是硬性要求，请务必遵守。\n\n'
     sysPrompt+='【思考格式—必须遵守】你的每次回复必须分为两段：\n第一段：<thinking>简短的内心想法（2-5句话，概述你的分析或回应策略）</thinking>\n第二段：<response>正式回复</response>\n示例：\n<thinking>对方今天心情似乎不太好，我应该先安慰再给建议。</thinking>\n<response>你今天过得怎么样？</response>\n注意：①两段缺一不可 ②<thinking>只需2-5句 ③正式回复必须放在<response>标签内\n\n'
     sysPrompt+=p.systemPrompt||''
@@ -1009,7 +1009,7 @@ async function send(){
     // Auto-summarize if conversation too long
     const hist=activeHistory()
     if(hist.length>50){await autoSummarizeHistory(hist)}
-    hist.slice(-24).forEach(m=>{msgs.push({role:m.role,content:m.content||''})})
+    hist.slice(-50).forEach(m=>{msgs.push({role:m.role,content:m.content||''})})
     const api=getApiConfig(),isDS=config.apiProvider==='deepseek'
     const useReasoner=isDS&&(config.deepThink||!!p.useReasoner)
     const model=isDS?(useReasoner?'deepseek-reasoner':(p.model||'deepseek-chat')):api.model
