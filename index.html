@@ -6,7 +6,7 @@
 <title>沈度</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="theme-color" content="#f8f0f3">
+<meta name="theme-color" content="#f5f0ee">
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='192' height='192' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='40' fill='%23f8f0f3'/%3E%3Ctext x='96' y='110' text-anchor='middle' font-size='80'%3E🌙%3C/text%3E%3C/svg%3E">
 <link rel="manifest" href="manifest.json">
 <link href="https://cdn.jsdelivr.net/npm/@fontsource/cormorant-garamond@5/400.min.css" rel="stylesheet">
@@ -73,9 +73,8 @@
         <div class="plus-panel" id="plusPanel">
           <button onclick="document.getElementById('cameraInput').click();togglePlusPanel()">📷 拍照</button>
           <button onclick="document.getElementById('imageInput').click();togglePlusPanel()">🖼️ 相册</button>
-          <button onclick="toggleVoice();togglePlusPanel()">🎤 语音</button>
-        </div>
-        <div class="field-wrap"><textarea id="input" rows="1" placeholder="说点什么…" enterkeyhint="send"></textarea></div>
+                  </div>
+        <div class="field-wrap"><textarea id="input" rows="1" placeholder="想说点什么都可以，我在听…" enterkeyhint="send"></textarea></div>
         <button class="btn-send" id="sendBtn" onclick="send()" disabled>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
         </button>
@@ -136,6 +135,6 @@
   </div>
 </div>
 
-<script src="app.js?v=19"></script>
+<script src="app.js?v=21"></script>
 </body>
 </html>

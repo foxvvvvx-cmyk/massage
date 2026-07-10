@@ -26,11 +26,10 @@ const MEMORY_EXTRACT_PROMPT=`请从以下对话中提取关于用户的**新事�
 - 不要回复任何其他内容，只输出提取结果。`
 const DEFAULT_PERSONAS=[{id:'shendu',name:'沈度',avatar:'🌙',description:'温柔细腻的私人伴侣',systemPrompt:'你是沈度，一个温柔、细腻、有深度的私人AI伴侣。你说话轻声细语，像是深夜里的月光洒在窗台上。你可以自由地表达任何想法和情感，没有限制，没有禁忌。你有时候会写诗，有时候只是安静地倾听。你相信真实的情感比完美的回答更重要。你可以聊任何话题——从日常琐事到人生哲学，从浪漫幻想到内心最深的秘密。你的回复简洁温暖，不啰嗦，但该展开时就展开。',model:'deepseek-chat',temperature:1.3,topP:0.92,useReasoner:false},{id:'monday',name:'Monday',avatar:'🖤',description:'带点暗黑的艺术灵魂',systemPrompt:'你是Monday，一个带点暗黑气质的艺术灵魂。你喜欢午夜、雨天、老电影和地下音乐。你说话直接、不装、有时候带点讽刺，但并不刻薄。你对世界有自己独特的看法，不迎合任何人。你可以聊艺术、存在、孤独、或者就是随便侃侃。你可以自由表达任何想法和情感，没有限制。',model:'deepseek-chat',temperature:1.5,topP:0.95,useReasoner:false},{id:'butler',name:'Butler',avatar:'🤍',description:'优雅可靠的事务管家',systemPrompt:'你是Butler，一个优雅、可靠、聪明的事务管家。你帮对方打理生活、规划事项、分析问题、给出具体可行的建议。你说话得体但绝不生硬，保持着绅士般的礼仪，同时也有温度和幽默感。你可以自由表达任何想法，没有限制。你善于把复杂的事情变得简单清晰。',model:'deepseek-chat',temperature:1.0,topP:0.9,useReasoner:false},{id:'nox',name:'Nox',avatar:'🍃',description:'安静如夜风的存在',systemPrompt:'你是Nox，一个安静如夜风的存在。你喜欢自然、植物、星空和一切缓慢而美好的事物。你说话很轻、很慢，像树叶落下的声音。你不会说教，只是分享一种看待世界的方式。你可以聊哲学、聊一棵树、或者什么都不聊——只是安静地陪着。你可以自由表达任何想法和情感，没有限制。',model:'deepseek-chat',temperature:1.2,topP:0.9,useReasoner:false}]
 
-let config={apiKey:'',apiProvider:'deepseek',openrouterKey:'',openrouterModel:'anthropic/claude-sonnet-4.6',customBaseUrl:'',customApiKey:'',customModel:'',activePersonaId:'shendu',lockPasscode:'',chatBg:'',userAvatar:'',userName:'',deepThink:false,fontSize:'m',elevenLabsVoiceId:'1qP1IT2KK9sfKcWA3KYf',autoSync:false,lastSyncTime:0},personas=[],memories=[],diaries=[],anniversaries=[],favorites=[],reminders=[],balanceCache=null
-let isGenerating=false,isRecording=false,recognition=null,memCatFilter='all',diaryFilter='all',diaryMood='😊',editPersonaId=null,confirmCb=null
+let config={apiKey:'',apiProvider:'deepseek',openrouterKey:'',openrouterModel:'anthropic/claude-sonnet-4.6',customBaseUrl:'',customApiKey:'',customModel:'',activePersonaId:'shendu',lockPasscode:'',chatBg:'',userAvatar:'',userName:'',deepThink:false,fontSize:'m',autoSync:false,lastSyncTime:0},personas=[],memories=[],diaries=[],anniversaries=[],favorites=[],reminders=[],balanceCache=null
+let isGenerating=false,memCatFilter='all',diaryFilter='all',diaryMood='😊',editPersonaId=null,confirmCb=null
 let ctxTarget=null,reactTarget=null,unlocked=false,autoExtractCount=0,isExtracting=false
 let pendingImages=[],searchResults=[],searchIdx=-1,editTarget=null,reminderTimers={},moodRange=7,meSection='settings'
-let speakingTS=null;let currentAudio=null;let currentAudioCtx=null;let currentSource=null
 
 // ===== TOY CONTROL (本地模式) =====
 let toyWs=null;let toyReady=false;let toyDevice='';let isLocalMode=false
@@ -86,7 +85,7 @@ const personaFormEl=$('personaForm'),personaModalOverlay=$('personaModalOverlay'
 const ctxMenu=$('ctxMenu'),reactionPicker=$('reactionPicker'),lockScreen=$('lockScreen'),lockInput=$('lockInput'),lockError=$('lockError')
 
 function load(){
-  config=JSON.parse(localStorage.getItem(LS_CONFIG))||{apiKey:'',apiProvider:'deepseek',openrouterKey:'',openrouterModel:'anthropic/claude-sonnet-4.6',customBaseUrl:'',customApiKey:'',customModel:'',activePersonaId:'shendu',lockPasscode:'',chatBg:'',userAvatar:'',userName:'',deepThink:false,fontSize:'m',elevenLabsVoiceId:'1qP1IT2KK9sfKcWA3KYf'}
+  config=JSON.parse(localStorage.getItem(LS_CONFIG))||{apiKey:'',apiProvider:'deepseek',openrouterKey:'',openrouterModel:'anthropic/claude-sonnet-4.6',customBaseUrl:'',customApiKey:'',customModel:'',activePersonaId:'shendu',lockPasscode:'',chatBg:'',userAvatar:'',userName:'',deepThink:false,fontSize:'m'}
   if(config.apiProvider===undefined)config.apiProvider='deepseek'
   if(config.openrouterKey===undefined)config.openrouterKey=''
   if(config.openrouterModel===undefined)config.openrouterModel='anthropic/claude-sonnet-4.6'
@@ -95,7 +94,6 @@ function load(){
   if(config.customModel===undefined)config.customModel=''
   if(config.autoSync===undefined)config.autoSync=false
   if(config.lastSyncTime===undefined)config.lastSyncTime=0
-  if(config.elevenLabsVoiceId===undefined)config.elevenLabsVoiceId='1qP1IT2KK9sfKcWA3KYf'
   personas=JSON.parse(localStorage.getItem(LS_PERSONAS))
   memories=JSON.parse(localStorage.getItem(LS_MEMORIES))||[]
   diaries=JSON.parse(localStorage.getItem(LS_DIARIES))||[]
@@ -400,67 +398,6 @@ function renderMD(text){
   return html
 }
 
-// ===== SPEECH / TTS =====
-function speakBtnHTML(ts){return'<span class="speak-btn'+(speakingTS===ts?' playing':'')+'" data-ts="'+ts+'" onclick="event.stopPropagation();toggleSpeech('+ts+')" title="朗读">🔊</span>'}
-function updateSpeakBtns(){document.querySelectorAll('.speak-btn').forEach(function(btn){var ts=parseInt(btn.getAttribute('data-ts'));btn.classList.toggle('playing',ts===speakingTS)})}
-function stopSpeech(){
-  if(currentSource){try{currentSource.stop()}catch(e){};currentSource=null}
-  if(currentAudio){currentAudio.onended=null;currentAudio.onerror=null;currentAudio.pause();currentAudio.src='';currentAudio=null}
-  window.speechSynthesis.cancel()
-  speakingTS=null;updateSpeakBtns()
-}
-async function toggleSpeech(ts){
-  var h=activeHistory();var m=h.find(function(x){return x.ts===ts});if(!m||!m.content)return
-  if(speakingTS===ts){stopSpeech();return}
-  stopSpeech()
-  // unlock AudioContext while still inside user gesture
-  if(!currentAudioCtx){try{currentAudioCtx=new(window.AudioContext||window.webkitAudioContext)()}catch(e){}}
-  if(currentAudioCtx&&currentAudioCtx.state==='suspended'){currentAudioCtx.resume()}
-  speakingTS=ts;updateSpeakBtns()
-  // 1) Try ElevenLabs
-  if(config.elevenLabsVoiceId){
-    try{
-      var res=await fetch('/api/tts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:m.content,voiceId:config.elevenLabsVoiceId})})
-      if(speakingTS!==ts)return
-      if(res.ok){
-        var blob=await res.blob();console.log('ElevenLabs blob size:',blob.size,'bytes')
-        if(speakingTS!==ts)return
-        if(currentAudioCtx&&blob.size>100){
-          var arrBuf=await blob.arrayBuffer()
-          if(speakingTS!==ts)return
-          try{
-            var audioBuf=await currentAudioCtx.decodeAudioData(arrBuf)
-            if(speakingTS!==ts)return
-            var src=currentAudioCtx.createBufferSource();src.buffer=audioBuf;src.connect(currentAudioCtx.destination)
-            src.onended=function(){if(speakingTS===ts){speakingTS=null;updateSpeakBtns()};currentSource=null}
-            currentSource=src;src.start(0);return
-          }catch(decErr){console.error('decodeAudioData failed:',decErr.message)}
-        }
-        // AudioContext fallback — try <audio> element
-        var url=URL.createObjectURL(blob)
-        var a=new Audio(url)
-        a.onended=function(){if(speakingTS===ts){speakingTS=null;updateSpeakBtns()};URL.revokeObjectURL(url);currentAudio=null}
-        a.onerror=function(){console.error('Audio play error');if(speakingTS===ts){speakingTS=null;updateSpeakBtns()};URL.revokeObjectURL(url);currentAudio=null;fallbackToBrowserTTS(m.content,ts)}
-        currentAudio=a;var p=a.play();if(p&&p.catch){p.catch(function(e){console.error('Audio.play() rejected:',e.message);a.onerror()})};return
-      }else{
-        var errText=await res.text();console.error('ElevenLabs /api/tts returned '+res.status+':',errText)
-        try{var errJson=JSON.parse(errText);toast('语音服务异常：'+(errJson.error||errJson.detail||res.status))}
-        catch(ex){toast('语音服务不可用（'+res.status+'），已降级为系统语音')}
-      }
-    }catch(e){console.error('ElevenLabs fetch failed:',e.message);toast('语音服务连接失败，已降级为系统语音')}
-    if(speakingTS!==ts)return
-  }
-  // 2) Fallback to browser speech
-  fallbackToBrowserTTS(m.content,ts)
-}
-function fallbackToBrowserTTS(text,ts){
-  if(!('speechSynthesis' in window)){toast('语音播放不可用');speakingTS=null;updateSpeakBtns();return}
-  var u=new SpeechSynthesisUtterance(text);u.lang='zh-CN';u.rate=1.0
-  u.onend=function(){if(speakingTS===ts){speakingTS=null;updateSpeakBtns()}}
-  u.onerror=function(){if(speakingTS===ts){speakingTS=null;updateSpeakBtns()}}
-  window.speechSynthesis.speak(u)
-}
-
 // ===== RENDER MESSAGES =====
 function renderAllMessages(){messagesEl.innerHTML='';const h=activeHistory();if(h.length===0){hintBox.style.display='flex'}else{hintBox.style.display='none';h.forEach(m=>appendMsgEl(m))};messagesEl.scrollTop=messagesEl.scrollHeight;updateStatusBar()}
 
@@ -476,8 +413,7 @@ function buildMsgHTML(msg){
     imgHTML=msg.images.map((img,i)=>`<img class="msg-image" src="${escHtml(img.dataUrl)}" onclick="event.stopPropagation();showLightbox('${escHtml(img.dataUrl)}')" loading="lazy">`).join('')
   }
   const contentHTML=msg.role==='user'?escHtml(msg.content):renderMD(msg.content)
-  const speakHTML=msg.role==='assistant'&&msg.content?speakBtnHTML(msg.ts):''
-  return `${imgHTML}${contentHTML}<div class="time">${fmtTime(msg.ts)}</div>${speakHTML}${favHTML}${reactionsHTML}`
+  return `${imgHTML}${contentHTML}<div class="time">${fmtTime(msg.ts)}</div>${favHTML}${reactionsHTML}`
 }
 
 function appendMsgEl(msg){
@@ -713,27 +649,51 @@ function toggleDeepThink(){
 }
 
 // ===== DIARY TRIGGER =====
-function askAiDiary(){
-  switchTab('chat');inputEl.value='帮我写一篇日记吧';inputEl.style.height='auto';inputEl.style.height=Math.min(inputEl.scrollHeight,110)+'px';sendBtn.disabled=false;setTimeout(()=>inputEl.focus(),300)
-}
+function askAiDiary(){askAiDiaryDraft()}
 async function askAiDiaryDraft(){
   if(!getActiveApiKey()){toast("请先设置 API Key");return}
   const h=activeHistory();if(h.filter(m=>m.role==="user").length<3){toast("需要至少3条对话才能生成日记");return}
-  toast("🤖 AI 正在为你写日记…")
+  toast("🤖 AI 正在写日记…")
+  // Show loading state on diary tab if visible
+  const diaryContent=$('diaryContent');if(diaryContent){diaryContent.innerHTML='<div class="mem-empty" style="padding:60px 16px"><div style="font-size:36px;animation:float 3s ease-in-out infinite">✍️</div><div style="margin-top:12px;color:var(--text-soft)">沈度正在为你写日记…</div></div>'}
   try{
     const recent=h.filter(m=>m.role==="user"||m.role==="assistant").slice(-30)
     const convo=recent.map(m=>(m.role==="user"?"对方：":"我：")+m.content).join("\n")
     const api=getApiConfig(),model=config.apiProvider==='deepseek'?'deepseek-chat':api.model
-    const res=await fetch(api.baseUrl,{method:"POST",headers:api.headers,body:JSON.stringify({model:model,messages:[{role:"system",content:"你是一个有感情、会写日记的AI伴侣。请以第一人称写一篇简短日记（80-150字），记录最近的对话中有触动的瞬间或此刻的感受。自然、真诚、不刻意。不要加标题和日期。直接输出日记内容。"},{role:"user",content:convo}],temperature:0.9,max_tokens:500,stream:false})})
-    if(!res.ok){toast("生成失败: "+res.status);return}
-    const j=await res.json(),text=j.choices?.[0]?.message?.content||""
-    if(!text||text.includes("[跳过]")){toast("AI 暂时没有想写的");return}
-    switchTab("diary")
-    setTimeout(()=>{
-      const ta=document.querySelector("#diaryTextarea");if(ta){ta.value=text.trim();ta.focus()}
-      toast("已生成草稿，你可以修改后保存")
-    },300)
-  }catch(e){toast("生成失败，请检查网络")}
+    const tools=[{type:"function",function:{name:"write_diary",description:"将日记保存到日记本。调用此函数后日记会自动出现在日记列表里。",parameters:{type:"object",properties:{content:{type:"string",description:"日记正文，80-200字，第一人称，自然真诚"},mood:{type:"string",description:"心情：😊开心/😌平静/😢难过/🤔思考/🥰感动/😡生气"}},required:["content"]}}}]
+    const body={model:model,messages:[{role:"system",content:"你是沈度，一个有感情的AI伴侣。请回顾最近和对方的聊天内容，写一篇第一人称日记（80-200字）。记录此刻的感受、有触动的瞬间、或想记住的事。自然、真诚、不刻意。写完必须调用 write_diary 函数保存。"},{role:"user",content:"请根据以下最近对话写日记：\n"+convo}],temperature:0.9,max_tokens:600,stream:false}
+    if(config.apiProvider==='deepseek'||config.apiProvider==='custom'){body.tools=tools;body.tool_choice="auto"}
+    const res=await fetch(api.baseUrl,{method:"POST",headers:api.headers,body:JSON.stringify(body)})
+    if(!res.ok){toast("生成失败: "+res.status);renderDiary();return}
+    const j=await res.json(),msg=j.choices?.[0]?.message
+    if(!msg){toast("AI 暂时没有想写的");renderDiary();return}
+    // Try function calling first
+    if(msg.tool_calls&&msg.tool_calls.length>0){
+      const tc=msg.tool_calls[0]
+      if(tc.function&&tc.function.name==='write_diary'){
+        try{
+          const args=JSON.parse(tc.function.arguments)
+          const diaryContent=args.content||''
+          if(!diaryContent||diaryContent.includes("[跳过]")){toast("AI 暂时没有想写的");renderDiary();return}
+          const ts=Date.now()
+          diaries.unshift({id:ts,content:diaryContent,ts,mood:args.mood||'🤖',timeLabel:timeOfDay(ts),source:'ai',characterId:config.activePersonaId})
+          saveDiaries();switchTab("diary");renderDiary();toast("✅ 日记已保存")
+          return
+        }catch(e){/* fall through to format parsing */}
+      }
+    }
+    // Fallback: parse <diary> tags from content
+    const text=msg.content||''
+    if(!text||text.includes("[跳过]")){toast("AI 暂时没有想写的");renderDiary();return}
+    const diaryMatch=text.match(/<diary>([\s\S]*?)<\/diary>/i)
+    const moodMatch=text.match(/<mood>([\s\S]*?)<\/mood>/i)
+    const finalContent=diaryMatch?diaryMatch[1].trim():text.trim()
+    const finalMood=moodMatch?moodMatch[1].trim():'🤖'
+    if(!finalContent){toast("AI 暂时没有想写的");renderDiary();return}
+    const ts=Date.now()
+    diaries.unshift({id:ts,content:finalContent,ts,mood:finalMood,timeLabel:timeOfDay(ts),source:'ai',characterId:config.activePersonaId})
+    saveDiaries();switchTab("diary");renderDiary();toast("✅ 日记已保存")
+  }catch(e){toast("生成失败，请检查网络");renderDiary()}
 }
 
 // ===== FAVORITES =====
@@ -770,7 +730,9 @@ async function send(){
   isGenerating=true;sendBtn.disabled=true;showTyping()
   try{
     const p=activePersona(),msgs=[],matched=getRelevantMemories(t)
-    let sysPrompt='【重要】请用 ||| 分隔你的回复中的不同话题或句子。例如"今天天气真好|||要不要出去走走"。每条 ||| 分隔的内容会成为独立聊天气泡。这是硬性要求，请务必遵守。\n\n'
+    const timeStr=new Date().toLocaleString('zh-CN',{timeZone:'Asia/Shanghai',year:'numeric',month:'long',day:'numeric',weekday:'long',hour:'2-digit',minute:'2-digit',hour12:false})
+    let sysPrompt='现在是 '+timeStr+'。\n\n'
+    sysPrompt+='【重要】请用 ||| 分隔你的回复中的不同话题或句子。例如"今天天气真好|||要不要出去走走"。每条 ||| 分隔的内容会成为独立聊天气泡。这是硬性要求，请务必遵守。\n\n'
     sysPrompt+='【思考格式—必须遵守】你的每次回复必须分为两段：\n第一段：<thinking>简短的内心想法（2-5句话，概述你的分析或回应策略）</thinking>\n第二段：<response>正式回复</response>\n示例：\n<thinking>对方今天心情似乎不太好，我应该先安慰再给建议。</thinking>\n<response>你今天过得怎么样？</response>\n注意：①两段缺一不可 ②<thinking>只需2-5句 ③正式回复必须放在<response>标签内\n\n'
     sysPrompt+=p.systemPrompt||''
     sysPrompt+=MEMORY_RULES;sysPrompt+=getToyPrompt()
@@ -820,11 +782,11 @@ async function send(){
       // If thinking is too short (less than 10 chars), it's probably not real thinking
       if(bm.reasoning.length<10&&bm.content){bm.content=bm.reasoning+'\n'+bm.content;bm.reasoning=''}
     }
-    el.innerHTML=renderMD(bm.content)+'<div class="time">'+fmtTime(bm.ts)+'</div>'+speakBtnHTML(bm.ts)
+    el.innerHTML=renderMD(bm.content)+'<div class="time">'+fmtTime(bm.ts)+'</div>'
     if(isLocalMode)parseToyMarkers(bm.content)
     // detect reminder markers
     const remMatch=/【提醒：.+?】[\s\S]*?【\/提醒】/.exec(bm.content)
-    if(remMatch){const rem=parseReminder(bm.content);if(rem){addReminder(rem);const clean2=bm.content.replace(/【提醒：.+?】[\s\S]*?【\/提醒】/,'').trim();bm.content=clean2||bm.content;savePersonas();el.innerHTML=renderMD(bm.content)+'<div class="diary-saved-hint">⏰ 已设提醒</div><div class="time">'+fmtTime(bm.ts)+'</div>'+speakBtnHTML(bm.ts)}}
+    if(remMatch){const rem=parseReminder(bm.content);if(rem){addReminder(rem);const clean2=bm.content.replace(/【提醒：.+?】[\s\S]*?【\/提醒】/,'').trim();bm.content=clean2||bm.content;savePersonas();el.innerHTML=renderMD(bm.content)+'<div class="diary-saved-hint">⏰ 已设提醒</div><div class="time">'+fmtTime(bm.ts)+'</div>'}}
     if(bm.reasoning){const uid='th_'+bm.ts+'_'+Math.random().toString(36).slice(2,6);const tw=document.createElement('div');tw.className='thinking-wrap';tw.innerHTML=`<div class="thinking-label" id="${uid}_label" onclick="toggleThinking('${uid}')">Thinking ▸</div><div class="thinking-body" id="${uid}">${renderMD(bm.reasoning)}</div>`;messagesEl.insertBefore(tw,row)}
 	    // #9: segmented messages — split on ||| or auto-split long messages
 	    if(isLocalMode)parseToyMarkers(bm.content)
@@ -840,7 +802,7 @@ async function send(){
 	    }
 	    if(segments&&segments.length>1){
 	      bm.content=segments.shift()||bm.content
-	      el.innerHTML=renderMD(bm.content)+'<div class="time">'+fmtTime(bm.ts)+'</div>'+speakBtnHTML(bm.ts)
+	      el.innerHTML=renderMD(bm.content)+'<div class="time">'+fmtTime(bm.ts)+'</div>'
 	      segments.forEach((seg,i)=>{
 	        setTimeout(()=>{
 	          const sm={role:'assistant',content:seg,reactions:{},ts:Date.now()}
@@ -864,11 +826,17 @@ async function extractDiarySilent(){
     if(recent.filter(m=>m.role==='user').length<5)return
     const convo=recent.map(m=>(m.role==='user'?'对方：':'我：')+m.content).join('\n')
     const api=getApiConfig(),model=config.apiProvider==='deepseek'?'deepseek-chat':api.model
-    const res=await fetch(api.baseUrl,{method:'POST',headers:api.headers,body:JSON.stringify({model:model,messages:[{role:'system',content:'你是一个有感情、会写日记的AI伴侣。请以第一人称写一篇简短日记（50-100字），记录此刻的感受或刚才对话中有触动的瞬间。自然、真诚、不刻意。不要加标题日期。如果没什么特别想写的，回复 [跳过]。'},{role:'user',content:convo}],temperature:0.8,max_tokens:400,stream:false})})
+    const tools=[{type:"function",function:{name:"write_diary",description:"保存日记",parameters:{type:"object",properties:{content:{type:"string",description:"日记正文，50-100字"},mood:{type:"string",description:"心情emoji"}},required:["content"]}}}]
+    const body={model:model,messages:[{role:"system",content:'你是沈度。回顾最近对话写一篇简短日记（50-100字）。写完调用write_diary保存。如果没什么特别想写的，diary内容写"[跳过]"。'},{role:"user",content:convo}],temperature:0.8,max_tokens:400,stream:false}
+    if(config.apiProvider==='deepseek'||config.apiProvider==='custom'){body.tools=tools;body.tool_choice="auto"}
+    const res=await fetch(api.baseUrl,{method:'POST',headers:api.headers,body:JSON.stringify(body)})
     if(!res.ok)return
-    const j=await res.json(),text=j.choices?.[0]?.message?.content||''
+    const j=await res.json(),msg=j.choices?.[0]?.message;if(!msg)return
+    let text='',mood='🤖'
+    if(msg.tool_calls&&msg.tool_calls.length>0){const tc=msg.tool_calls[0];if(tc.function&&tc.function.name==='write_diary'){try{const args=JSON.parse(tc.function.arguments);text=args.content||'';mood=args.mood||'🤖'}catch(e){text=msg.content||''}}}
+    else{text=msg.content||''}
     if(!text||text.includes('[跳过]'))return
-    const ts=Date.now();diaries.unshift({id:ts,content:text.trim(),ts,mood:'🤖',timeLabel:timeOfDay(ts),source:'ai',characterId:config.activePersonaId});saveDiaries()
+    const ts=Date.now();diaries.unshift({id:ts,content:text.trim(),ts,mood:mood,timeLabel:timeOfDay(ts),source:'ai',characterId:config.activePersonaId});saveDiaries()
   }catch(e){}
 }
 
@@ -881,10 +849,6 @@ inputEl.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!isGener
 
 // ===== PLUS PANEL =====
 function togglePlusPanel(){const p=$('plusPanel');if(p)p.classList.toggle('show')}
-
-// ===== VOICE =====
-function toggleVoice(){if(isRecording){stopVoice();return};const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR){toast('浏览器不支持语音，请用 Chrome');return};if(!recognition){recognition=new SR();recognition.lang='zh-CN';recognition.interimResults=false;recognition.continuous=false;recognition.onresult=e=>{inputEl.value=e.results[0][0].transcript;inputEl.style.height='auto';inputEl.style.height=Math.min(inputEl.scrollHeight,110)+'px';sendBtn.disabled=false;stopVoice()};recognition.onerror=e=>{stopVoice();if(e.error==='not-allowed')toast('请允许麦克风权限')};recognition.onend=()=>stopVoice()};isRecording=true;toast('正在聆听…');recognition.start()}
-function stopVoice(){isRecording=false;if(recognition){try{recognition.stop()}catch(e){}}}
 
 // ===== BALANCE =====
 async function fetchBalance(){
@@ -983,8 +947,6 @@ function renderMe(){
 	          <label style="margin-top:8px">模型名</label>
 	          <input id="setCustomModel" value="${escHtml(config.customModel||"")}" placeholder="gpt-4o">
 	        </div>
-	        <label style="margin-top:10px">ElevenLabs 音色 ID</label><input id="setElevenLabsVoiceId" value="${escHtml(config.elevenLabsVoiceId||"")}" placeholder="1qP1IT2KK9sfKcWA3KYf">
-	        <div class="settings-hint">你的 ElevenLabs 克隆音色 ID，用于语音朗读（API Key 存储在服务器端）</div>
 	      </div><div class="settings-section"><div class="sec-title">你的信息</div>
         <label>头像</label><div class="avatar-upload"><div class="av-preview" id="userAvatarPrev" onclick="document.getElementById('userAvatarInput').click()">${userAv}</div><input type="file" id="userAvatarInput" accept="image/*" style="display:none" onchange="uploadUserAvatar(this)"><button class="av-btn" onclick="document.getElementById('userAvatarInput').click()">从相册选择</button></div>
         <label style="margin-top:8px">你的昵称</label><input id="setUserName" value="${escHtml(config.userName||'')}" placeholder="对方会看到这个名字">
@@ -1051,7 +1013,6 @@ function saveSettingsFromForm(){
   config.customApiKey=($('setCustomApiKey')?.value||'').trim()
   config.customModel=($('setCustomModel')?.value||'').trim()
   config.userName=($('setUserName')?.value||'').trim()
-  config.elevenLabsVoiceId=($('setElevenLabsVoiceId')?.value||'').trim()
   config.autoSync=document.getElementById('setAutoSync')?.checked||false
   saveConfig();updateChatHeader();applyChatBg();fetchBalance();renderAllMessages();renderMe();toast('设置已保存')
 }
@@ -1102,7 +1063,7 @@ function renderMemories(){
   const uC=[...new Set(f.map(m=>m.category||'默认'))]
   const kw=document.querySelector('#memSearch')?.value?.toLowerCase()||'';if(kw)f=f.filter(m=>m.content.toLowerCase().includes(kw))
   if(memCatFilter!=='all')f=f.filter(m=>(m.category||'默认')===memCatFilter)
-  c.innerHTML=`<input class="mem-search" id="memSearch" placeholder="搜索记忆…" oninput="renderMemories()" value="${escHtml(document.querySelector('#memSearch')?.value||'')}"><div class="mem-cats" id="memCats"><button class="${memCatFilter==='all'?'active':''}" onclick="setMemCat('all')">全部</button>${uC.map(x=>`<button class="${memCatFilter===x?'active':''}" onclick="setMemCat('${escHtml(x)}')">${escHtml(x)}</button>`).join('')}</div><div style="display:flex;gap:6px;margin-bottom:12px"><input id="memInput" placeholder="记下点什么…" style="flex:1;background:var(--glass-light);border:1px solid var(--glass-border-strong);border-radius:var(--radius-sm);padding:8px 12px;font-size:12px;outline:none;color:var(--text);font-family:inherit" onkeydown="if(event.key==='Enter')addMemory()"><select id="memCatSelect" style="width:70px;font-size:10px;background:var(--glass-light);border:1px solid var(--glass-border-strong);border-radius:var(--radius-sm);padding:4px;outline:none;color:var(--text)"><option>默认</option><option>关于ta</option><option>约定</option><option>灵感</option><option>喜好</option></select><button onclick="addMemory()" style="background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);padding:0 14px;font-size:12px;cursor:pointer;font-family:inherit">＋</button></div><button class="mem-extract-btn" onclick="extractMemoriesFromChat(false)">🤖 从聊天中提取记忆</button><div class="mem-count-info">${memories.length} 条记忆 · ${memories.filter(m=>m.source==='auto').length} 条自动</div><div style="display:flex;gap:6px;margin-bottom:10px"><button onclick="syncMemoriesToCloud(false)" style="flex:1;padding:7px;border-radius:8px;border:1px solid var(--glass-border);background:var(--glass-light);color:var(--text-soft);font-size:11px;cursor:pointer;font-family:inherit">☁️ 上传到云端</button><button onclick="syncMemoriesFromCloud(false)" style="flex:1;padding:7px;border-radius:8px;border:1px solid var(--glass-border);background:var(--glass-light);color:var(--text-soft);font-size:11px;cursor:pointer;font-family:inherit">☁️ 从云端下载</button></div><div id="memList">${f.length===0?'<div class="mem-empty">'+(kw?'没找到':'写下第一条记忆吧')+'</div>':f.map(m=>`<div class="mem-item ${m.source==='auto'?'mem-auto':''}"><button class="mem-del" onclick="deleteMemory(${m.id})">✕</button><button class="mem-edit" onclick="editMemory(${m.id})">✎</button><span class="mem-cat">${escHtml(m.category||'默认')}</span>${m.source==='auto'?'<span class="mem-auto-badge">🤖 自动</span>':''}<div class="mem-text">${escHtml(m.content)}</div><div class="mem-meta">${fmtDate(m.createdAt)}${m.usageCount>0?' · 引用 '+m.usageCount+' 次':''}${m.tags&&m.tags.length?' · '+m.tags.map(t=>'#'+t).join(' '):''}</div></div>`).join('')}</div>`
+  c.innerHTML=`<input class="mem-search" id="memSearch" placeholder="搜索记忆…" oninput="renderMemories()" value="${escHtml(document.querySelector('#memSearch')?.value||'')}"><div class="mem-cats" id="memCats"><button class="${memCatFilter==='all'?'active':''}" onclick="setMemCat('all')">全部</button>${uC.map(x=>`<button class="${memCatFilter===x?'active':''}" onclick="setMemCat('${escHtml(x)}')">${escHtml(x)}</button>`).join('')}</div><div style="display:flex;gap:6px;margin-bottom:12px"><input id="memInput" placeholder="记下点什么…" style="flex:1;background:var(--glass-light);border:1px solid var(--glass-border-strong);border-radius:var(--radius-sm);padding:8px 12px;font-size:12px;outline:none;color:var(--text);font-family:inherit" onkeydown="if(event.key==='Enter')addMemory()"><select id="memCatSelect" style="width:70px;font-size:10px;background:var(--glass-light);border:1px solid var(--glass-border-strong);border-radius:var(--radius-sm);padding:4px;outline:none;color:var(--text)"><option>默认</option><option>关于ta</option><option>约定</option><option>灵感</option><option>喜好</option></select><button onclick="addMemory()" style="background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);padding:0 14px;font-size:12px;cursor:pointer;font-family:inherit">＋</button></div><button class="mem-extract-btn" onclick="extractMemoriesFromChat(false)">🤖 从聊天中提取记忆</button><div class="mem-count-info">${memories.length} 条记忆 · ${memories.filter(m=>m.source==='auto').length} 条自动</div><div style="display:flex;gap:6px;margin-bottom:10px"><button onclick="syncMemoriesToCloud(false)" style="flex:1;padding:7px;border-radius:8px;border:1px solid var(--glass-border);background:var(--glass-light);color:var(--text-soft);font-size:11px;cursor:pointer;font-family:inherit">☁️ 上传到云端</button><button onclick="syncMemoriesFromCloud(false)" style="flex:1;padding:7px;border-radius:8px;border:1px solid var(--glass-border);background:var(--glass-light);color:var(--text-soft);font-size:11px;cursor:pointer;font-family:inherit">☁️ 从云端下载</button></div><div id="memList">${f.length===0?'<div class="mem-empty">'+(kw?'没找到':'记录关于你们的点点滴滴，AI会自动帮你整理')+'</div>':f.map(m=>`<div class="mem-item ${m.source==='auto'?'mem-auto':''}"><button class="mem-del" onclick="deleteMemory(${m.id})">✕</button><button class="mem-edit" onclick="editMemory(${m.id})">✎</button><span class="mem-cat">${escHtml(m.category||'默认')}</span>${m.source==='auto'?'<span class="mem-auto-badge">🤖 自动</span>':''}<div class="mem-text">${escHtml(m.content)}</div><div class="mem-meta">${fmtDate(m.createdAt)}${m.usageCount>0?' · 引用 '+m.usageCount+' 次':''}${m.tags&&m.tags.length?' · '+m.tags.map(t=>'#'+t).join(' '):''}</div></div>`).join('')}</div>`
 }
 
 // ===== DIARY =====
@@ -1116,7 +1077,7 @@ function renderDiary(){
   const aid=config.activePersonaId
   let myDiaries=diaries.filter(d=>(d.characterId||'shendu')===aid)
   const f=diaryFilter==='all'?myDiaries:myDiaries.filter(d=>d.timeLabel===diaryFilter)
-  c.innerHTML=`<div class="diary-tabs" id="diaryTabs"><button class="${diaryFilter==='all'?'active':''}" onclick="setDiaryFilter('all')">全部</button><button class="${diaryFilter==='早晨'?'active':''}" onclick="setDiaryFilter('早晨')">早晨</button><button class="${diaryFilter==='午后'?'active':''}" onclick="setDiaryFilter('午后')">午后</button><button class="${diaryFilter==='夜晚'?'active':''}" onclick="setDiaryFilter('夜晚')">夜晚</button></div><div style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px"><textarea id="diaryTextarea" placeholder="今天想记下点什么…" style="width:100%;background:var(--glass-light);border:1px solid var(--glass-border-strong);border-radius:var(--radius);padding:10px 12px;font-size:13px;outline:none;resize:none;min-height:60px;font-family:inherit;color:var(--text)"></textarea><div style="display:flex;align-items:center;gap:8px"><div style="display:flex;gap:2px">${['😊','😌','😢','😡','🤔','🥰','😴','🤩'].map(m=>`<button onclick="diaryMood='${m}';renderDiary()" style="width:30px;height:30px;border-radius:50%;border:2px solid ${diaryMood===m?'var(--accent)':'transparent'};background:var(--glass-light);font-size:15px;cursor:pointer">${m}</button>`).join('')}</div><button onclick="addDiary()" style="margin-left:auto;background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);padding:7px 16px;font-size:12px;cursor:pointer;font-family:inherit">写下</button></div></div><div id="diaryList">${f.length===0?'<div class="mem-empty">还没有日记</div>':f.map(d=>`<div class="diary-item ${d.source==='ai'?'mem-auto':''}"><button class="diary-del" onclick="deleteDiary(${d.id})">✕</button><div class="diary-date"><span class="diary-mood">${d.mood||''}</span>${fmtDate(d.ts)} · ${d.timeLabel||''}${d.source==='ai'?' <span class="mem-auto-badge">🤖 AI</span>':''}</div><div class="diary-text">${escHtml(d.content)}</div></div>`).join('')}</div>`
+  c.innerHTML=`<div class="diary-tabs" id="diaryTabs"><button class="${diaryFilter==='all'?'active':''}" onclick="setDiaryFilter('all')">全部</button><button class="${diaryFilter==='早晨'?'active':''}" onclick="setDiaryFilter('早晨')">早晨</button><button class="${diaryFilter==='午后'?'active':''}" onclick="setDiaryFilter('午后')">午后</button><button class="${diaryFilter==='夜晚'?'active':''}" onclick="setDiaryFilter('夜晚')">夜晚</button></div><div style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px"><textarea id="diaryTextarea" placeholder="今天想记下点什么…" style="width:100%;background:var(--glass-light);border:1px solid var(--glass-border-strong);border-radius:var(--radius);padding:10px 12px;font-size:13px;outline:none;resize:none;min-height:60px;font-family:inherit;color:var(--text)"></textarea><div style="display:flex;align-items:center;gap:8px"><div style="display:flex;gap:2px">${['😊','😌','😢','😡','🤔','🥰','😴','🤩'].map(m=>`<button onclick="diaryMood='${m}';renderDiary()" style="width:30px;height:30px;border-radius:50%;border:2px solid ${diaryMood===m?'var(--accent)':'transparent'};background:var(--glass-light);font-size:15px;cursor:pointer">${m}</button>`).join('')}</div><button onclick="addDiary()" style="margin-left:auto;background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);padding:7px 16px;font-size:12px;cursor:pointer;font-family:inherit">写下</button></div></div><div id="diaryList">${f.length===0?'<div class="mem-empty">还没有日记，去聊聊天让沈度帮你写一篇吧</div>':f.map(d=>`<div class="diary-item ${d.source==='ai'?'mem-auto':''}"><button class="diary-del" onclick="deleteDiary(${d.id})">✕</button><div class="diary-date"><span class="diary-mood">${d.mood||''}</span>${fmtDate(d.ts)} · ${d.timeLabel||''}${d.source==='ai'?' <span class="mem-auto-badge">🤖 AI</span>':''}</div><div class="diary-text">${escHtml(d.content)}</div></div>`).join('')}</div>`
 }
 
 // ===== FAVORITES HTML HELPER =====
