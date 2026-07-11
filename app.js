@@ -1,6 +1,6 @@
 /* ============================================
-   沈度 v11 — 樱语 · 液态玻璃
-   群聊+朋友圈+吃醋+回放+触觉
+   沈度 v12 — 樱语 · 液态玻璃
+   记忆优化+防幻觉+侧栏折叠+心情条+朋友圈AI+群聊
    ============================================ */
 
 const DEEPSEEK_CHAT='https://api.deepseek.com/chat/completions'
@@ -564,23 +564,26 @@ async function sendGroupMsg(){
   const room=rooms.find(r=>r.id===activeRoomId);if(!room)return
   const input=$('groupInput');const t=input?.value?.trim();if(!t)return
   const um={role:'user',content:t,ts:Date.now()};room.messages.push(um);saveRooms();renderGroupChat()
-  input.value='';isGenerating=true
+  input.value='';isGenerating=true;$('groupSendBtn').disabled=true
   const api=getApiConfig(),isDS=config.apiProvider==='deepseek'
   for(const mid of room.members){
     const p=personas.find(x=>x.id===mid);if(!p)continue
-    const others=room.members.filter(x=>x!==mid).map(x=>personas.find(pp=>pp.id===x)?.name||x).join('和')
-    // Build context with last 20 messages
-    const recent=room.messages.slice(-20)
-    const msgs=[{role:'system',content:`你是${p.name}（${p.description}）。你正在群聊中，群成员有：${others}。请用 ||| 分隔不同话题。自然参与对话，可以回复用户也可以回复其他角色。${p.systemPrompt||''}`}]
-    recent.forEach(m=>{if(m.personaId&&m.personaId!==mid){msgs.push({role:'assistant',content:`[${personas.find(x=>x.id===m.personaId)?.name||''}]: ${m.content}`})}else if(!m.personaId){msgs.push({role:'user',content:m.content})}})
+    const others=room.members.filter(x=>x!==mid).map(x=>personas.find(pp=>pp.id===x)?.name||x).join('、')
+    const allMsgs=room.messages.slice(-30)
+    const msgs=[{role:'system',content:`你是${p.name}。群聊成员：${others}和${config.userName||'用户'}。\n\n规则：①简短自然（2-4句话）②可以回复任何成员 ③不用【】或[]包裹内容 ④像真人聊天\n\n你的性格：${p.systemPrompt||p.description||''}`}]
+    allMsgs.forEach(m=>{
+      if(m.role==='user'){msgs.push({role:'user',content:(config.userName||'我')+'：'+m.content})}
+      else if(m.personaId===mid){msgs.push({role:'assistant',content:m.content})}
+      else{const sender=personas.find(x=>x.id===m.personaId);if(sender)msgs.push({role:'user',content:sender.name+'：'+m.content})}
+    })
     try{
-      const res=await fetch(api.baseUrl,{method:'POST',headers:api.headers,body:JSON.stringify({model:isDS?'deepseek-chat':api.model,messages:msgs,temperature:p.temperature||1.3,max_tokens:1500,stream:false})})
+      const res=await fetch(api.baseUrl,{method:'POST',headers:api.headers,body:JSON.stringify({model:isDS?'deepseek-chat':api.model,messages:msgs,temperature:p.temperature||1.3,max_tokens:600,stream:false})})
       if(!res.ok)continue
       const j=await res.json(),text=j.choices?.[0]?.message?.content||''
-      if(text){room.messages.push({role:'assistant',content:text,personaId:mid,ts:Date.now()});saveRooms();renderGroupChat()}
+      if(text){room.messages.push({role:'assistant',content:text.trim(),personaId:mid,ts:Date.now()});saveRooms();renderGroupChat()}
     }catch(e){}
   }
-  isGenerating=false
+  isGenerating=false;$('groupSendBtn').disabled=false
 }
 function renderGroupChat(){
   const el=$('groupMessages');if(!el)return
