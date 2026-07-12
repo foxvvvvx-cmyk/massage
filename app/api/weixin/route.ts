@@ -16,7 +16,7 @@ export const maxDuration = 25;
 // ⏸ 服务端止血开关：暂停 getupdates 长轮询（每次挂最长 25s，持续烧 Netlify compute）。
 // 直接秒回错误——客户端轮询循环连续 5 次错误后会自我停止，连"没刷新的后台老会话"
 // 也能被掐断（客户端开关只对刷新后的新会话生效）。恢复功能：改回 false 重新部署。
-const WEIXIN_POLL_PAUSED = true;
+const WEIXIN_POLL_PAUSED = false;
 
 const ILINK_BASE = "https://ilinkai.weixin.qq.com";
 const CDN_BASE_URL = "https://novac2c.cdn.weixin.qq.com/c2c";
