@@ -37,7 +37,8 @@ import { triggerDeleteFriendReaction } from "@/lib/friend-request-engine";
 import { loadCharacters } from "@/lib/character-storage";
 import { resolveUserIdentity } from "@/lib/settings-storage";
 import { extractMemoriesFromChat } from "@/lib/memory-extractor";
-import { ChevronRight, Image as ImageIcon, Video, Mic, UserMinus, UserPlus, Users, Pin, MessageSquare, Search, AlertCircle, Code, Trash2, type LucideIcon } from "lucide-react";
+import { getSyncPassphrase, setSyncPassphrase, isSyncEnabled } from "@/lib/chat-sync";
+import { ChevronRight, Image as ImageIcon, Video, Mic, UserMinus, UserPlus, Users, Pin, MessageSquare, Search, AlertCircle, Code, Trash2, Cloud, type LucideIcon } from "lucide-react";
 import { BINDING_ACCENTS, CONTENT_APP_ACCENTS } from "@/lib/ui-accent-colors";
 import CSSSchemeBar from "@/components/ui/css-scheme-picker";
 import { ConfirmDialog } from "@/components/ui/modal";
@@ -198,6 +199,8 @@ export function ChatSettingsPanel({
     const [isSearching, setIsSearching] = useState(false);
     const [extractingMemories, setExtractingMemories] = useState(false);
     const [extractResult, setExtractResult] = useState("");
+    const [syncPassphrase, setSyncPassphraseState] = useState(() => getSyncPassphrase());
+    const [syncPassphraseSaved, setSyncPassphraseSaved] = useState(false);
     const searchRunRef = useRef(0);
 
     const loadSearchHistoryWindow = (count = CHAT_INITIAL_VISIBLE_MESSAGE_COUNT) => {
@@ -418,6 +421,18 @@ export function ChatSettingsPanel({
         clearChatSessionToolHistory(session.id);
         onToolHistoryCleared?.();
         setShowConfirmClearTools(false);
+    };
+
+    const handleSaveSyncPassphrase = async () => {
+        if (!syncPassphrase.trim()) {
+            await setSyncPassphrase("");
+            setSyncPassphraseSaved(true);
+            setTimeout(() => setSyncPassphraseSaved(false), 2000);
+            return;
+        }
+        await setSyncPassphrase(syncPassphrase.trim());
+        setSyncPassphraseSaved(true);
+        setTimeout(() => setSyncPassphraseSaved(false), 2000);
     };
 
     const handleExtractMemories = async () => {
@@ -717,6 +732,41 @@ export function ChatSettingsPanel({
                         </div>
                         <div className="menu-right"><ChevronRight size={16} /></div>
                     </button>
+                </div>
+
+                {/* Chat Sync Passphrase */}
+                <div className="menu-group">
+                    <div className="menu-item" style={{ flexDirection: "column", alignItems: "stretch", gap: 8 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <ChatInfoIcon icon={Cloud} color={BINDING_ACCENTS.api} />
+                            <div className="menu-label-group">
+                                <span className="menu-label">☁️ 聊天记录同步</span>
+                                <span className="menu-desc">
+                                    {isSyncEnabled()
+                                        ? "已设置同步口令，聊天记录会自动备份到云端"
+                                        : "设置同步口令后，聊天记录自动备份，多设备共享"}
+                                </span>
+                            </div>
+                        </div>
+                        <div style={{ display: "flex", gap: 8, paddingLeft: 36 }}>
+                            <Input
+                                type="password"
+                                placeholder="设置同步口令（多设备输入相同口令即可同步）"
+                                value={syncPassphrase}
+                                onChange={(e) => { setSyncPassphraseState(e.target.value); setSyncPassphraseSaved(false); }}
+                                onKeyDown={(e) => { if (e.key === "Enter") handleSaveSyncPassphrase(); }}
+                                style={{ flex: 1 }}
+                            />
+                            <button
+                                type="button"
+                                className="ui-btn ui-btn-primary"
+                                onClick={handleSaveSyncPassphrase}
+                                style={{ whiteSpace: "nowrap", background: syncPassphraseSaved ? "#22c55e" : undefined }}
+                            >
+                                {syncPassphraseSaved ? "已保存 ✓" : "保存"}
+                            </button>
+                        </div>
+                    </div>
                 </div>
 
                 {/* Toggles */}

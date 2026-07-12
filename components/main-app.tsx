@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { startJiwenLoop, stopJiwenLoop } from "@/lib/jiwen-bridge";
+import { startChatSync, stopChatSync } from "@/lib/chat-sync";
 import { ArrowRight } from "lucide-react";
 
 import { AccountGate } from "@/components/auth/account-gate";
@@ -232,6 +233,7 @@ export function MainApp() {
   useEffect(() => {
     let cancelled = false;
     let jiwenCleanup: (() => void) | null = null;
+    let chatSyncCleanup: (() => void) | null = null;
 
     void (async () => {
       await hydrateKvDb();
@@ -248,6 +250,7 @@ export function MainApp() {
       setPreparedDesktopTheme(nextPreparedTheme);
       setHydrated(true);
       jiwenCleanup = startJiwenLoop();
+      chatSyncCleanup = await startChatSync();
       if (hasPendingMcpOAuthCallback()) {
         setSplashDismissed(true);
       }
@@ -260,6 +263,7 @@ export function MainApp() {
     if (!isMobile || isEdge) return () => {
       cancelled = true;
       jiwenCleanup?.();
+      chatSyncCleanup?.();
     };
 
     function tryFullscreen() {
@@ -272,6 +276,7 @@ export function MainApp() {
     return () => {
       cancelled = true;
       jiwenCleanup?.();
+      chatSyncCleanup?.();
       document.removeEventListener("click", tryFullscreen);
     };
   }, []);
