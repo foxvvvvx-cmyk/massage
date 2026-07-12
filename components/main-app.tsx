@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { startJiwenLoop, stopJiwenLoop } from "@/lib/jiwen-bridge";
 import { ArrowRight } from "lucide-react";
 
 import { AccountGate } from "@/components/auth/account-gate";
@@ -230,6 +231,7 @@ export function MainApp() {
 
   useEffect(() => {
     let cancelled = false;
+    let jiwenCleanup: (() => void) | null = null;
 
     void (async () => {
       await hydrateKvDb();
@@ -245,6 +247,7 @@ export function MainApp() {
       if (cancelled) return;
       setPreparedDesktopTheme(nextPreparedTheme);
       setHydrated(true);
+      jiwenCleanup = startJiwenLoop();
       if (hasPendingMcpOAuthCallback()) {
         setSplashDismissed(true);
       }
@@ -256,6 +259,7 @@ export function MainApp() {
     const isEdge = /Edg/i.test(navigator.userAgent);
     if (!isMobile || isEdge) return () => {
       cancelled = true;
+      jiwenCleanup?.();
     };
 
     function tryFullscreen() {
@@ -267,6 +271,7 @@ export function MainApp() {
     document.addEventListener("click", tryFullscreen);
     return () => {
       cancelled = true;
+      jiwenCleanup?.();
       document.removeEventListener("click", tryFullscreen);
     };
   }, []);

@@ -36,6 +36,7 @@ import { clearChatOfflineTurns } from "@/lib/chat-offline-storage";
 import { triggerDeleteFriendReaction } from "@/lib/friend-request-engine";
 import { loadCharacters } from "@/lib/character-storage";
 import { resolveUserIdentity } from "@/lib/settings-storage";
+import { extractMemoriesFromChat } from "@/lib/memory-extractor";
 import { ChevronRight, Image as ImageIcon, Video, Mic, UserMinus, UserPlus, Users, Pin, MessageSquare, Search, AlertCircle, Code, Trash2, type LucideIcon } from "lucide-react";
 import { BINDING_ACCENTS, CONTENT_APP_ACCENTS } from "@/lib/ui-accent-colors";
 import CSSSchemeBar from "@/components/ui/css-scheme-picker";
@@ -195,6 +196,8 @@ export function ChatSettingsPanel({
     const [searchHasMore, setSearchHasMore] = useState(false);
     const [searchResults, setSearchResults] = useState<ChatMessage[]>([]);
     const [isSearching, setIsSearching] = useState(false);
+    const [extractingMemories, setExtractingMemories] = useState(false);
+    const [extractResult, setExtractResult] = useState("");
     const searchRunRef = useRef(0);
 
     const loadSearchHistoryWindow = (count = CHAT_INITIAL_VISIBLE_MESSAGE_COUNT) => {
@@ -415,6 +418,28 @@ export function ChatSettingsPanel({
         clearChatSessionToolHistory(session.id);
         onToolHistoryCleared?.();
         setShowConfirmClearTools(false);
+    };
+
+    const handleExtractMemories = async () => {
+        if (extractingMemories) return;
+        setExtractingMemories(true);
+        setExtractResult("");
+        try {
+            const contacts = loadChatContacts();
+            const contact = contacts.find(c => {
+                const sessions = loadChatSessions();
+                return sessions.some(s => s.id === session.id && s.contactId === c.id);
+            });
+            const characters = loadCharacters();
+            const character = contact ? characters.find(c => c.id === contact.characterId) : null;
+            const name = character?.name || "沈度";
+            const count = await extractMemoriesFromChat(name, false);
+            setExtractResult(count > 0 ? `已提取 ${count} 条新记忆` : "没有发现新事实");
+        } catch (e) {
+            setExtractResult("提取失败：" + (e instanceof Error ? e.message : "未知错误"));
+        } finally {
+            setExtractingMemories(false);
+        }
     };
 
     const updateVisionImagePromptLimit = (value: unknown) => {
@@ -681,6 +706,18 @@ export function ChatSettingsPanel({
                         )}
                     </div>
                 )}
+
+                {/* Memory Extraction */}
+                <div className="menu-group">
+                    <button className="menu-item" onClick={handleExtractMemories} disabled={extractingMemories}>
+                        <ChatInfoIcon icon={Code} color={BINDING_ACCENTS.memory} />
+                        <div className="menu-label-group">
+                            <span className="menu-label">{extractingMemories ? "正在提取记忆..." : "🤖 从聊天中提取记忆"}</span>
+                            <span className="menu-desc">{extractResult || "AI 分析最近对话，自动记录关于用户的新事实"}</span>
+                        </div>
+                        <div className="menu-right"><ChevronRight size={16} /></div>
+                    </button>
+                </div>
 
                 {/* Toggles */}
                 <div className="menu-group">
