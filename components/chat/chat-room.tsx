@@ -1008,6 +1008,7 @@ export function ChatRoom({ session, onBack }: ChatRoomProps) {
     const [callInitiatorName, setCallInitiatorName] = useState<string>("");
     const [userIdentity, setUserIdentity] = useState<UserIdentity | null>(null);
     const [enterToSendEnabled, setEnterToSendEnabled] = useState(() => loadChatAppSettings().enterToSendEnabled === true);
+    const [autoReplyEnabled, setAutoReplyEnabled] = useState(() => loadChatAppSettings().autoReplyEnabled !== false);
 
     // Rich media input modals
     const [richModal, setRichModal] = useState<RichModalKind | null>(null);
@@ -1025,6 +1026,7 @@ export function ChatRoom({ session, onBack }: ChatRoomProps) {
     useEffect(() => {
         const syncEnterToSend = () => {
             setEnterToSendEnabled(loadChatAppSettings().enterToSendEnabled === true);
+            setAutoReplyEnabled(loadChatAppSettings().autoReplyEnabled !== false);
         };
         window.addEventListener(CHAT_APP_SETTINGS_UPDATED_EVENT, syncEnterToSend);
         return () => window.removeEventListener(CHAT_APP_SETTINGS_UPDATED_EVENT, syncEnterToSend);
@@ -3435,6 +3437,12 @@ export function ChatRoom({ session, onBack }: ChatRoomProps) {
 
         setMessages(prev => [...prev, newMsg]);
         setPendingGenerate(true);
+
+        // Auto-reply: trigger AI generation immediately if enabled
+        if (autoReplyEnabled) {
+            void triggerAIResponse();
+        }
+
         return true;
     };
 

@@ -16,6 +16,8 @@ import {
     removeChatContact,
     normalizeVisionImagePromptLimit,
     MAX_VISION_IMAGE_PROMPT_LIMIT,
+    loadChatAppSettings,
+    saveChatAppSettings,
     type ChatMessage,
 } from "@/lib/chat-storage";
 import {
@@ -38,7 +40,7 @@ import { loadCharacters } from "@/lib/character-storage";
 import { resolveUserIdentity } from "@/lib/settings-storage";
 import { extractMemoriesFromChat } from "@/lib/memory-extractor";
 import { getSyncPassphrase, setSyncPassphrase, isSyncEnabled } from "@/lib/chat-sync";
-import { ChevronRight, Image as ImageIcon, Video, Mic, UserMinus, UserPlus, Users, Pin, MessageSquare, Search, AlertCircle, Code, Trash2, Cloud, type LucideIcon } from "lucide-react";
+import { ChevronRight, Image as ImageIcon, Video, Mic, UserMinus, UserPlus, Users, Pin, MessageSquare, Search, AlertCircle, Code, Trash2, Cloud, Zap, type LucideIcon } from "lucide-react";
 import { BINDING_ACCENTS, CONTENT_APP_ACCENTS } from "@/lib/ui-accent-colors";
 import CSSSchemeBar from "@/components/ui/css-scheme-picker";
 import { ConfirmDialog } from "@/components/ui/modal";
@@ -201,6 +203,7 @@ export function ChatSettingsPanel({
     const [extractResult, setExtractResult] = useState("");
     const [syncPassphrase, setSyncPassphraseState] = useState(() => getSyncPassphrase());
     const [syncPassphraseSaved, setSyncPassphraseSaved] = useState(false);
+    const [autoReplyEnabled, setAutoReplyEnabled] = useState(() => loadChatAppSettings().autoReplyEnabled !== false);
     const searchRunRef = useRef(0);
 
     const loadSearchHistoryWindow = (count = CHAT_INITIAL_VISIBLE_MESSAGE_COUNT) => {
@@ -776,6 +779,21 @@ export function ChatSettingsPanel({
                         <div className="menu-label-group"><span className="menu-label">置顶聊天</span></div>
                         <div className="menu-right">
                             <Toggle checked={isPinned} onChange={c => { setIsPinned(c); updateSession({ isPinned: c }); }} />
+                        </div>
+                    </div>
+                    <div className="menu-item">
+                        <ChatInfoIcon icon={Zap} color={BINDING_ACCENTS.api} />
+                        <div className="menu-label-group">
+                            <span className="menu-label">自动回复</span>
+                            <span className="menu-desc">发送消息后自动触发 AI 回复，无需手动点击生成按钮</span>
+                        </div>
+                        <div className="menu-right">
+                            <Toggle checked={autoReplyEnabled} onChange={c => {
+                                setAutoReplyEnabled(c);
+                                const s = loadChatAppSettings();
+                                s.autoReplyEnabled = c;
+                                saveChatAppSettings(s);
+                            }} />
                         </div>
                     </div>
                     <div className="menu-item">

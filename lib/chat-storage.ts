@@ -240,6 +240,7 @@ export type ChatAppSettings = {
     promptViewerEnabled?: boolean; // When true, show the floating prompt viewer entry
     quickActionEnabled?: boolean; // When true, show the floating quick action entry
     browserNotificationsEnabled?: boolean; // When true, send browser Notification API alerts when page is hidden
+    autoReplyEnabled?: boolean; // When true, auto-trigger AI reply after sending a message (default: true)
     enterToSendEnabled?: boolean; // When true, Enter sends chat input and Shift+Enter inserts a newline
 };
 
@@ -507,6 +508,7 @@ const DEFAULT_CHAT_APP_SETTINGS: ChatAppSettings = {
     promptViewerEnabled: false,
     quickActionEnabled: false,
     enterToSendEnabled: false,
+    autoReplyEnabled: true,
 };
 
 // ── In-Memory Caches (hydrated from IndexedDB on startup) ──────────
