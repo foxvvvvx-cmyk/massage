@@ -1,8 +1,11 @@
-/* 沈度 v10 — Service Worker (cache-first for static, network-first for API) */
-const CACHE_NAME = 'shendu-v10-' + new Date().toISOString().split('T')[0]
+/* 沈度 v13 — Service Worker (重构版) */
+const CACHE_NAME = 'shendu-v13-' + new Date().toISOString().split('T')[0]
 const STATIC_ASSETS = [
-  './', './index.html', './app.js', './style.css',
-  './manifest.json'
+  './', './index.html', './style.css', './manifest.json',
+  './app/index.js', './app/state.js', './app/consts.js', './app/events.js',
+  './app/storage.js', './app/utils.js', './app/provider.js', './app/prompt.js',
+  './app/chat.js', './app/memory.js', './app/diary.js', './app/persona.js',
+  './app/reminder.js', './app/moments.js', './app/rooms.js', './app/toy.js', './app/ui.js'
 ]
 
 // Install: cache static assets
