@@ -184,6 +184,15 @@ button{-webkit-tap-highlight-color:transparent}
 .heatmap-cell.l1{background:rgba(232,152,168,.2)}.heatmap-cell.l2{background:rgba(232,152,168,.4)}
 .heatmap-cell.l3{background:rgba(232,152,168,.65);color:#fff}.heatmap-cell.l4{background:rgba(232,152,168,.85);color:#fff}
 
+/* Resonance观察层 */
+.res-bar-row{display:flex;align-items:center;gap:6px;margin:3px 0;font-size:11px}
+.res-bar-label{width:40px;color:var(--text-muted);text-align:right;flex-shrink:0}
+.res-bar-track{flex:1;height:6px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden}
+.res-bar-fill{height:100%;border-radius:3px;transition:width .5s var(--ease-soft)}
+.res-bar-val{width:48px;font-size:10px;color:var(--text-soft);flex-shrink:0}
+.res-mood-line{font-size:10px;color:var(--text-muted);text-align:center;margin-top:4px}
+.res-updated{font-size:9px;color:var(--text-muted);text-align:center;margin-top:2px;opacity:.6}
+
 .ann-section{margin-bottom:14px}
 .ann-title{font-size:10px;color:var(--text-muted);letter-spacing:2px;margin-bottom:8px}
 .ann-add{display:flex;gap:6px;margin-bottom:8px}

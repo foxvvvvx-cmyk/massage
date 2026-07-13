@@ -19,6 +19,7 @@ import { addMoment, autoInteractMoment, likeMoment, commentMoment } from './mome
 import { createRoom, deleteRoom, sendGroupMsg } from './rooms.js'
 import { initToy, sendToyCommand } from './toy.js'
 import { tickActiveResonances, checkThreshold, canContact } from './resonance.js'
+import { initResonanceObserver } from './resonance-observer.js'
 
 // === UI ===
 import {
@@ -503,6 +504,7 @@ function init() {
       if (isDesktop()) { renderDrawerPanel(); drawerEl.style.transform = 'none' }
       startIdleGreetingImpl()
       startResonanceTimer()
+      initResonanceObserver()
     }
 
     initToy()

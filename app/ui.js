@@ -12,6 +12,7 @@ import { activePersona, activeHistory, cleanOldHistory } from './persona.js'
 import { getCurrentMilestone } from './reminder.js'
 import { escHtml, fmtTime, fmtDate, dayKey, getGreeting, avatarHTML, userAvatarHTML, aiAvatarHTML, isDesktop, resizeImage, renderMD } from './utils.js'
 import { emit, Events, on } from './events.js'
+import { getResonanceSummary, getTopDimension, renderResonanceDashHTML } from './resonance-observer.js'
 
 // ===== Toast =====
 const toastEl = () => document.getElementById('toast')
@@ -170,6 +171,26 @@ export function updateMoodBar() {
     if (jEl) jEl.style.display = 'flex'; if (jLabel) jLabel.textContent = '醋意 ' + (config.jealousyLevel || 50) + '%'
   } else { if (jEl) jEl.style.display = 'none' }
   updateMilestoneUI()
+  updateResonanceIndicator()
+}
+
+function updateResonanceIndicator() {
+  const el = document.getElementById('resonanceMood')
+  if (!el) return
+  const p = activePersona()
+  if (!p || !p.resonance || !p.resonance.state) {
+    el.style.display = 'none'
+    return
+  }
+  const summary = getResonanceSummary(p)
+  if (!summary) { el.style.display = 'none'; return }
+  const top = getTopDimension(summary)
+  if (!top) { el.style.display = 'none'; return }
+  el.style.display = 'flex'
+  const label = document.getElementById('resonanceLabel')
+  if (label) {
+    label.textContent = top.label + ' ' + top.pct + '% ' + top.trend
+  }
 }
 
 export function updateMilestoneUI() {
@@ -362,7 +383,7 @@ export function renderMe() {
     let weekMsgs = 0, weekDiaries = 0; const weekAgo = Date.now() - 7 * 86400000
     all.forEach(m => { if (m.ts > weekAgo) weekMsgs++ }); diaries.forEach(d => { if (d.ts > weekAgo) weekDiaries++ })
     const now2 = new Date(); const upcoming = anniversaries.filter(a => { const d = new Date(a.date); const nxt = new Date(now2.getFullYear(), d.getMonth(), d.getDate()); if (nxt < now2) nxt.setFullYear(nxt.getFullYear() + 1); return Math.ceil((nxt - now2) / 86400000) <= 7 })
-    c.innerHTML = `<div class="dash-grid"><div class="dash-card highlight"><div class="dl">在一起</div><div class="dv">${together}<span class="du">天</span></div></div><div class="dash-card"><div class="dl">今日消息</div><div class="dv">${today}<span class="du">条</span></div></div><div class="dash-card"><div class="dl">消息总数</div><div class="dv">${total}<span class="du">条</span></div></div><div class="dash-card"><div class="dl">记忆</div><div class="dv">${memories.length}<span class="du">条</span></div></div><div class="dash-card"><div class="dl">日记</div><div class="dv">${diaries.length}<span class="du">篇</span></div></div><div class="dash-card"><div class="dl">收藏</div><div class="dv">${favorites.length}<span class="du">条</span></div></div></div><div class="settings-section" style="text-align:center"><span style="font-size:12px;color:var(--text-soft)">📊 本周消息 ${weekMsgs} 条 · AI 日记 ${weekDiaries} 篇</span><div style="margin-top:6px"><span style="font-size:10px;color:var(--text-muted);cursor:pointer;text-decoration:underline" onclick="window.refreshBalance();setTimeout(()=>window.renderMe(),500)">余额：${runtime.balanceCache || '--'}（点击刷新）</span></div></div>${upcoming.length ? `<div class="ann-section"><div class="ann-title">🔔 即将到来的纪念日</div>${upcoming.map(a => { const d = new Date(a.date); const nxt = new Date(now2.getFullYear(), d.getMonth(), d.getDate()); if (nxt < now2) nxt.setFullYear(nxt.getFullYear() + 1); const diff = Math.ceil((nxt - now2) / 86400000); const yrs = now2.getFullYear() - d.getFullYear(); return `<div class="ann-item"><span class="ann-name">${escHtml(a.name)}</span><span style="font-size:9px;color:var(--text-muted)">${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()} · ${yrs}年</span><span class="ann-cd" style="color:#e898a8">${diff === 0 ? '今天！' : diff === 1 ? '明天' : diff + '天后'}</span></div>` }).join('')}</div>` : ''}`
+    c.innerHTML = `<div class="dash-grid"><div class="dash-card highlight"><div class="dl">在一起</div><div class="dv">${together}<span class="du">天</span></div></div><div class="dash-card"><div class="dl">今日消息</div><div class="dv">${today}<span class="du">条</span></div></div><div class="dash-card"><div class="dl">消息总数</div><div class="dv">${total}<span class="du">条</span></div></div><div class="dash-card"><div class="dl">记忆</div><div class="dv">${memories.length}<span class="du">条</span></div></div><div class="dash-card"><div class="dl">日记</div><div class="dv">${diaries.length}<span class="du">篇</span></div></div><div class="dash-card"><div class="dl">收藏</div><div class="dv">${favorites.length}<span class="du">条</span></div></div></div><div class="settings-section" style="text-align:center"><span style="font-size:12px;color:var(--text-soft)">📊 本周消息 ${weekMsgs} 条 · AI 日记 ${weekDiaries} 篇</span><div style="margin-top:6px"><span style="font-size:10px;color:var(--text-muted);cursor:pointer;text-decoration:underline" onclick="window.refreshBalance();setTimeout(()=>window.renderMe(),500)">余额：${runtime.balanceCache || '--'}（点击刷新）</span></div></div>${renderResonanceDashHTML(p)}${upcoming.length ? `<div class="ann-section"><div class="ann-title">🔔 即将到来的纪念日</div>${upcoming.map(a => { const d = new Date(a.date); const nxt = new Date(now2.getFullYear(), d.getMonth(), d.getDate()); if (nxt < now2) nxt.setFullYear(nxt.getFullYear() + 1); const diff = Math.ceil((nxt - now2) / 86400000); const yrs = now2.getFullYear() - d.getFullYear(); return `<div class="ann-item"><span class="ann-name">${escHtml(a.name)}</span><span style="font-size:9px;color:var(--text-muted)">${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()} · ${yrs}年</span><span class="ann-cd" style="color:#e898a8">${diff === 0 ? '今天！' : diff === 1 ? '明天' : diff + '天后'}</span></div>` }).join('')}</div>` : ''}`
   } else {
     const userAv = config.userAvatar ? `<img src="${escHtml(config.userAvatar)}">` : '🧑'
     const bgStyle = config.chatBg ? `background-image:url(${escHtml(config.chatBg)});background-size:cover;background-position:center` : ''
