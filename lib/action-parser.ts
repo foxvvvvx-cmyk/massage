@@ -190,6 +190,8 @@ const KNOWN_ACTION_TAGS = [
     "chat_context", "chat_format", "chat_rich_actions", "chat_output_format",
     // 加好友
     "add_friend_prompt", "添加好友",
+    // 内心 / 状态栏（安全过滤，防止泄露到用户可见文本）
+    "内心", "状态栏",
 ];
 
 /**

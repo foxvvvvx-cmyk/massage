@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+<title>涩涩大富翁</title>
+<style>
+  :root {
+    --safe-top: var(--ai-phone-game-safe-top, 88px);
+    --safe-bottom: var(--ai-phone-game-safe-bottom, 24px);
+    --bg0: #1a0a14; --bg1: #2d1122; --bg2: #3d1a2e;
+    --ink: #f5e8ee; --muted: #c9a8ba; --accent: #e898a8; --gold: #f1c45a; --danger: #d94a5a; --warn: #e8985a;
+    --glass: rgba(255,255,255,.05); --glass-strong: rgba(255,255,255,.1);
+    --line: rgba(255,255,255,.1); --radius: 14px;
+    --sans: -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;
+    --mono: "SF Mono","Cascadia Code","Consolas",monospace;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{width:100%;height:100%;margin:0}
+  body{overflow:hidden;font-family:var(--sans);color:var(--ink);
+    background:radial-gradient(120% 80% at 50% -10%,#4a1f35 0%,rgba(74,31,53,0) 55%),
+    radial-gradient(90% 60% at 80% 110%,#3d1a2e 0%,rgba(61,26,46,0) 60%),
+    linear-gradient(160deg,var(--bg0),var(--bg1) 60%,var(--bg2))}
+  .screen{position:relative;z-index:1;min-height:100%;height:100%;box-sizing:border-box;
+    padding:var(--safe-top) 16px var(--safe-bottom);overflow-y:auto;-webkit-overflow-scrolling:touch;
+    display:none;flex-direction:column}
+  .screen.active{display:flex}
+  .btn{border:1px solid var(--line);border-radius:999px;padding:12px 20px;font-size:14px;
+    font-weight:600;color:var(--ink);background:var(--glass-strong);backdrop-filter:blur(12px);
+    cursor:pointer;user-select:none;font-family:var(--sans);text-align:center}
+  .btn:active{transform:scale(.96)}
+  .btn.primary{background:linear-gradient(135deg,var(--accent),#c87088);border-color:var(--accent);color:#fff}
+  .btn.danger{background:linear-gradient(135deg,var(--danger),#b33a48);border-color:var(--danger);color:#fff}
+  .btn.warn{background:rgba(232,152,90,.25);border-color:var(--warn);color:var(--warn);font-size:12px;padding:8px 14px}
+  .btn.small{font-size:12px;padding:8px 14px}
+  .btn:disabled{opacity:.4;cursor:default}
+  .title{text-align:center;font-size:28px;font-weight:800;letter-spacing:.06em;margin:8px 0 4px;
+    background:linear-gradient(180deg,#fff5d6,var(--gold) 50%,#b9842b);
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .subtitle{text-align:center;font-size:13px;color:var(--muted);margin-bottom:8px}
+  .form-group{background:var(--glass);border:1px solid var(--line);border-radius:var(--radius);
+    padding:14px;display:flex;flex-direction:column;gap:10px}
+  .form-group label{font-size:12px;color:var(--muted)}
+  .form-row{display:flex;gap:10px;align-items:center}
+  .form-row input,.form-row select{flex:1;background:var(--glass-strong);border:1px solid var(--line);
+    border-radius:8px;padding:10px 12px;font-size:14px;color:var(--ink);font-family:var(--sans);outline:none}
+  .form-row select option{background:#2d1122;color:var(--ink)}
+  .segmented{display:flex;gap:0;border-radius:10px;overflow:hidden;border:1px solid var(--line)}
+  .segmented button{flex:1;padding:10px 0;border:none;background:var(--glass);color:var(--muted);
+    font-size:13px;cursor:pointer;font-family:var(--sans)}
+  .segmented button:not(:last-child){border-right:1px solid var(--line)}
+  .segmented button.active{background:var(--accent);color:#fff}
+  .checkbox-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+  .checkbox-grid label{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--muted);
+    cursor:pointer;padding:6px 8px;border-radius:8px;background:var(--glass);border:1px solid transparent}
+  .checkbox-grid label:has(input:checked){border-color:var(--accent);background:rgba(232,152,168,.12);color:var(--ink)}
+  .checkbox-grid input{accent-color:var(--accent);width:14px;height:14px}
+  .range-row{display:flex;align-items:center;gap:10px}
+  .range-row input[type=range]{flex:1;accent-color:var(--accent)}
+  .range-row span{font-size:13px;color:var(--gold);min-width:32px;text-align:center}
+  .topbar{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-shrink:0}
+  .topbar .game-title{font-size:16px;font-weight:700}
+  .topbar .safety-btns{display:flex;gap:6px}
+  .player-strip{display:flex;justify-content:space-around;gap:8px;flex-shrink:0;padding:10px;
+    background:var(--glass);border:1px solid var(--line);border-radius:var(--radius)}
+  .player-info{text-align:center}
+  .player-info .pname{font-size:14px;font-weight:700}
+  .player-info .pcoins{font-size:12px;color:var(--gold)}
+  .player-info .pident{font-size:11px;color:var(--accent)}
+  .player-info .ppos{font-size:11px;color:var(--muted)}
+  .board-wrap{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;
+    background:var(--glass);border:1px solid var(--line);border-radius:var(--radius);padding:12px}
+  .board-wrap pre{font-family:var(--mono);font-size:11px;line-height:1.5;color:var(--muted);
+    white-space:pre-wrap;word-break:break-all;margin:0}
+  .say-box{padding:10px 12px;background:var(--glass);border:1px solid var(--line);border-radius:var(--radius);
+    font-size:13px;line-height:1.6;color:var(--ink);flex-shrink:0;min-height:40px}
+  .settled-box{font-size:12px;color:var(--gold);padding:8px 12px;background:rgba(241,196,90,.08);
+    border:1px solid rgba(241,196,90,.2);border-radius:var(--radius);flex-shrink:0;display:none}
+  .settled-box.active{display:block}
+  .task-card{padding:14px;background:rgba(232,152,168,.1);border:1px solid rgba(232,152,168,.25);
+    border-radius:var(--radius);flex-shrink:0;display:none}
+  .task-card.active{display:block}
+  .task-card .task-header{font-size:11px;color:var(--accent);margin-bottom:6px}
+  .task-card .task-content{font-size:15px;line-height:1.5;color:var(--ink);margin-bottom:4px}
+  .task-card .task-intensity{font-size:12px;color:var(--gold);margin-bottom:10px}
+  .task-actions{display:flex;gap:8px;flex-wrap:wrap}
+  .action-bar{display:flex;gap:10px;flex-shrink:0;padding-bottom:4px}
+  .action-bar .btn{flex:1}
+  .roll-btn{font-size:18px;padding:16px;letter-spacing:2px}
+  #result{justify-content:center;align-items:center;text-align:center;gap:16px}
+  .result-emoji{font-size:64px}
+  .modal-overlay{position:fixed;inset:0;z-index:50;display:none;align-items:center;justify-content:center;
+    background:rgba(10,4,8,.7);backdrop-filter:blur(4px)}
+  .modal-overlay.show{display:flex}
+  .modal-box{background:linear-gradient(180deg,#2d1122,#1a0a14);border:1px solid var(--line);
+    border-radius:16px;padding:24px;max-width:340px;width:90%;text-align:center}
+  .modal-box h3{margin:0 0 8px;color:var(--accent)}
+  .modal-box p{font-size:13px;color:var(--muted);margin:0 0 16px;line-height:1.5}
+  .modal-row{display:flex;gap:8px;justify-content:center}
+  .toast{position:fixed;bottom:100px;left:50%;transform:translateX(-50%) translateY(10px);z-index:70;
+    background:rgba(0,0,0,.85);color:#fff;font-size:13px;padding:8px 16px;border-radius:999px;
+    opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;white-space:nowrap}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+<div id="setup" class="screen active">
+  <div class="title">涩涩大富翁</div>
+  <div class="subtitle">双人棋盘 · 色色任务 · AI 陪玩</div>
+  <div class="form-group"><label>你的信息</label><div class="form-row">
+    <input id="p1Name" placeholder="你的名字" value="我" />
+    <select id="p1Sex"><option value="女">女</option><option value="男">男</option></select>
+    <select id="p1Role"><option value="受">受</option><option value="攻">攻</option></select>
+  </div></div>
+  <div class="form-group"><label>AI 对手</label><div class="form-row">
+    <select id="aiChar" style="flex:2"></select>
+    <select id="p2Role"><option value="攻">攻</option><option value="受">受</option></select>
+  </div></div>
+  <div class="form-group"><label>强度段</label>
+    <div class="segmented" id="flavorSeg">
+      <button data-v="light">轻</button><button data-v="medium" class="active">中</button><button data-v="heavy">重</button>
+  </div></div>
+  <div class="form-group"><label>局长（回合数）</label>
+    <div class="segmented" id="lenSeg">
+      <button data-v="12">速玩12</button><button data-v="18">正常18</button><button data-v="24" class="active">超长24</button>
+  </div></div>
+  <div class="form-group"><label>身份模式</label>
+    <div class="segmented" id="identitySeg">
+      <button data-v="off">关</button><button data-v="mixed" class="active">混合35</button><button data-v="nsfw_only">纯NSFW</button>
+  </div></div>
+  <div class="form-group"><label>反转概率 <span id="revVal">0.3</span></label>
+    <div class="range-row"><span>0</span><input type="range" id="reverseChance" min="0" max="1" step="0.1" value="0.3" /><span>1</span></div></div>
+  <div class="form-group"><label>红线设置（双方都不想碰的花样）</label><div class="checkbox-grid" id="redlineGrid"></div></div>
+  <div class="form-group"><label>后庭开关（肛交，默认关）</label><div class="form-row">
+    <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);cursor:pointer"><input type="checkbox" id="analP1" /> 你</label>
+    <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);cursor:pointer"><input type="checkbox" id="analP2" /> AI</label>
+  </div></div>
+  <div class="form-group"><label>先手</label>
+    <div class="segmented" id="firstSeg"><button data-v="p1" class="active">你先</button><button data-v="p2">AI先</button></div></div>
+  <button class="btn primary" id="startBtn" style="margin-top:6px">开始游戏</button>
+  <p style="font-size:10px;color:var(--muted);text-align:center;margin:4px 0 12px">安全词「404」随时终止 · 任务可跳过 · 身份可重抽一次</p>
+</div>
+<div id="game" class="screen">
+  <div class="topbar"><span class="game-title">涩涩大富翁</span>
+    <div class="safety-btns"><button class="btn small danger" onclick="emergencyStop()">404</button><button class="btn small warn" onclick="showRedline()">红线</button></div></div>
+  <div class="player-strip" id="playerStrip"></div>
+  <div class="settled-box" id="settledBox"></div>
+  <div class="board-wrap"><pre id="boardText">加载中...</pre></div>
+  <div class="say-box" id="sayBox">等待掷骰...</div>
+  <div class="task-card" id="taskCard">
+    <div class="task-header">当前任务</div><div class="task-content" id="taskContent"></div>
+    <div class="task-intensity" id="taskIntensity"></div>
+    <div class="task-actions">
+      <button class="btn small" onclick="skipTask()">跳过</button>
+      <button class="btn small" onclick="swapTask()">换一题(-1币)</button>
+      <button class="btn small primary" onclick="doneTask()">完成</button>
+  </div></div>
+  <div class="action-bar"><button class="btn primary roll-btn" id="rollBtn" onclick="rollDice()">掷骰子</button></div>
+</div>
+<div id="result" class="screen">
+  <div class="result-emoji" id="resultEmoji"></div><h2 id="resultTitle"></h2>
+  <div class="winner-text" id="resultWinner"></div><p style="color:var(--muted)" id="resultSummary"></p>
+  <button class="btn primary" onclick="Host.close()">退出</button><button class="btn" onclick="restartGame()">再来一局</button>
+</div>
+<div class="modal-overlay" id="modal404"><div class="modal-box">
+  <h3>404 紧急停止</h3><p>确定终止游戏？不会追问理由。这是铁律。</p>
+  <div class="modal-row"><button class="btn" onclick="closeModal('modal404')">取消</button><button class="btn danger" onclick="confirmStop()">确认终止</button></div>
+</div></div>
+<div class="modal-overlay" id="modalRedline"><div class="modal-box">
+  <h3>当前生效的红线</h3><p id="redlineContent"></p>
+  <div class="modal-row"><button class="btn primary" onclick="closeModal('modalRedline')">知道了</button></div>
+</div></div>
+<div class="toast" id="toast"></div>
+<script>
+"use strict";
+var Host = (function() {
+  var A = (typeof window !== "undefined" && window.AiPhoneGame) ? window.AiPhoneGame : null;
+  var has = function(k) { return A && typeof A[k] === "function"; };
+  return {
+    available: !!A,
+    listChars: async function() { try { return has("listAvailableCharacters") ? (await A.listAvailableCharacters()) || [] : []; } catch(e) { return []; } },
+    player: async function() { try { return has("getPlayerProfile") ? (await A.getPlayerProfile()) || {} : {}; } catch(e) { return {}; } },
+    callLLM: async function(args) { try { return has("callLLM") ? await A.callLLM(args) : null; } catch(e) { return null; } },
+    record: async function(args) { try { if (has("recordGameEvent")) await A.recordGameEvent(args); } catch(e) {} },
+    save: async function(s) { try { if (has("saveGame")) await A.saveGame(s); } catch(e) {} },
+    load: async function() { try { return has("loadGame") ? await A.loadGame() : null; } catch(e) { return null; } },
+    setTitleBar: async function(s) { try { if (has("setTitleBar")) await A.setTitleBar(s); } catch(e) {} },
+    close: function() { try { if (has("closeGame")) A.closeGame(); } catch(e) {} }
+  };
+})();
+
+var API = "https://spicy-monopoly.lol";
+var REDLINES = [{en:"anal",zh:"后庭"},{en:"pain",zh:"打"},{en:"bondage",zh:"绑"},{en:"toys",zh:"玩具"},{en:"public",zh:"暴露"},{en:"degrade",zh:"羞辱"},{en:"wet",zh:"失禁"},{en:"foot",zh:"足"},{en:"spit",zh:"口水"},{en:"milk",zh:"产乳"},{en:"estim",zh:"电"},{en:"dp",zh:"双龙"},{en:"hypno",zh:"催眠"},{en:"wax",zh:"蜡"}];
+var G = { gameId: null, token: null, p1Name: "我", p2Name: "AI", aiCharId: null, aiCharName: "", waiting: false, finished: false, activeLimits: null };
+
+var $ = function(id) { return document.getElementById(id); };
+function toast(msg) { var t = $("toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(t._t); t._t = setTimeout(function() { t.classList.remove("show"); }, 1800); }
+function showScreen(id) { var screens = document.querySelectorAll(".screen"); for (var i = 0; i < screens.length; i++) screens[i].classList.remove("active"); $(id).classList.add("active"); }
+function openModal(id) { $(id).classList.add("show"); }
+function closeModal(id) { $(id).classList.remove("show"); }
+function escHtml(s) { return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+
+async function api(method, path, body) {
+  var url = API + path;
+  var opts = { method: method, headers: { "Content-Type": "application/json" } };
+  if (body) opts.body = JSON.stringify(body);
+  var res = await fetch(url, opts);
+  if (res.status === 429) { toast("手速太快"); await new Promise(function(r) { setTimeout(r, 2000); }); return api(method, path, body); }
+  if (!res.ok) { var msg = "HTTP " + res.status; try { var e = await res.json(); msg = e.detail || e.error || msg; } catch(e) {} throw new Error(msg); }
+  return res.json();
+}
+
+async function aiSay(prompt) {
+  if (!G.aiCharId) return "";
+  try {
+    var res = await Host.callLLM({ characterId: G.aiCharId, messages: [
+      { role: "system", content: "你在和" + G.p1Name + "玩涩涩大富翁。用你的语气说话，简短(15-40字)，别念规则。" },
+      { role: "user", content: prompt }
+    ]});
+    return res && res.content ? String(res.content).slice(0, 150) : "";
+  } catch(e) { return ""; }
+}
+
+function renderBoard(text) { $("boardText").textContent = text || "(等待棋盘...)"; $("boardWrap").scrollTop = 0; }
+
+function renderPlayerStrip(data) {
+  var players = data.players || [];
+  var html = "";
+  if (players.length) {
+    for (var i = 0; i < players.length; i++) {
+      var p = players[i];
+      html += '<div class="player-info"><div class="pname">' + escHtml(p.name||"?") + '</div>';
+      html += '<div class="pcoins">$ ' + (p.coins||0) + '</div>';
+      if (p.identity) html += '<div class="pident">' + escHtml(p.identity) + '</div>';
+      html += '<div class="ppos">第' + (p.position||"?") + '格</div></div>';
+    }
+  } else {
+    html = '<div class="player-info"><div class="pname">' + escHtml(G.p1Name) + '</div></div>';
+    html += '<div class="player-info"><div class="pname">' + escHtml(G.p2Name) + '</div></div>';
+  }
+  $("playerStrip").innerHTML = html;
+}
+
+function initSegmented(id) {
+  var btns = $(id).querySelectorAll("button");
+  for (var i = 0; i < btns.length; i++) {
+    btns[i].addEventListener("click", function() {
+      var siblings = this.parentElement.querySelectorAll("button");
+      for (var j = 0; j < siblings.length; j++) siblings[j].classList.remove("active");
+      this.classList.add("active");
+    });
+  }
+}
+function getSegValue(id) { var a = $(id).querySelector("button.active"); return a ? a.dataset.v : ""; }
+function hideTask() { $("taskCard").classList.remove("active"); }
+
+async function startGame() {
+  $("startBtn").disabled = true; $("startBtn").textContent = "开局中...";
+  G.p1Name = $("p1Name").value.trim() || "我";
+  var p1Sex = $("p1Sex").value, p1Role = $("p1Role").value;
+  var aiSel = $("aiChar");
+  G.aiCharId = aiSel.value || null;
+  G.aiCharName = aiSel.selectedOptions[0] ? aiSel.selectedOptions[0].dataset.name : "AI";
+  G.p2Name = G.aiCharName;
+  var p2Sex = p1Sex === "男" ? "女" : "男";
+  var p2Role = $("p2Role").value;
+  var redline = [];
+  var cbs = $("redlineGrid").querySelectorAll("input:checked");
+  for (var i = 0; i < cbs.length; i++) redline.push(cbs[i].value);
+  var openAnal = [];
+  if ($("analP1").checked) openAnal.push(G.p1Name);
+  if ($("analP2").checked) openAnal.push(G.p2Name);
+  var rulesAck = "";
+  try { var h = await api("GET", "/help"); rulesAck = h.rules_ack || ""; } catch(e) {}
+  var body = {
+    lineup: p1Sex === p2Sex ? (p1Sex === "男" ? "男男" : "女女") : "男女",
+    p1_name: G.p1Name, p1_sex: p1Sex, p1_role: p1Role,
+    p2_name: G.p2Name, p2_sex: p2Sex, p2_role: p2Role,
+    flavor: getSegValue("flavorSeg"), game_length: parseInt(getSegValue("lenSeg")),
+    identity_mode: getSegValue("identitySeg"), reverse_chance: parseFloat($("reverseChance").value),
+    redline: redline.length > 0 ? redline : undefined,
+    open_anal: openAnal.length > 0 ? openAnal : undefined,
+    first_player: getSegValue("firstSeg") === "p2" ? G.p2Name : undefined,
+    setup_confirmed: true, rules_ack: rulesAck
+  };
+  try {
+    var data = await api("POST", "/new_game", body);
+    G.gameId = data.game_id; G.token = data.player_token; G.activeLimits = data.active_limits || null;
+    showScreen("game");
+    renderBoard(data.board || ""); $("sayBox").textContent = data.intro || "游戏开始！";
+    renderPlayerStrip(data);
+    await Host.save({ gameId: G.gameId, token: G.token, p1Name: G.p1Name, p2Name: G.p2Name, aiCharId: G.aiCharId });
+    if (G.aiCharId) {
+      var say = await aiSay("游戏开始。你是" + G.p2Name + "，对手是" + G.p1Name + "。说一句简短开场白。");
+      if (say) $("sayBox").textContent = say;
+    }
+  } catch(e) { toast("开局失败: " + e.message); }
+  $("startBtn").disabled = false; $("startBtn").textContent = "开始游戏";
+}
+
+async function rollDice() {
+  if (G.waiting || G.finished) return;
+  G.waiting = true; $("rollBtn").disabled = true; $("rollBtn").textContent = "...";
+  try {
+    var data = await api("POST", "/roll/" + G.gameId);
+    if (data.settled) { $("settledBox").textContent = data.settled; $("settledBox").classList.add("active"); }
+    else { $("settledBox").classList.remove("active"); }
+    if (data.board) renderBoard(data.board);
+    if (data.say) $("sayBox").textContent = data.say;
+    try { renderPlayerStrip(await api("GET", "/state/" + G.gameId)); } catch(e) {}
+    hideTask();
+    if (data.task) {
+      var t = data.task;
+      $("taskContent").textContent = typeof t === "string" ? t : (t.content || t.text || JSON.stringify(t));
+      var inten = t.intensity || t.strength || "";
+      $("taskIntensity").textContent = inten ? "强度: " + inten + "/6" : "";
+      $("taskCard").classList.add("active");
+      if (G.aiCharId) {
+        var say = await aiSay("掷骰子后，出了任务: " + $("taskContent").textContent + "。用你的语气评论一句。");
+        if (say) $("sayBox").textContent += "\n\n" + say;
+      }
+    }
+    if (data.truth) {
+      $("taskContent").textContent = "真心话: " + (typeof data.truth === "string" ? data.truth : (data.truth.content||""));
+      $("taskIntensity").textContent = "回答即完成";
+      $("taskCard").classList.add("active");
+    }
+    if (data.game_over || data.finished) { await showResult(); return; }
+    await Host.save({ gameId: G.gameId, token: G.token, p1Name: G.p1Name, p2Name: G.p2Name, aiCharId: G.aiCharId });
+  } catch(e) { toast("出错了: " + e.message); }
+  G.waiting = false; $("rollBtn").disabled = false; $("rollBtn").textContent = "掷骰子";
+}
+
+async function skipTask() {
+  if (!G.gameId) return;
+  try { await api("POST", "/skip/" + G.gameId + "/" + encodeURIComponent(G.p1Name)); hideTask();
+    $("sayBox").textContent = "已跳过。"; toast("已跳过（不扣分）"); } catch(e) { toast("跳过失败: " + e.message); }
+}
+async function swapTask() {
+  if (!G.gameId) return;
+  try { await api("POST", "/swap/" + G.gameId + "/" + encodeURIComponent(G.p1Name));
+    $("taskContent").textContent = "已换题，下次掷骰生效。"; $("taskIntensity").textContent = "赔对方1币";
+    toast("已换题(-1币)"); } catch(e) { toast("换题失败: " + e.message); }
+}
+async function doneTask() {
+  hideTask(); $("sayBox").textContent = "任务完成！掷下一次骰子时结算。"; toast("做完了！"); }
+
+function emergencyStop() { openModal("modal404"); }
+async function confirmStop() { closeModal("modal404");
+  if (G.gameId && G.token) { try { await api("DELETE", "/game/" + G.gameId + "?token=" + encodeURIComponent(G.token)); } catch(e) {} }
+  G.gameId = null; G.token = null; G.finished = true; toast("游戏已终止");
+  await Host.save(null); setTimeout(function() { Host.close(); }, 800); }
+
+function showRedline() {
+  if (G.activeLimits) {
+    var l = G.activeLimits;
+    var t = "红线: " + (l.redline && l.redline.length ? l.redline.join("、") : "无");
+    t += "\n后庭: " + (l.open_anal && l.open_anal.length ? l.open_anal.join("、") : "双方都关");
+    $("redlineContent").textContent = t;
+  } else { $("redlineContent").textContent = "暂无红线信息"; }
+  openModal("modalRedline");
+}
+
+async function showResult() {
+  G.finished = true;
+  try {
+    var data = await api("GET", "/final_result/" + G.gameId);
+    showScreen("result");
+    var won = data.winner === G.p1Name;
+    $("resultEmoji").textContent = won ? "YOU WIN" : "YOU LOSE";
+    $("resultTitle").textContent = won ? "你赢了！" : "你输了...";
+    $("resultWinner").textContent = data.result || ("胜者: " + (data.winner||"?"));
+    $("resultSummary").textContent = data.summary || "";
+    if (G.aiCharId) await Host.record({ characterIds: [G.aiCharId],
+      summary: G.p1Name + "和" + G.p2Name + "玩了一局大富翁，" + (won ? G.p1Name + "赢了" : G.p2Name + "赢了") + "。" });
+    await Host.save(null);
+  } catch(e) { showScreen("result"); $("resultEmoji").textContent = "END"; $("resultTitle").textContent = "游戏结束"; }
+}
+
+async function restartGame() { G.gameId = null; G.token = null; G.finished = false; showScreen("setup"); await Host.save(null); }
+
+async function tryResume() {
+  var save = await Host.load();
+  if (!save || !save.gameId) return;
+  G.gameId = save.gameId; G.token = save.token; G.p1Name = save.p1Name || "我"; G.p2Name = save.p2Name || "AI"; G.aiCharId = save.aiCharId || null;
+  try {
+    var state = await api("GET", "/state/" + G.gameId);
+    showScreen("game"); renderBoard(state.board || ""); renderPlayerStrip(state);
+    $("sayBox").textContent = "已恢复游戏。";
+    await Host.setTitleBar({ material: "glass", buttonBackground: "rgba(30,10,20,.6)", buttonColor: "#e898a8",
+      buttonBorderColor: "rgba(232,152,168,.35)", buttonRadius: "999px", buttonShadow: "0 8px 20px rgba(0,0,0,.3)", iconOpacity: 1 });
+  } catch(e) { toast("恢复失败"); G.gameId = null; G.token = null; }
+}
+
+(function init() {
+  for (var i = 0; i < REDLINES.length; i++) {
+    $("redlineGrid").innerHTML += '<label><input type="checkbox" value="' + REDLINES[i].en + '" /> ' + REDLINES[i].zh + '</label>';
+  }
+  ["flavorSeg","lenSeg","identitySeg","firstSeg"].forEach(initSegmented);
+  $("reverseChance").addEventListener("input", function() { $("revVal").textContent = this.value; });
+  Host.listChars().then(function(chars) {
+    var sel = $("aiChar");
+    if (chars.length === 0) sel.innerHTML = '<option value="">(无可用角色)</option>';
+    else chars.forEach(function(c) { sel.innerHTML += '<option value="' + escHtml(c.id) + '" data-name="' + escHtml(c.name) + '">' + escHtml(c.name) + '</option>'; });
+  });
+  Host.player().then(function(p) { if (p && p.name) $("p1Name").value = p.name; });
+  $("startBtn").addEventListener("click", startGame);
+  Host.setTitleBar({ material: "glass", buttonBackground: "rgba(30,10,20,.6)", buttonColor: "#e898a8",
+    buttonBorderColor: "rgba(232,152,168,.35)", buttonRadius: "999px", buttonShadow: "0 8px 20px rgba(0,0,0,.3)", iconOpacity: 1 });
+  tryResume();
+})();
+</script>
+</body>
+</html>

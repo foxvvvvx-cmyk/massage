@@ -173,6 +173,42 @@ export async function getMemoryCountByType(
     return entries.length;
 }
 
+// ── Heat / decay tracking ──
+
+/**
+ * 标记一批记忆已被检索使用，更新引用计数和最近使用时间。
+ * Fire-and-forget：调用方不需要等待写入完成。
+ */
+export async function markMemoriesRetrieved(ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+    const db = await openDb();
+    if (!db) return;
+    const now = new Date().toISOString();
+    try {
+        const tx = db.transaction(STORE_NAME, "readwrite");
+        const store = tx.objectStore(STORE_NAME);
+        for (const id of ids) {
+            const entry: MemoryEntry | undefined = await runRequest(store.get(id));
+            if (!entry) continue;
+            entry.usageCount = (entry.usageCount || 0) + 1;
+            entry.lastRetrievedAt = now;
+            store.put(entry);
+        }
+        await new Promise<void>((res, rej) => {
+            tx.oncomplete = () => res();
+            tx.onerror = () => rej(tx.error);
+        });
+    } finally {
+        db.close();
+    }
+}
+
+export function markMemoriesRetrievedAsync(ids: string[]): void {
+    markMemoriesRetrieved(ids).catch(() => {
+        // 静默失败：热度追踪不是关键路径
+    });
+}
+
 // ── Config (localStorage for fast sync access) ──
 
 export function loadMemoryConfig(): MemoryConfig {

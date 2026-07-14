@@ -1,3 +1,4 @@
+/** @deprecated 已重构为 proactive-service.ts + emotion-storage.ts。请改用 import { startEmotionLoop, stopEmotionLoop } from "./proactive-service" + import { loadOrCreateState, canContact } from "./emotion-storage"。本文件保留以兼容旧引用，不再更新。 */
 // lib/jiwen-bridge.ts
 // 积温桥接层 — 连接 Engine 和虚拟手机项目
 // 依赖：Engine / chat-storage / character-storage / settings-storage / api-helpers

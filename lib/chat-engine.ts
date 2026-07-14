@@ -74,8 +74,90 @@ import {
 } from "./bilingual-prompt-defaults";
 import { parseOfflineResponse, type ParsedOfflineResponse } from "./chat-offline-storage";
 import { throwIfAborted } from "./abort-utils";
+import { getSentiment, applyInteraction, tick, defaultEmotionConfig, type EmotionState, type EmotionConfig } from "./emotion-engine";
+import { loadOrCreateState, saveStateAsync } from "./emotion-storage";
 
+// ── Resonance debug toggle ──
+const RESONANCE_DEBUG = true;
 
+function logResonance(characterId: string, label: string, state: EmotionState, extra?: Record<string, unknown>): void {
+    if (!RESONANCE_DEBUG) return;
+    const { connection, pride, restraint, valence, arousal, immersion } = state;
+    console.log(
+        `%c[Resonance] %c${label} %c| character=%c${characterId}`,
+        'color:#e898a8;font-weight:bold',
+        'color:#ccc',
+        'color:#888',
+        'color:#f1c45a',
+        '\n  connection:', connection.toFixed(3),
+        'pride:', pride.toFixed(3),
+        'restraint:', restraint.toFixed(3),
+        'valence:', valence.toFixed(3),
+        'arousal:', arousal.toFixed(3),
+        'immersion:', immersion.toFixed(3),
+        extra ? '\n  extra:' : '',
+        extra ?? '',
+    );
+}
+
+/**
+ * Apply resonance update after an AI reply completes.
+ * - Ticks elapsed time since last update
+ * - Detects sentiment from user's last message
+ * - Applies interaction effects
+ * - Fire-and-forget saves to IndexedDB
+ */
+async function applyResonanceUpdate(
+    characterId: string,
+    userMessage: string,
+    delayMinutes: number,
+): Promise<void> {
+    try {
+        const config: EmotionConfig = defaultEmotionConfig();
+        let state = await loadOrCreateState(characterId);
+
+        // Tick elapsed time
+        const elapsed = Math.max(0, (Date.now() - state.lastTick) / 60000);
+        if (elapsed >= 1) {
+            const beforeTick = { ...state };
+            state = tick(state, config, elapsed);
+            if (RESONANCE_DEBUG && elapsed > 5) {
+                logResonance(characterId, `tick (${elapsed.toFixed(1)}min)`, state, {
+                    before: `conn=${beforeTick.connection.toFixed(3)} pride=${beforeTick.pride.toFixed(3)} restr=${beforeTick.restraint.toFixed(3)}`,
+                });
+            }
+        }
+
+        logResonance(characterId, 'before-interaction', state);
+
+        // Detect sentiment + apply interaction
+        const sentiment = getSentiment(userMessage);
+        const updated = applyInteraction(state, config, {
+            replied: true,
+            delayMinutes,
+            sentiment: sentiment.sentiment,
+            hasThirdParty: sentiment.hasThirdParty,
+        });
+
+        logResonance(characterId, 'after-interaction', updated, {
+            sentiment: sentiment.sentiment,
+            hasThirdParty: sentiment.hasThirdParty,
+            delayMinutes,
+            deltas: {
+                connection: (updated.connection - state.connection).toFixed(4),
+                restraint: (updated.restraint - state.restraint).toFixed(4),
+                valence: (updated.valence - state.valence).toFixed(4),
+                arousal: (updated.arousal - state.arousal).toFixed(4),
+                immersion: (updated.immersion - state.immersion).toFixed(4),
+            },
+        });
+
+        // Fire-and-forget: don't block the response
+        saveStateAsync(characterId, updated);
+    } catch (err) {
+        console.warn('[Resonance] update failed:', err);
+    }
+}
 
 export class ChatEngineError extends Error {
     constructor(message: string) {
@@ -1969,21 +2051,22 @@ async function generateNativeChatCompletion(
 
         if (result.toolCalls.length === 0) {
             throwIfAborted(options?.signal);
-            await callbacks?.onTextPart?.(afterActionStrip);
-            parts.push({ text: afterActionStrip });
+            const displayText = stripStateAndInnerForPrompt(afterActionStrip);
+            await callbacks?.onTextPart?.(displayText);
+            parts.push({ text: displayText });
             break;
         }
 
         throwIfAborted(options?.signal);
         await callbacks?.onNativeToolAssistantTurn?.({
-            content: afterActionStrip,
+            content: stripStateAndInnerForPrompt(afterActionStrip),
             rawContent: result.content,
             reasoning: result.reasoning,
             openRouterReasoningDetails: result.openRouterReasoningDetails,
             toolCalls: result.toolCalls,
         });
         if (afterActionStrip) {
-            parts.push({ text: afterActionStrip });
+            parts.push({ text: stripStateAndInnerForPrompt(afterActionStrip) });
         }
 
         const loaderCalls = result.toolCalls
@@ -2136,6 +2219,25 @@ async function generateNativeChatCompletion(
         }
     }
 
+    // Resonance: update after native-tool AI reply (fire-and-forget)
+    (async () => {
+        try {
+            const userMessages = llmMessages.filter(m => m.role === "user" && m._debugMeta?._fromHistory);
+            if (userMessages.length > 0) {
+                const lastUser = userMessages[userMessages.length - 1];
+                const userText = typeof lastUser.content === "string"
+                    ? lastUser.content
+                    : (Array.isArray(lastUser.content)
+                        ? lastUser.content.filter((p): p is { type: "text"; text: string } => p.type === "text").map(p => p.text).join(" ")
+                        : "");
+                // Note: llmMessages don't carry timestamps, so delayMinutes = 0 here
+                await applyResonanceUpdate(character.id, userText, 0);
+            }
+        } catch (err) {
+            console.warn("[ChatEngine] Resonance update (native) failed:", err);
+        }
+    })();
+
     return { parts };
 }
 
@@ -2204,15 +2306,16 @@ export async function generateChatCompletion(
         // No tool activity — final round
         if (toolFetches.length === 0 && toolCalls.length === 0) {
             throwIfAborted(options?.signal);
-            await callbacks?.onTextPart?.(afterActionStrip);
-            parts.push({ text: afterActionStrip });
+            const displayText = stripStateAndInnerForPrompt(afterActionStrip);
+            await callbacks?.onTextPart?.(displayText);
+            parts.push({ text: displayText });
             break;
         }
 
         // Save raw text as assistant message (with tool tags preserved)
         throwIfAborted(options?.signal);
         callbacks?.onToolAssistantTurn?.(filteredOutput);
-        await callbacks?.onTextPart?.(afterActionStrip, undefined, { promptHidden: true });
+        await callbacks?.onTextPart?.(stripStateAndInnerForPrompt(afterActionStrip), undefined, { promptHidden: true });
         parts.push({ text: filteredOutput });
 
         // Helper: find insert index for injecting after history
@@ -2353,6 +2456,27 @@ export async function generateChatCompletion(
             await maybeRunSummarization(character.id, character.name);
         } catch (err) {
             console.warn("[ChatEngine] Memory counter/summarization failed:", err);
+        }
+    })();
+
+    // Resonance: update emotional state after AI reply (fire-and-forget)
+    (async () => {
+        try {
+            const userMessages = history.filter(m => m.role === "user");
+            if (userMessages.length > 0) {
+                const lastUserMsg = userMessages[userMessages.length - 1];
+                // ChatMessage.content is always string
+                const userText = lastUserMsg.content || "";
+                // Calculate delay: time between this user message and the previous one
+                let delayMinutes = 0;
+                if (userMessages.length >= 2) {
+                    const prevMsg = userMessages[userMessages.length - 2];
+                    delayMinutes = (new Date(lastUserMsg.createdAt).getTime() - new Date(prevMsg.createdAt).getTime()) / 60000;
+                }
+                await applyResonanceUpdate(character.id, userText, delayMinutes);
+            }
+        } catch (err) {
+            console.warn("[ChatEngine] Resonance update failed:", err);
         }
     })();
 

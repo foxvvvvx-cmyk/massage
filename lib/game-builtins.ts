@@ -53,6 +53,20 @@ export const GAME_BUILTIN_TEMPLATES: GameTemplate[] = [
     gameHtml: TRUTH_OR_DARE_GAME_HTML,
     allowExternalControl: true,
   }),
+  template({
+    id: "builtin_game_spicy_monopoly",
+    title: "涩涩大富翁",
+    codeName: "SPICY_MONOPOLY",
+    subtitle: "双人棋盘 · 色色任务",
+    synopsis: "两人轮流掷骰子，绕20格棋盘走，踩到不同格子做不同的色色任务。做任务赚金币，打满回合数后金币多的赢。内置安全词404、红线过滤、任务跳过/更换机制。",
+    playNote: "通过 spicy-monopoly.lol 公开API驱动棋盘/任务/结算。支持角色选择/AI陪玩/404紧急停止/红线查看/跳过换题。需要联网。",
+    coverImage: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 200 200'%3E%3Cdefs%3E%3CradialGradient id='g' cx='50%25' cy='40%25'%3E%3Cstop offset='0%25' stop-color='%23e898a8'/%3E%3Cstop offset='100%25' stop-color='%231a0a14'/%3E%3C/radialGradient%3E%3C/defs%3E%3Crect width='200' height='200' rx='30' fill='url(%23g)'/%3E%3Ctext x='100' y='100' text-anchor='middle' fill='%23f1c45a' font-size='64' font-family='sans-serif'%3E🎲%3C/text%3E%3Ctext x='100' y='150' text-anchor='middle' fill='%23f5e8ee' font-size='16' font-family='sans-serif' font-weight='bold'%3E涩涩大富翁%3C/text%3E%3C/svg%3E",
+    tags: ["互动", "剧情"],
+    roleSlots: [],
+    pickerHtml: EMPTY_PICKER_HTML,
+    gameHtml: '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><script>fetch("/game-builtins/spicy-monopoly.html").then(r=>r.text()).then(h=>{document.open();document.write(h);document.close()})</script></body></html>',
+    allowExternalControl: true,
+  }),
 ];
 
 export function getGameBuiltinTemplate(id: string): GameTemplate | undefined {

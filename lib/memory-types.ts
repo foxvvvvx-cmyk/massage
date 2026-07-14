@@ -14,6 +14,10 @@ export type MemoryEntry = {
     updatedAt: string;
     sourceMessageIds?: string[];
     metadata?: Record<string, unknown>;
+    /** 被检索引用次数（热度追踪） */
+    usageCount?: number;
+    /** 上次被检索注入 prompt 的时间 */
+    lastRetrievedAt?: string;
 };
 
 export type MemoryConfig = {

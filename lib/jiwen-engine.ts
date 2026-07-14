@@ -1,3 +1,4 @@
+/** @deprecated 已合并到 emotion-engine.ts。请改用 import { tick, applyInteraction, checkThreshold, getStyleGuidance, EmotionState, EmotionConfig } from "./emotion-engine"。本文件保留以兼容旧引用，不再更新。 */
 // lib/jiwen-engine.ts
 // 积温 主动意识引擎 — 纯状态机，不依赖任何项目模块
 // 职责：tick / applyInteraction / checkThreshold / getStyleGuidance / import/export

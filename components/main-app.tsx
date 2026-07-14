@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { startJiwenLoop, stopJiwenLoop } from "@/lib/jiwen-bridge";
+import { startEmotionLoop, stopEmotionLoop } from "@/lib/proactive-service";
 import { startChatSync, stopChatSync } from "@/lib/chat-sync";
 import { ArrowRight } from "lucide-react";
 
@@ -249,7 +249,7 @@ export function MainApp() {
       if (cancelled) return;
       setPreparedDesktopTheme(nextPreparedTheme);
       setHydrated(true);
-      jiwenCleanup = startJiwenLoop();
+      jiwenCleanup = startEmotionLoop();
       chatSyncCleanup = await startChatSync();
       if (hasPendingMcpOAuthCallback()) {
         setSplashDismissed(true);

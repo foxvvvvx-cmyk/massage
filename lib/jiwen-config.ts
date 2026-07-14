@@ -1,3 +1,4 @@
+/** @deprecated 已合并到 emotion-engine.ts。Runtime 配置参数已内联到 proactive-service.ts 的 ProactiveConfig 类型。本文件保留以兼容旧引用。 */
 // lib/jiwen-config.ts
 // 积温参数配置 — 调整参数无需修改 Engine
 
