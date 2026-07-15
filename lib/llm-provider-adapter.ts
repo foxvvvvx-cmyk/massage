@@ -534,13 +534,16 @@ function buildAnthropicRequest(
     if (preset?.top_k && preset.top_k > 0) body.top_k = preset.top_k;
     if (system) body.system = system;
     if (options.stream) body.stream = true;
-    if (options.tools?.length) {
-        body.tools = options.tools.map((tool) => ({
-            name: tool.name,
-            description: tool.description,
-            input_schema: tool.parameters,
-        }));
-    }
+    const anthropicTools: unknown[] = (options.tools ?? []).map((tool) => ({
+        name: tool.name,
+        description: tool.description,
+        input_schema: tool.parameters,
+    }));
+    // Anthropic 官方服务端联网搜索工具（server tool，无需客户端执行）。
+    // 返回内容里的 server_tool_use / web_search_tool_result 块会被
+    // parseAnthropicResponse / parseAnthropicStreamDelta 自然跳过，只展示 text。
+    anthropicTools.push({ type: "web_search_20250305", name: "web_search" });
+    body.tools = anthropicTools;
     return {
         url: `${baseUrl.replace(/\/$/, "")}/messages`,
         headers: buildRequestHeaders(config, baseUrl),

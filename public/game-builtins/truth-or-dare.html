@@ -189,6 +189,25 @@
   .recap .line b{color:var(--ink);}
   .memo{font-size:13px;color:var(--amber);letter-spacing:.05em;}
   .end-actions{display:flex;flex-direction:column;gap:12px;}
+  /* 题库模式 */
+  .mode-select{display:flex;gap:0;border-radius:12px;overflow:hidden;border:1px solid var(--line);margin-top:10px}
+  .mode-select button{flex:1;padding:10px 0;border:none;background:var(--glass);color:var(--muted);font-size:13px;cursor:pointer;font-family:var(--sans)}
+  .mode-select button:not(:last-child){border-right:1px solid var(--line)}
+  .mode-select button.active{background:var(--rose);color:#fff}
+  .level-checks{display:flex;gap:12px;justify-content:center;margin-top:8px}
+  .level-checks label{display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;padding:4px 10px;border-radius:999px;border:1px solid var(--line);color:var(--muted);transition:border-color .15s,background .15s}
+  .level-checks label.l1:has(input:checked){border-color:#ffb3c6;background:rgba(255,179,198,.12);color:#ffb3c6}
+  .level-checks label.l2:has(input:checked){border-color:#ff6b81;background:rgba(255,107,129,.12);color:#ff6b81}
+  .level-checks label.l3:has(input:checked){border-color:#c0392b;background:rgba(192,57,43,.12);color:#c0392b}
+  .level-checks input{accent-color:var(--rose);width:13px;height:13px}
+  .score-bar{display:flex;justify-content:center;gap:20px;padding:6px 0;font-size:13px;color:var(--muted)}
+  .score-bar .sc-done{color:#a0d995}
+  .score-bar .sc-skip{color:var(--amber)}
+  .score-bar .sc-refuse{color:var(--rose)}
+  .level-badge{display:inline-block;font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;margin-right:6px}
+  .level-badge.l1{background:rgba(255,179,198,.18);color:#ffb3c6;border:1px solid rgba(255,179,198,.35)}
+  .level-badge.l2{background:rgba(255,107,129,.18);color:#ff6b81;border:1px solid rgba(255,107,129,.35)}
+  .level-badge.l3{background:rgba(192,57,43,.18);color:#c0392b;border:1px solid rgba(192,57,43,.35)}
 </style>
 </head>
 <body>
@@ -202,6 +221,18 @@
     </div>
     <div class="pick-hint" id="pickHint">挑 3 个人，和你一起围坐这一晚</div>
     <div class="char-list" id="charList"></div>
+    <div style="margin-top:10px">
+      <div style="font-size:12px;color:var(--muted);text-align:center;margin-bottom:4px">出题模式</div>
+      <div class="mode-select" id="modeSelect">
+        <button data-mode="ai" class="active">AI 动态出题</button>
+        <button data-mode="bank">题库模式</button>
+      </div>
+      <div class="level-checks" id="levelChecks" style="display:none">
+        <label class="l1"><input type="checkbox" value="1" checked /> L1暧昧</label>
+        <label class="l2"><input type="checkbox" value="2" checked /> L2升温</label>
+        <label class="l3"><input type="checkbox" value="3" checked /> L3深度</label>
+      </div>
+    </div>
     <div class="footer">
       <button class="btn primary" id="startBtn" disabled>开始游戏</button>
     </div>
@@ -209,6 +240,11 @@
 
   <!-- 牌桌 -->
   <section id="screen-table" class="hidden">
+    <div class="score-bar" id="scoreBar">
+      <span class="sc-done">✓ <b id="scDone">0</b></span>
+      <span class="sc-skip">→ <b id="scSkip">0</b></span>
+      <span class="sc-refuse">✕ <b id="scRefuse">0</b></span>
+    </div>
     <div class="round-tag" id="roundTag">第 1 轮</div>
     <div class="stage" id="stage">
       <div class="table-ring"></div>
@@ -302,15 +338,22 @@
   /* ============ 全局状态 ============ */
   const S = {
     all: [],
-    chosen: [],            // [{id,name,avatar,subtitle}]
+    chosen: [],
     player: {name:"你"},
-    seats: [],             // [{type:'me'|'char', id, name, avatar, angle}]
+    seats: [],
     pkgCache: {},
     round: 0,
-    log: [],               // {targetName,type,prompt,answer,reactorName,reaction}
+    log: [],
     busy: false,
     recorded: false,
-    lastTargetIdx: -1
+    lastTargetIdx: -1,
+    /* 题库模式 */
+    mode: "ai",            // "ai" | "bank"
+    levels: [1,2,3],       // 启用的难度
+    questionBank: {1:[],2:[],3:[]}, // 按等级缓存的题目
+    usedIds: new Set(),    // 已抽过的题目ID
+    scores: {done:0,skip:0,refuse:0}, // 记分
+    currentQuestion: null  // 当前抽到的题目对象
   };
 
   /* ============ 初始化 ============ */
@@ -328,6 +371,26 @@
     S.player = await API.player();
     S.all = await API.listCharacters() || [];
     renderCharList();
+
+    // 模式切换
+    $("modeSelect").querySelectorAll("button").forEach(btn=>{
+      btn.addEventListener("click", function(){
+        $("modeSelect").querySelectorAll("button").forEach(b=>b.classList.remove("active"));
+        this.classList.add("active");
+        S.mode = this.dataset.mode;
+        $("levelChecks").style.display = S.mode==="bank"?"flex":"none";
+        if(S.mode==="bank") loadQuestionBank();
+      });
+    });
+
+    // 难度勾选变化 → 重载题库
+    $("levelChecks").querySelectorAll("input").forEach(cb=>{
+      cb.addEventListener("change", ()=>{
+        S.levels = [];
+        $("levelChecks").querySelectorAll("input:checked").forEach(c=>S.levels.push(parseInt(c.value)));
+        if(S.mode==="bank"){ S.questionBank={1:[],2:[],3:[]}; S.usedIds=new Set(); loadQuestionBank(); }
+      });
+    });
 
     $("startBtn").addEventListener("click", startGame);
     $("againBtn").addEventListener("click", ()=>{ resetForReplay(); });
@@ -443,6 +506,41 @@
   }
 
   let curRotation = 0;
+  /* ============ 题库模式 ============ */
+  async function loadQuestionBank(){
+    S.questionBank = {1:[],2:[],3:[]};
+    for(const lv of S.levels){
+      try{
+        const res = await fetch(`/game-builtins/tod-questions-l${lv}.json`);
+        if(!res.ok) throw new Error("HTTP "+res.status);
+        const data = await res.json();
+        S.questionBank[lv] = data;
+      }catch(e){
+        console.warn("[ToD] failed to load L"+lv+" questions:", e);
+      }
+    }
+  }
+  function drawQuestion(){
+    // 收集所有可用题目
+    const pool = [];
+    for(const lv of S.levels) pool.push(...S.questionBank[lv].filter(q=>!S.usedIds.has(q.id)));
+    if(!pool.length){
+      // 所有题目都抽过了，重置
+      S.usedIds = new Set();
+      for(const lv of S.levels) pool.push(...S.questionBank[lv]);
+    }
+    if(!pool.length) return null;
+    const q = pool[Math.floor(Math.random()*pool.length)];
+    S.usedIds.add(q.id);
+    S.currentQuestion = q;
+    return q;
+  }
+  function updateScores(){
+    $("scDone").textContent = S.scores.done;
+    $("scSkip").textContent = S.scores.skip;
+    $("scRefuse").textContent = S.scores.refuse;
+  }
+
   async function spin(){
     if(S.busy) return; S.busy=true;
     $("spinBtn").disabled=true;
@@ -480,10 +578,24 @@
   /* ============ 一个回合 ============ */
   async function beginTurn(target){
     if(target.type==="me"){
-      renderChoose(target);                 // 玩家自己选真心话/大冒险
+      // 题库模式：抽一张给玩家选类型
+      if(S.mode==="bank"){
+        const q = drawQuestion();
+        if(!q){ renderChoose(target); return; }
+        renderChoose(target, q.type); // 题库决定了类型，但玩家仍可选
+      }else{
+        renderChoose(target);
+      }
     }else{
-      const type = Math.random()<0.5 ? "truth" : "dare";
-      renderChoose(target, type);           // AI 自动选，展示后继续
+      let type;
+      if(S.mode==="bank"){
+        const q = drawQuestion();
+        if(!q){ type = Math.random()<0.5?"truth":"dare"; }
+        else type = q.type;
+      }else{
+        type = Math.random()<0.5 ? "truth" : "dare";
+      }
+      renderChoose(target, type);
       await wait(900);
       await runPrompt(target, type);
     }
@@ -491,58 +603,54 @@
 
   function renderChoose(target, autoType){
     const isMe = target.type==="me";
+    const q = S.currentQuestion; // 题库模式下的当前题目
+    // 题库提示文字
+    const bankHint = (q && S.mode==="bank") ? `<span class="level-badge l${q.level}">L${q.level}</span>` : "";
     $("panel").innerHTML = `
       <div class="card fade">
-        <div class="who">轮到 ${isMe?"你":esc(target.name)}</div>
+        <div class="who">轮到 ${isMe?"你":esc(target.name)} ${bankHint}</div>
         ${isMe
-          ? `<div class="q" style="font-size:16px">选一个吧——</div>
-             <div class="choose-row" style="margin-top:14px">
-               <button class="btn" id="chTruth">真心话</button>
-               <button class="btn" id="chDare">大冒险</button>
-             </div>`
+          ? `<div class="q" style="font-size:16px">${q&&S.mode==="bank"? esc(q.text) : "选一个吧——"}</div>
+             ${q&&S.mode==="bank"
+               ? `<div class="choose-row" style="margin-top:14px">
+                    <button class="btn" id="chTruth">${q.type==="truth"?"接受真心话":"换大冒险"}</button>
+                    <button class="btn" id="chDare">${q.type==="dare"?"接受大冒险":"换真心话"}</button>
+                  </div>`
+               : `<div class="choose-row" style="margin-top:14px">
+                    <button class="btn" id="chTruth">真心话</button>
+                    <button class="btn" id="chDare">大冒险</button>
+                  </div>`}`
           : `<div class="q" style="font-size:16px;color:var(--muted)">${esc(target.name)} 选择了
                <b style="color:${autoType==="truth"?"var(--violet)":"var(--amber)"}">${autoType==="truth"?"真心话":"大冒险"}</b>…</div>`}
       </div>`;
     if(isMe){
-      $("chTruth").addEventListener("click", ()=> runPrompt(target,"truth"));
-      $("chDare").addEventListener("click", ()=> runPrompt(target,"dare"));
+      $("chTruth").addEventListener("click", ()=> runPrompt(target, q&&S.mode==="bank"? q.type : "truth"));
+      $("chDare").addEventListener("click", ()=> runPrompt(target, q&&S.mode==="bank"? (q.type==="truth"?"dare":"truth") : "dare"));
     }
   }
 
   async function runPrompt(target, type){
     const isMe = target.type==="me";
     const typeLabel = type==="truth"?"真心话":"大冒险";
-    // 出题（主持人 / 通用模型）
-    $("panel").innerHTML = `
-      <div class="card fade">
-        <span class="typebadge ${type}">${typeLabel}</span>
-        <div class="loading"><span>主持人正在出题</span><span class="dots"><i></i><i></i><i></i></span></div>
-      </div>`;
+    const q = S.currentQuestion;
+    // 题库模式：直接用抽到的题目，跳过LLM出题
+    if(S.mode==="bank" && q){
+      prompt = q.text;
+      $("panel").innerHTML = '<div class="card fade"><span class="level-badge l'+q.level+'">L'+q.level+'</span> <span class="typebadge '+type+'">'+typeLabel+'</span><div class="who">出给 '+(isMe?"你":esc(target.name))+'</div><div class="q">'+esc(prompt)+'</div></div><div id="answerArea"></div><div class="actions" id="turnActions"></div>';
+    }else{
+      // AI动态出题（原逻辑不变）
+      $("panel").innerHTML = '<div class="card fade"><span class="typebadge '+type+'">'+typeLabel+'</span><div class="loading"><span>主持人正在出题</span><span class="dots"><i></i><i></i><i></i></span></div></div>';
+      const names = S.seats.map(function(s){ return s.type==="me"? S.player.name : s.name; }).join("、");
+      try{
+        const r = await API.globalLLM({messages:[{role:"system",content:'你是一场深夜朋友聚会上"真心话大冒险"的主持人，只负责出题。语气俏皮、温暖、带点暧昧的小心机。根据要求生成一个'+(type==="truth"?"[真心话问题]":"[大冒险任务]")+'。要求：贴合在场众人之间的关系，能引出真实情绪或有趣互动；只输出题目本身一句话，不要解释、不要引号、不超过40字；保持轻松友好，避免露骨、冒犯或危险内容。'},{role:"user",content:'现在轮到['+(isMe?S.player.name:target.name)+']。在场的人有：'+names+'。请为'+(isMe?S.player.name:target.name)+'出一个'+typeLabel+'。'}]});
+        prompt = (r && r.content || "").trim();
+      }catch(e){ prompt=""; }
+      if(!prompt) prompt = type==="truth" ? "说出此刻你最不想被人看穿的一个念头。" : "用一句话向在座某个人表白，可以是认真的，也可以是玩笑。";
 
-    const names = S.seats.map(s=> s.type==="me"? S.player.name : s.name).join("、");
-    let prompt = "";
-    try{
-      const r = await API.globalLLM({
-        messages:[
-          {role:"system",content:`你是一场深夜朋友聚会上"真心话大冒险"的主持人，只负责出题。语气俏皮、温暖、带点暧昧的小心机。根据要求生成一个${type==="truth"?"【真心话问题】":"【大冒险任务】"}。要求：贴合在场众人之间的关系，能引出真实情绪或有趣互动；只输出题目本身一句话，不要解释、不要引号、不超过40字；保持轻松友好，避免露骨、冒犯或危险内容。`},
-          {role:"user",content:`现在轮到「${isMe?S.player.name:target.name}」。在场的人有：${names}。请为${isMe?S.player.name:target.name}出一个${typeLabel}。`}
-        ]
-      });
-      prompt = (r && r.content || "").trim();
-    }catch(e){ prompt=""; }
-    if(!prompt) prompt = type==="truth" ? "说出此刻你最不想被人看穿的一个念头。" : "用一句话向在座某个人表白，可以是认真的，也可以是玩笑。";
-
-    // 渲染题面 + 作答
-    const t = S.log.length; // 用于占位
-    $("panel").innerHTML = `
-      <div class="card fade">
-        <span class="typebadge ${type}">${typeLabel}</span>
-        <div class="who">出给 ${isMe?"你":esc(target.name)}</div>
-        <div class="q">${esc(prompt)}</div>
-      </div>
-      <div id="answerArea"></div>
-      <div class="actions" id="turnActions"></div>`;
-
+    // AI动态模式才需要覆盖panel（题库模式已在上面设好）
+    if(S.mode!=="bank" || !q){
+      $("panel").innerHTML = '<div class="card fade"><span class="typebadge '+type+'">'+typeLabel+'</span><div class="who">出给 '+(isMe?"你":esc(target.name))+'</div><div class="q">'+esc(prompt)+'</div></div><div id="answerArea"></div><div class="actions" id="turnActions"></div>';
+    }
     if(isMe){
       renderPlayerAnswer(target, type, prompt);
     }else{
@@ -559,19 +667,33 @@
       $("turnActions").innerHTML = `<button class="btn primary" id="submitAns">说完了</button>`;
       $("submitAns").addEventListener("click", async ()=>{
         const v=($("ans").value||"").trim();
-        await finishTurn(target,type,prompt, v || "（沉默了一会儿，没说出口）");
+        S.scores.done++; updateScores();
+        await finishTurn(target,type,prompt, v || "（沉默了一会儿，没说出口）","completed");
+      });
+      $("turnActions").innerHTML += '<button class="btn" id="skipTurn">跳过 →</button><button class="btn" id="refuseTurn">拒绝 ✕</button>';
+      $("skipTurn").addEventListener("click", async ()=>{
+        S.scores.skip++; updateScores();
+        await finishTurn(target,type,prompt, "（选择了跳过这道题）","skipped");
+      });
+      $("refuseTurn").addEventListener("click", async ()=>{
+        S.scores.refuse++; updateScores();
+        await finishTurn(target,type,prompt, "（拒绝了这道题）","refused");
       });
     }else{
-      area.innerHTML = `<div class="answer-box fade">
-        <div class="card" style="background:rgba(0,0,0,.2)">
-          <div class="q" style="font-size:14px;color:var(--muted)">完成它，然后告诉大家结果～</div>
-        </div>
-        <textarea id="ans" placeholder="（可选）写下你做了什么 / 留空也行"></textarea>
-      </div>`;
-      $("turnActions").innerHTML = `<button class="btn primary" id="doneDare">完成挑战</button>`;
+      area.innerHTML = '<div class="answer-box fade"><div class="card" style="background:rgba(0,0,0,.2)"><div class="q" style="font-size:14px;color:var(--muted)">完成它，然后告诉大家结果～</div></div><textarea id="ans" placeholder="（可选）写下你做了什么 / 留空也行"></textarea></div>';
+      $("turnActions").innerHTML = '<button class="btn primary" id="doneDare">完成挑战 ✓</button><button class="btn" id="skipTurn">跳过 →</button><button class="btn" id="refuseTurn">拒绝 ✕</button>';
       $("doneDare").addEventListener("click", async ()=>{
         const v=($("ans").value||"").trim();
-        await finishTurn(target,type,prompt, v || "（笑着完成了这个大冒险）");
+        S.scores.done++; updateScores();
+        await finishTurn(target,type,prompt, v || "（笑着完成了这个大冒险）","completed");
+      });
+      $("skipTurn").addEventListener("click", async ()=>{
+        S.scores.skip++; updateScores();
+        await finishTurn(target,type,prompt, "（选择了跳过这道题）","skipped");
+      });
+      $("refuseTurn").addEventListener("click", async ()=>{
+        S.scores.refuse++; updateScores();
+        await finishTurn(target,type,prompt, "（拒绝了这道题）","refused");
       });
     }
   }
@@ -660,7 +782,7 @@
   }
 
   /* ============ 收尾一个回合 ============ */
-  async function finishTurn(target,type,prompt,answer){
+  async function finishTurn(target,type,prompt,answer,result){
     // 玩家作答后，也让一个角色反应
     const area=$("answerArea");
     const reactor = pickReactor(target);
@@ -679,20 +801,25 @@
     }
     $("turnActions").innerHTML = `<button class="btn primary" id="nextTurn">下一轮</button>
       <button class="btn ghost" id="endNow">结束今晚</button>`;
-    $("nextTurn").addEventListener("click", ()=> commit(target,type,prompt,answer,reactorName,reaction));
-    $("endNow").addEventListener("click", ()=>{ commitSilently(target,type,prompt,answer,reactorName,reaction); endGame(); });
+    const res = result || "completed";
+    $("nextTurn").addEventListener("click", ()=> commit(target,type,prompt,answer,reactorName,reaction,res));
+    $("endNow").addEventListener("click", ()=>{ commitSilently(target,type,prompt,answer,reactorName,reaction,res); endGame(); });
   }
 
-  function commit(target,type,prompt,answer,reactorName,reaction){
-    commitSilently(target,type,prompt,answer,reactorName,reaction);
+  function commit(target,type,prompt,answer,reactorName,reaction,result){
+    commitSilently(target,type,prompt,answer,reactorName,reaction,result);
     renderIdle();
   }
-  function commitSilently(target,type,prompt,answer,reactorName,reaction){
+  function commitSilently(target,type,prompt,answer,reactorName,reaction,result){
+    const q = S.currentQuestion;
     S.log.push({
       targetName: target.type==="me"? S.player.name : target.name,
       isPlayer: target.type==="me",
       type, prompt, answer,
-      reactorName, reaction
+      reactorName, reaction,
+      result: result || "completed",
+      questionId: q ? q.id : null,
+      level: q ? q.level : null
     });
     persist();
   }
@@ -702,9 +829,11 @@
     if(!S.log.length){ $("historyWrap").classList.add("hidden"); return; }
     $("historyWrap").classList.remove("hidden");
     const list=$("historyList");
-    list.innerHTML = S.log.slice(-4).map(e=>{
-      const tl = e.type==="truth"?"真心话":"大冒险";
-      return `<div class="h-item"><b>${esc(e.targetName)}</b> · ${tl}：${esc(trim(e.prompt,18))}</div>`;
+    list.innerHTML = S.log.slice(-4).map(function(e){
+      var tl = e.type==="truth"?"真心话":"大冒险";
+      var lvBadge = e.level ? '<span class="level-badge l'+e.level+'">L'+e.level+'</span>' : '';
+      var resIcon = e.result==="skipped"?" →": e.result==="refused"?" ✕":" ✓";
+      return '<div class="h-item">'+lvBadge+'<b>'+esc(e.targetName)+'</b> · '+tl+' '+resIcon+'：'+esc(trim(e.prompt,18))+'</div>';
     }).join("");
   }
   function trim(s,n){ s=String(s||""); return s.length>n? s.slice(0,n)+"…" : s; }
@@ -771,8 +900,7 @@
       if(e.type==="truth") return `${e.targetName}在真心话里说「${a}」`;
       return `${e.targetName}做了一个大冒险，${a}`;
     }).join("；");
-    let s = `今晚${names}一起玩了真心话大冒险，一共 ${S.log.length} 个回合。${highlights}。`;
-    // 收一句温度
+    let s = `今晚${names}一起玩了真心话大冒险，${S.log.length}回合（完成${S.scores.done}跳${S.scores.skip}拒${S.scores.refuse}）。${highlights}。`;
     const me = S.log.find(e=>e.isPlayer);
     if(me) s += `这一晚，${S.player.name}也露出了平时不太说的那一面。`;
     if(s.length>200) s=s.slice(0,198)+"。";
@@ -782,6 +910,7 @@
   /* ============ 再来一局 ============ */
   function resetForReplay(){
     S.round=0; S.log=[]; S.recorded=false; S.lastTargetIdx=-1; curRotation=0;
+    S.scores={done:0,skip:0,refuse:0}; S.usedIds=new Set(); S.currentQuestion=null; updateScores();
     $("bottleWrap").style.transition="none";
     $("bottleWrap").style.transform="translate(-50%,-50%) rotate(0deg)";
     requestAnimationFrame(()=>{ $("bottleWrap").style.transition=""; });

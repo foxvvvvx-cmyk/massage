@@ -122,6 +122,8 @@ export type ApiConfig = {
     enableNativeTools?: boolean;
     enableImageRecognition: boolean;
     enableImageGeneration: boolean;
+    webSearchMode?: "auto" | "always" | "off";
+    gameToolsEnabled?: boolean;
     preventEmptyGenerateRambling?: boolean;
 };
 

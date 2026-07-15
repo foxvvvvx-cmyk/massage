@@ -1,4 +1,4 @@
-import { DOUDIZHU_GAME_HTML, TRUTH_OR_DARE_GAME_HTML } from "./game-builtin-html";
+import { DOUDIZHU_GAME_HTML, TRUTH_OR_DARE_GAME_HTML, SPICY_MONOPOLY_GAME_HTML } from "./game-builtin-html";
 import type { GameTemplate } from "./game-types";
 
 const now = "2026-06-06T00:00:00.000Z";
@@ -64,7 +64,7 @@ export const GAME_BUILTIN_TEMPLATES: GameTemplate[] = [
     tags: ["互动", "剧情"],
     roleSlots: [],
     pickerHtml: EMPTY_PICKER_HTML,
-    gameHtml: '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><script>fetch("/game-builtins/spicy-monopoly.html").then(r=>r.text()).then(h=>{document.open();document.write(h);document.close()})</script></body></html>',
+    gameHtml: SPICY_MONOPOLY_GAME_HTML,
     allowExternalControl: true,
   }),
 ];

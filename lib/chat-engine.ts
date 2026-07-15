@@ -52,6 +52,20 @@ import { findEnabledToolForSchema, getEnabledTools, type EnabledTool } from "./t
 import { formatToolsForPrompt, formatToolSchema } from "./tool-prompt";
 import { parseToolCalls, parseToolFetches, executeToolCalls, formatToolResults } from "./tool-executor";
 import type { ToolCall, ToolResult } from "./tool-executor";
+import {
+    WEB_SEARCH_TOOL_DEFINITION,
+    executeWebSearch,
+    isWebSearchEligible,
+    isWebSearchToolCall,
+    webSearchQueryFromCall,
+    type WebSearchPersonaContext,
+} from "./web-search-tool";
+import {
+    GAME_TOOL_DEFINITIONS,
+    isGameToolCall,
+    isGameToolEligible,
+} from "./game-tool-definitions";
+import { executeGameToolCall } from "./game-tool-executor";
 import { getCustomStickerNames, getCustomStickerExample } from "./custom-sticker-storage";
 import { formatCustomAppChatDirectivesForPrompt } from "./custom-app-chat-directives";
 import { loadAllTracks } from "./music-storage";
@@ -1991,10 +2005,15 @@ async function generateNativeChatCompletion(
         userIdentity: ReturnType<typeof resolveUserIdentity>;
         options?: ChatPromptBuildOptions & { signal?: AbortSignal };
         callbacks?: ChatCompletionCallbacks;
+        enableNativeActionTools: boolean;
+        enableWebSearch: boolean;
+        enableGameTools: boolean;
     },
 ): Promise<ChatCompletionResult> {
-    const { session, llmMessages, character, config, preset, regexes, userIdentity, options, callbacks } = params;
-    const enabledTools = getEnabledTools(options?.appId ?? "chat");
+    const { session, llmMessages, character, config, preset, regexes, userIdentity, options, callbacks, enableNativeActionTools, enableWebSearch, enableGameTools } = params;
+    // enableNativeActionTools=false（纯联网搜索路径）时不注入角色动作工具，
+    // 避免预设未启用工具宏却意外带上动作定义。
+    const enabledTools = enableNativeActionTools ? getEnabledTools(options?.appId ?? "chat") : [];
     const requestAppTags = mergeAppTags(options?.appTags, options?.promptProfile?.appTags, options?.appId ?? "chat");
     const persistedSession = loadChatSessions().find(item => item.id === session.id);
     let expandedSourceIds = normalizeNativeExpandedToolSourceIds(
@@ -2013,13 +2032,19 @@ async function generateNativeChatCompletion(
     const expandableSourceKeys = new Set(enabledTools.filter(tool => !isNativeSingleTool(tool)).map(nativeToolSourceKey));
 
     for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
+        // 联网搜索工具与角色动作工具合并进同一个 tools 数组（DeepSeek/OpenAI 兼容协议）。
+        const roundToolDefinitions = [
+            ...nativeBundle.definitions,
+            ...(enableWebSearch ? [WEB_SEARCH_TOOL_DEFINITION] : []),
+            ...(enableGameTools ? GAME_TOOL_DEFINITIONS : []),
+        ];
         let result: LLMToolRequestResult;
         try {
             result = await sendLLMToolRequest(
                 config,
                 preset,
                 requestMessages,
-                nativeBundle.definitions,
+                roundToolDefinitions,
                 regexes,
                 meta,
                 {
@@ -2072,10 +2097,17 @@ async function generateNativeChatCompletion(
         const loaderCalls = result.toolCalls
             .map(call => ({ call, loader: nativeBundle.loaderMap.get(call.name) }))
             .filter((item): item is { call: LlmToolCall; loader: { sourceKey: string; label: string } } => Boolean(item.loader));
-        const realNativeCalls = result.toolCalls.filter(call => !nativeBundle.loaderMap.has(call.name));
+        const webSearchCalls = enableWebSearch ? result.toolCalls.filter(isWebSearchToolCall) : [];
+        const gameToolCalls = enableGameTools ? result.toolCalls.filter(isGameToolCall) : [];
+        const realNativeCalls = result.toolCalls.filter(call =>
+            !nativeBundle.loaderMap.has(call.name) &&
+            !(enableWebSearch && isWebSearchToolCall(call)) &&
+            !(enableGameTools && isGameToolCall(call)));
         const textCalls = realNativeCalls.map((call) => nativeChatToolCallToTextCall(call, nativeBundle));
         const displayedActionNames = [
             ...loaderCalls.map(item => `展开「${item.loader.label}」动作说明`),
+            ...webSearchCalls.map(call => `🔍 正在联网搜索「${webSearchQueryFromCall(call) || "…"}」`),
+            ...gameToolCalls.map(call => `🎮 正在${call.name === "game_create" ? "创建" : call.name === "game_update" ? "修改" : call.name === "game_list" ? "列出" : call.name === "game_delete" ? "删除" : call.name === "game_run" ? "准备" : "操作"}游戏...`),
             ...realNativeCalls.map(call => nativeBundle.displayNameMap.get(call.name) || nativeBundle.nameMap.get(call.name) || call.name),
         ];
         const actorName = character.name;
@@ -2111,6 +2143,41 @@ async function generateNativeChatCompletion(
         let expandedChanged = false;
 
         for (const nativeCall of result.toolCalls) {
+            if (enableWebSearch && isWebSearchToolCall(nativeCall)) {
+                // DeepSeek 联网搜索：执行 Serper 搜索，结果作为 tool 消息回传。
+                // executeWebSearch 内置完整容错，始终返回字符串（搜索成功/失败/超时），
+                // 不抛异常（用户取消除外）。
+                const query = webSearchQueryFromCall(nativeCall);
+                const persona: WebSearchPersonaContext = { characterName: character.name };
+                let searchContent: string;
+                try {
+                    searchContent = await executeWebSearch(query, persona, options?.signal);
+                } catch (err) {
+                    // 用户取消 —— 让 AbortError 继续传播
+                    throwIfAborted(options?.signal);
+                    // 其他意外异常（保守兜底）
+                    const detail = err instanceof Error ? err.message : String(err);
+                    searchContent = `[联网搜索异常：${detail}。请基于已有知识如实回复。]`;
+                }
+                // 判断搜索是否实际成功（成功消息不以 [ 开头，即不是错误占位符）
+                const wsSuccess = !searchContent.startsWith("[");
+                const searchResult: ToolResult = {
+                    name: "联网搜索",
+                    success: wsSuccess,
+                    data: searchContent,
+                    userNotice: wsSuccess ? `✓ 联网搜索「${query}」` : `✗ 联网搜索「${query}」`,
+                    continueConversation: true,
+                };
+                if (!wsSuccess) searchResult.error = "搜索不可用";
+                outcomes.push({ nativeCall, result: searchResult, formattedContent: searchContent });
+                continue;
+            }
+            // ── Game Tool Layer ──
+            if (enableGameTools && isGameToolCall(nativeCall)) {
+                const { result: gameResult, formattedContent } = await executeGameToolCall(nativeCall, options?.signal);
+                outcomes.push({ nativeCall, result: gameResult, formattedContent });
+                continue;
+            }
             const loader = nativeBundle.loaderMap.get(nativeCall.name);
             if (loader) {
                 expandedSourceIds = touchNativeExpandedToolSource(expandedSourceIds, loader.sourceKey);
@@ -2250,7 +2317,13 @@ export async function generateChatCompletion(
     const { llmMessages, character, config, preset, regexes, userIdentity, toolsEnabled } = await buildChatPromptMessages(session, history, options);
     const requestAppTags = mergeAppTags(options?.appTags, options?.promptProfile?.appTags, options?.appId ?? "chat");
 
-    if (toolsEnabled && nativeToolProtocolForConfig(config) && getEnabledTools(options?.appId ?? "chat").length > 0) {
+    const nativeProtocolAvailable = Boolean(nativeToolProtocolForConfig(config));
+    const enableNativeActionTools = toolsEnabled && nativeProtocolAvailable && getEnabledTools(options?.appId ?? "chat").length > 0;
+    // DeepSeek 联网搜索复用原生 tool_calls 循环——即使角色没启用任何动作也要进这条路径。
+    const enableWebSearch = nativeProtocolAvailable && isWebSearchEligible(config);
+    // 通用游戏工具：任何支持 native function calling 的 provider 均可使用。
+    const enableGameTools = nativeProtocolAvailable && isGameToolEligible(config);
+    if (enableNativeActionTools || enableWebSearch || enableGameTools) {
         return generateNativeChatCompletion({
             session,
             llmMessages,
@@ -2261,6 +2334,9 @@ export async function generateChatCompletion(
             userIdentity,
             options,
             callbacks,
+            enableNativeActionTools,
+            enableWebSearch,
+            enableGameTools,
         });
     }
 
