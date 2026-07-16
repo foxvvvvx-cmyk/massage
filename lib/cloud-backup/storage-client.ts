@@ -1,17 +1,25 @@
-import { CLOUD_BACKUP_BUCKET, normalizeBackupUrl, type CloudBackupConfig } from "./config";
+import { CLOUD_BACKUP_BUCKET, detectSupabaseKeyRole, normalizeBackupUrl, type CloudBackupConfig } from "./config";
 
 /**
  * Thin client for the user's OWN Supabase Storage (REST), using their anon key
  * directly from the browser. Scoped entirely to the ai-phone-backup bucket.
  * No @supabase/supabase-js dependency — plain fetch against /storage/v1.
+ *
+ * 安全边界：service_role key 一律拒收（管理员钥匙不进浏览器）。
+ * 桶与访问策略由用户在 Supabase SQL Editor 一次性运行
+ * docs/cloud-backup-supabase.sql 创建。
  */
 
 type Creds = { url: string; key: string };
+
+const SERVICE_KEY_ERROR = "检测到 service_role/secret key：出于安全考虑，浏览器端只能使用 anon（publishable）key。请到 Supabase → Project Settings → API 复制 anon key，并在 SQL Editor 运行 docs/cloud-backup-supabase.sql 完成一次性初始化。";
+const SETUP_HINT = "请在 Supabase SQL Editor 运行 docs/cloud-backup-supabase.sql（创建备份桶和访问策略，一次即可）。";
 
 function resolveCreds(config: CloudBackupConfig): Creds | null {
   const url = normalizeBackupUrl(config.url);
   const key = (config.key || "").trim();
   if (!url || !key) return null;
+  if (detectSupabaseKeyRole(key) === "service") throw new Error(SERVICE_KEY_ERROR);
   return { url, key };
 }
 
@@ -77,28 +85,31 @@ export async function listObjects(config: CloudBackupConfig, prefix = "", limit 
 }
 
 /**
- * Create the backup bucket if it doesn't exist. Requires a service_role key
- * (bucket creation is an admin operation); succeeds idempotently if present.
+ * Fail fast if the backup bucket isn't reachable. anon key 无法建桶（那是
+ * 管理员操作，不进浏览器），桶由 docs/cloud-backup-supabase.sql 一次性创建；
+ * 这里只探测桶是否存在，缺失时给出可操作的提示。
  */
 export async function ensureBucket(config: CloudBackupConfig): Promise<void> {
   const creds = resolveCreds(config);
   if (!creds) throw new Error("未配置 Supabase 地址或 key。");
-  const res = await fetch(`${creds.url}/storage/v1/bucket`, {
+  const res = await fetch(`${creds.url}/storage/v1/object/list/${CLOUD_BACKUP_BUCKET}`, {
     method: "POST",
     headers: { ...authHeaders(creds.key), "Content-Type": "application/json" },
-    body: JSON.stringify({ id: CLOUD_BACKUP_BUCKET, name: CLOUD_BACKUP_BUCKET, public: false }),
+    body: JSON.stringify({ prefix: "", limit: 1, offset: 0 }),
+    cache: "no-store",
   });
   if (res.ok) return;
   const text = await res.text().catch(() => "");
-  // Bucket already there → that's fine, treat as success.
-  if (res.status === 409 || /already exists|Duplicate|resource already exists/i.test(text)) return;
+  if (/bucket not found/i.test(text) || res.status === 404) {
+    throw new Error(`备份桶不存在：${SETUP_HINT}`);
+  }
   throw new Error(`${res.status} ${text || res.statusText}`.trim());
 }
 
 /**
- * Validate the full path the backup engine needs: auto-create the bucket (with
- * the service_role key), then write a tiny probe object and delete it. Proves
- * the project + key work and the bucket is ready — no manual SQL/dashboard setup.
+ * Validate the full path the backup engine needs: check the bucket exists,
+ * then write a tiny probe object and delete it. Proves the URL + anon key work
+ * and the RLS policies from docs/cloud-backup-supabase.sql are in place.
  */
 export async function testCloudBackupConnection(config: CloudBackupConfig): Promise<{ ok: true } | { ok: false; error: string }> {
   const creds = resolveCreds(config);
@@ -131,10 +142,10 @@ async function describeError(res: Response): Promise<string> {
 
 function mapStorageError(error: string): string {
   if (/403|not authorized|permission|new row violates row-level security/i.test(error)) {
-    return "权限不足：请填 service_role key（Supabase → Project Settings → API → service_role），不是 anon key。";
+    return `权限不足：${SETUP_HINT}`;
   }
   if (/401|invalid.*(jwt|key|token)|JWSError|signature/i.test(error)) {
-    return "key 无效或不匹配该项目：请检查 Supabase 地址和 service_role key 是否对应同一个项目。";
+    return "key 无效或不匹配该项目：请检查 Supabase 地址和 anon key 是否对应同一个项目。";
   }
   if (/getaddrinfo|ENOTFOUND|fetch failed|Failed to fetch|networkerror/i.test(error)) {
     return "连不上该 Supabase 地址：请检查 URL 是否正确、网络是否可达。";

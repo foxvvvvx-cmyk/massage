@@ -702,7 +702,7 @@ export function DataManagement({ onNotice }: DataManagementProps) {
             <DataSettingsIcon icon={CloudUpload} color={BINDING_ACCENTS.api} />
             <div className="menu-label-group">
               <span className="menu-label">备份到你的 Supabase</span>
-              <span className="menu-desc">填入你自己的 Supabase 地址与 service_role key，点测试连接会自动建好备份桶（无需手动设置）。</span>
+              <span className="menu-desc">填入你自己的 Supabase 地址与 anon key（不要用 service_role key）。首次使用请先在 Supabase SQL Editor 运行 docs/cloud-backup-supabase.sql 创建备份桶，之后点测试连接验证。</span>
             </div>
           </div>
 
@@ -717,7 +717,7 @@ export function DataManagement({ onNotice }: DataManagementProps) {
               />
             </label>
             <label className="data-cloud-field">
-              <span className="menu-desc ml-1">service_role key</span>
+              <span className="menu-desc ml-1">anon key（publishable）</span>
               <Input
                 type="password"
                 value={cloudConfig.key}
