@@ -1,13 +1,82 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ProxyAgent, fetch as undiciFetch, type Dispatcher } from "undici";
+import { Agent, ProxyAgent, fetch as undiciFetch, type Dispatcher } from "undici";
+import { lookup as dnsLookup, type LookupAddress } from "node:dns";
 
 export const maxDuration = 120;
 
-function getProxyDispatcher(): Dispatcher | undefined {
+// ── SSRF 防线（连接层）──────────────────────────────────────────
+// 仅校验 URL 字面量不够：域名可以解析到内网 IP（DNS rebinding），
+// 重定向也可以跳到内网。这里用 undici Agent 的自定义 lookup，在
+// 每次真正建立 TCP 连接前校验解析结果，重定向的每一跳同样生效。
+
+function isBlockedIpv6(addr: string): boolean {
+    const host = addr.toLowerCase();
+    // v4-mapped（::ffff:1.2.3.4）转回 IPv4 校验
+    const v4Tail = host.split(":").pop() ?? "";
+    if (v4Tail.includes(".")) return isPrivateIpv4(v4Tail);
+    return host === "::" || host === "::1"
+        || host.startsWith("fe8") || host.startsWith("fe9")
+        || host.startsWith("fea") || host.startsWith("feb")
+        || host.startsWith("fec") || host.startsWith("fed")
+        || host.startsWith("fee") || host.startsWith("fef")
+        || host.startsWith("fc") || host.startsWith("fd");
+}
+
+function isBlockedAddress(addr: string): boolean {
+    return addr.includes(":") ? isBlockedIpv6(addr) : isPrivateIpv4(addr);
+}
+
+type LookupCallback = (err: NodeJS.ErrnoException | null, address: string | LookupAddress[], family?: number) => void;
+
+function safeLookup(hostname: string, options: Record<string, unknown>, callback: LookupCallback): void {
+    dnsLookup(hostname, { ...options, all: true }, (err, addresses) => {
+        if (err) return callback(err, "");
+        const list = Array.isArray(addresses) ? addresses : [];
+        const blocked = list.find(a => isBlockedAddress(a.address));
+        if (blocked) {
+            const blockErr: NodeJS.ErrnoException = new Error(`不允许代理访问本机或内网地址（${hostname} → ${blocked.address}）`);
+            blockErr.code = "EBLOCKED";
+            return callback(blockErr, "");
+        }
+        if (list.length === 0) {
+            const emptyErr: NodeJS.ErrnoException = new Error(`DNS 解析结果为空（${hostname}）`);
+            emptyErr.code = "ENOTFOUND";
+            return callback(emptyErr, "");
+        }
+        if (options.all) return callback(null, list);
+        callback(null, list[0].address, list[0].family);
+    });
+}
+
+// 复用单个 Agent，所有直连请求（含重定向每一跳）都走 safeLookup。
+const safeAgent = new Agent({ connect: { lookup: safeLookup as never } });
+
+function getProxyDispatcher(): Dispatcher {
     const proxyUrl = process.env.https_proxy || process.env.HTTPS_PROXY
         || process.env.http_proxy || process.env.HTTP_PROXY;
-    if (!proxyUrl) return undefined;
-    return new ProxyAgent(proxyUrl);
+    // 走上游代理时 DNS 由代理解析（仅本地开发场景），内网防护退回 URL 字面校验。
+    if (proxyUrl) return new ProxyAgent(proxyUrl);
+    return safeAgent;
+}
+
+// 客户端提供的 header 只保留业务头（如 Authorization），剥掉
+// 转发类/逐跳类 header，避免伪造来源或干扰内部基础设施。
+const FORBIDDEN_PROXY_HEADERS = new Set([
+    "host", "content-length", "transfer-encoding", "connection", "upgrade",
+    "expect", "keep-alive", "proxy-authorization", "te", "trailer",
+    "x-forwarded-for", "x-forwarded-host", "x-forwarded-proto",
+    "x-real-ip", "forwarded", "via",
+]);
+
+function sanitizeProxyHeaders(headers: unknown): Record<string, string> {
+    const out: Record<string, string> = {};
+    if (!headers || typeof headers !== "object") return out;
+    for (const [k, v] of Object.entries(headers as Record<string, unknown>)) {
+        if (typeof v !== "string") continue;
+        if (FORBIDDEN_PROXY_HEADERS.has(k.toLowerCase())) continue;
+        out[k] = v;
+    }
+    return out;
 }
 
 type ProxyErrorPayload = {
@@ -26,9 +95,11 @@ function isPrivateIpv4(host: string): boolean {
     return a === 0
         || a === 10
         || a === 127
+        || a >= 224 // 组播/保留/广播
         || (a === 169 && b === 254)
         || (a === 172 && b >= 16 && b <= 31)
         || (a === 192 && b === 168)
+        || (a === 198 && (b === 18 || b === 19))
         || (a === 100 && b >= 64 && b <= 127);
 }
 
@@ -77,9 +148,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: blockedReason }, { status: 400 });
         }
 
-        const fetchHeaders: Record<string, string> = {
-            ...(headers || {}),
-        };
+        const fetchHeaders: Record<string, string> = sanitizeProxyHeaders(headers);
 
         // SSE discovery needs Accept header for event-stream
         if (method === "SSE_DISCOVER") {
@@ -118,16 +187,15 @@ export async function POST(req: NextRequest) {
         const timeout = setTimeout(() => controller.abort(), proxyTimeoutMs);
         const dispatcher = getProxyDispatcher();
 
-        const res = await (dispatcher
-            ? undiciFetch(fetchUrl, {
-                method: fetchOptions.method || "POST",
-                headers: fetchHeaders,
-                body: fetchOptions.body as string | undefined,
-                signal: controller.signal,
-                dispatcher,
-            }) as unknown as Response
-            : fetch(fetchUrl, { ...fetchOptions, signal: controller.signal })
-        );
+        // 统一走 undici fetch + dispatcher：直连时每跳（含重定向）都经
+        // safeLookup 做内网 IP 拦截。
+        const res = await (undiciFetch(fetchUrl, {
+            method: fetchOptions.method || "POST",
+            headers: fetchHeaders,
+            body: fetchOptions.body as string | undefined,
+            signal: controller.signal,
+            dispatcher,
+        }) as unknown as Promise<Response>);
         clearTimeout(timeout);
 
         // Forward response headers we care about
@@ -173,13 +241,14 @@ export async function POST(req: NextRequest) {
                     return NextResponse.json({ error: `SSE endpoint ${msgBlockedReason}` }, { status: 400 });
                 }
 
-                // POST the JSON-RPC body to the message endpoint
-                const postHeaders: Record<string, string> = { "Content-Type": "application/json", ...(headers || {}) };
-                const postRes = await fetch(msgUrl.toString(), {
+                // POST the JSON-RPC body to the message endpoint（同样走 safeLookup 防内网）
+                const postHeaders: Record<string, string> = { "Content-Type": "application/json", ...sanitizeProxyHeaders(headers) };
+                const postRes = await (undiciFetch(msgUrl.toString(), {
                     method: "POST",
                     headers: postHeaders,
                     body: typeof body === "string" ? body : JSON.stringify(body),
-                });
+                    dispatcher,
+                }) as unknown as Promise<Response>);
 
                 if (!postRes.ok && postRes.status !== 202) {
                     reader.cancel().catch(() => {});
