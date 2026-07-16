@@ -171,8 +171,8 @@ function formatSupabaseError(err: unknown): string {
 }
 
 function isMissingGameTableError(message: string): boolean {
-  return /game_hall_games|game_hall_likes|game_hall_favorites|role_slots|picker_html|game_html|play_note|cover_image|author_avatar|like_count|favorite_count|comment_count/i.test(message)
-    && /schema cache|Could not find the table|Could not find.*column|PGRST204|PGRST205|does not exist/i.test(message);
+  return /game_hall_games|game_hall_likes|game_hall_favorites|game_hall_toggle_like|game_hall_set_favorite|role_slots|picker_html|game_html|play_note|cover_image|author_avatar|like_count|favorite_count|comment_count/i.test(message)
+    && /schema cache|Could not find the table|Could not find.*column|Could not find.*function|PGRST202|PGRST204|PGRST205|does not exist/i.test(message);
 }
 
 async function supabaseFetch<T>(
@@ -367,97 +367,38 @@ export async function PATCH(request: Request) {
     const action = cleanText(record.action, 40);
     if (!id) return NextResponse.json({ ok: false, error: "missing_required_game_fields" }, { status: 400 });
 
-    const currentResult = await supabaseFetch<unknown[]>(
-      `game_hall_games?id=eq.${encodeFilter(id)}&deleted_at=is.null&select=id,like_count,favorite_count,comment_count`,
-    );
-    if (!currentResult.ok) return NextResponse.json({ ok: false, error: currentResult.error }, { status: currentResult.status });
-    const current = currentResult.data[0] as Record<string, unknown> | undefined;
-    if (!current) return NextResponse.json({ ok: false, error: "没有找到游戏。" }, { status: 404 });
-
+    // 计数更新走 Supabase RPC（docs/game-hall-supabase.sql），在数据库事务里
+    // 锁行 + 按关系表实数回写，避免"先读后写"并发丢更新。
+    let rpcResult: { ok: true; data: unknown; status: number } | { ok: false; error: string; status: number };
     let liked = false;
     let favorited = false;
-    let likeCount = clampNumber(current.like_count, 0, Number.MAX_SAFE_INTEGER, 0);
-    let favoriteCount = clampNumber(current.favorite_count, 0, Number.MAX_SAFE_INTEGER, 0);
-    const commentCount = clampNumber(current.comment_count, 0, Number.MAX_SAFE_INTEGER, 0);
 
     if (action === "toggle_like") {
-      const existingLike = await supabaseFetch<unknown[]>(
-        `game_hall_likes?game_id=eq.${encodeFilter(id)}&user_id=eq.${encodeFilter(userId)}&select=game_id`,
-      );
-      if (!existingLike.ok) return NextResponse.json({ ok: false, error: existingLike.error }, { status: existingLike.status });
-      if (existingLike.data.length > 0) {
-        const removed = await supabaseFetch<unknown[]>(
-          `game_hall_likes?game_id=eq.${encodeFilter(id)}&user_id=eq.${encodeFilter(userId)}`,
-          { method: "DELETE" },
-        );
-        if (!removed.ok) return NextResponse.json({ ok: false, error: removed.error }, { status: removed.status });
-        likeCount = Math.max(0, likeCount - 1);
-        liked = false;
-      } else {
-        const added = await supabaseFetch<unknown[]>(
-          "game_hall_likes",
-          {
-            method: "POST",
-            headers: { Prefer: "return=minimal" },
-            body: JSON.stringify({ game_id: id, user_id: userId }),
-          },
-        );
-        if (!added.ok) return NextResponse.json({ ok: false, error: added.error }, { status: added.status });
-        likeCount += 1;
-        liked = true;
-      }
+      rpcResult = await supabaseFetch<unknown>("rpc/game_hall_toggle_like", {
+        method: "POST",
+        body: JSON.stringify({ p_game_id: id, p_user_id: userId }),
+      });
     } else if (action === "favorite" || action === "unfavorite") {
-      const shouldFavorite = action === "favorite";
-      const existingFavorite = await supabaseFetch<unknown[]>(
-        `game_hall_favorites?game_id=eq.${encodeFilter(id)}&user_id=eq.${encodeFilter(userId)}&select=game_id`,
-      );
-      if (!existingFavorite.ok) return NextResponse.json({ ok: false, error: existingFavorite.error }, { status: existingFavorite.status });
-      const alreadyFavorited = existingFavorite.data.length > 0;
-      if (shouldFavorite && !alreadyFavorited) {
-        const added = await supabaseFetch<unknown[]>(
-          "game_hall_favorites",
-          {
-            method: "POST",
-            headers: { Prefer: "return=minimal" },
-            body: JSON.stringify({ game_id: id, user_id: userId }),
-          },
-        );
-        if (!added.ok) return NextResponse.json({ ok: false, error: added.error }, { status: added.status });
-        favorited = true;
-      } else if (!shouldFavorite && alreadyFavorited) {
-        const removed = await supabaseFetch<unknown[]>(
-          `game_hall_favorites?game_id=eq.${encodeFilter(id)}&user_id=eq.${encodeFilter(userId)}`,
-          { method: "DELETE" },
-        );
-        if (!removed.ok) return NextResponse.json({ ok: false, error: removed.error }, { status: removed.status });
-        favorited = false;
-      } else {
-        favorited = alreadyFavorited;
-      }
-      const favorites = await supabaseFetch<unknown[]>(
-        `game_hall_favorites?game_id=eq.${encodeFilter(id)}&select=game_id`,
-      );
-      if (!favorites.ok) return NextResponse.json({ ok: false, error: favorites.error }, { status: favorites.status });
-      favoriteCount = favorites.data.length;
+      rpcResult = await supabaseFetch<unknown>("rpc/game_hall_set_favorite", {
+        method: "POST",
+        body: JSON.stringify({ p_game_id: id, p_user_id: userId, p_favorited: action === "favorite" }),
+      });
     } else {
       return NextResponse.json({ ok: false, error: "unknown_game_reaction" }, { status: 400 });
     }
 
-    const updateResult = await supabaseFetch<unknown[]>(
-      `game_hall_games?id=eq.${encodeFilter(id)}&deleted_at=is.null&select=${REST_GAME_COLUMNS}`,
-      {
-        method: "PATCH",
-        headers: { Prefer: "return=representation" },
-        body: JSON.stringify({
-          like_count: likeCount,
-          favorite_count: favoriteCount,
-          comment_count: commentCount,
-          updated_at: new Date().toISOString(),
-        }),
-      },
-    );
-    if (!updateResult.ok) return NextResponse.json({ ok: false, error: updateResult.error }, { status: updateResult.status });
-    const game = normalizeGame(updateResult.data[0]);
+    if (!rpcResult.ok) return NextResponse.json({ ok: false, error: rpcResult.error }, { status: rpcResult.status });
+    const payload = rpcResult.data && typeof rpcResult.data === "object"
+      ? rpcResult.data as Record<string, unknown>
+      : null;
+    if (!payload || !payload.game) {
+      return NextResponse.json({ ok: false, error: "没有找到游戏。" }, { status: 404 });
+    }
+    liked = payload.liked === true;
+    favorited = payload.favorited === true;
+    const game = normalizeGame(payload.game);
+    const likeCount = game?.likeCount ?? 0;
+    const favoriteCount = game?.favoriteCount ?? 0;
     return NextResponse.json({ ok: true, game: game ? { ...game, likedByMe: liked } : undefined, liked, favorited, likeCount, favoriteCount });
   } catch (err) {
     return NextResponse.json({ ok: false, error: formatSupabaseError(err) }, { status: getSupabaseConfig() ? 400 : 503 });

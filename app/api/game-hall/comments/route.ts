@@ -163,20 +163,13 @@ export async function POST(request: Request) {
     const comment = normalizeComment(insertResult.data[0]);
     if (!comment) return NextResponse.json({ ok: false, error: "评论写入失败。" }, { status: 500 });
 
-    const gameResult = await supabaseFetch<unknown[]>(
-      `game_hall_games?id=eq.${encodeFilter(gameId)}&deleted_at=is.null&select=comment_count`,
-    );
-    const current = gameResult.ok ? Number((gameResult.data[0] as Record<string, unknown> | undefined)?.comment_count ?? 0) : 0;
-    const commentCount = Math.max(0, Math.round(current)) + 1;
-    const updateResult = await supabaseFetch<unknown[]>(
-      `game_hall_games?id=eq.${encodeFilter(gameId)}&deleted_at=is.null&select=id`,
-      {
-        method: "PATCH",
-        headers: { Prefer: "return=minimal" },
-        body: JSON.stringify({ comment_count: commentCount, updated_at: new Date().toISOString() }),
-      },
-    );
-    if (!updateResult.ok) return NextResponse.json({ ok: false, error: updateResult.error }, { status: updateResult.status });
+    // 原子重算评论数（docs/game-hall-supabase.sql 的 RPC），避免并发丢更新
+    const recount = await supabaseFetch<unknown>("rpc/game_hall_recount_comments", {
+      method: "POST",
+      body: JSON.stringify({ p_game_id: gameId }),
+    });
+    if (!recount.ok) return NextResponse.json({ ok: false, error: recount.error }, { status: recount.status });
+    const commentCount = Number(recount.data ?? 0) || 0;
     return NextResponse.json({ ok: true, comment, commentCount });
   } catch (err) {
     return NextResponse.json({ ok: false, error: formatSupabaseError(err) }, { status: getSupabaseConfig() ? 400 : 503 });
@@ -267,17 +260,13 @@ export async function DELETE(request: Request) {
     );
     if (!deleteResult.ok) return NextResponse.json({ ok: false, error: deleteResult.error }, { status: deleteResult.status });
     const deletedIds = deleteResult.data.map(item => cleanText(item.id, 160)).filter(Boolean);
-    const current = Number(game.comment_count ?? 0);
-    const commentCount = Math.max(0, Math.round(Number.isFinite(current) ? current : 0) - deletedIds.length);
-    const updateResult = await supabaseFetch<unknown[]>(
-      `game_hall_games?id=eq.${encodeFilter(gameId)}&deleted_at=is.null&select=id`,
-      {
-        method: "PATCH",
-        headers: { Prefer: "return=minimal" },
-        body: JSON.stringify({ comment_count: commentCount, updated_at: new Date().toISOString() }),
-      },
-    );
-    if (!updateResult.ok) return NextResponse.json({ ok: false, error: updateResult.error }, { status: updateResult.status });
+    // 原子重算评论数（docs/game-hall-supabase.sql 的 RPC），避免并发丢更新
+    const recount = await supabaseFetch<unknown>("rpc/game_hall_recount_comments", {
+      method: "POST",
+      body: JSON.stringify({ p_game_id: gameId }),
+    });
+    if (!recount.ok) return NextResponse.json({ ok: false, error: recount.error }, { status: recount.status });
+    const commentCount = Number(recount.data ?? 0) || 0;
     return NextResponse.json({ ok: true, gameId, deletedIds, commentCount });
   } catch (err) {
     return NextResponse.json({ ok: false, error: formatSupabaseError(err) }, { status: getSupabaseConfig() ? 400 : 503 });

@@ -491,21 +491,18 @@ export async function PATCH(request: Request) {
     if (record.action !== "increment_install") {
       return NextResponse.json({ ok: false, error: "unknown_action" }, { status: 400 });
     }
-    const current = await supabaseRestFetch<Array<{ install_count?: unknown }>>(
-      `custom_app_market_apps?id=eq.${encodeSupabaseFilter(id)}&select=install_count&limit=1`,
-    );
-    if (!current.ok) return NextResponse.json({ ok: false, error: mapSupabaseError(current.error) }, { status: current.status });
-    const installCount = clampCount(current.data[0]?.install_count) + 1;
+    // 原子自增（docs/custom-app-market-supabase.sql 的 RPC），避免先读后写并发丢更新。
     const result = await supabaseRestFetch<unknown[]>(
-      `custom_app_market_apps?id=eq.${encodeSupabaseFilter(id)}&select=${REST_APP_COLUMNS}`,
+      "rpc/custom_app_market_increment_install",
       {
-        method: "PATCH",
-        headers: { Prefer: "return=representation" },
-        body: JSON.stringify({ install_count: installCount, updated_at: new Date().toISOString() }),
+        method: "POST",
+        body: JSON.stringify({ p_app_id: id }),
       },
     );
     if (!result.ok) return NextResponse.json({ ok: false, error: mapSupabaseError(result.error) }, { status: result.status });
-    return NextResponse.json({ ok: true, app: normalizeMarketItem(result.data[0]) });
+    const updated = Array.isArray(result.data) ? result.data[0] : undefined;
+    if (!updated) return NextResponse.json({ ok: false, error: "没有找到应用。" }, { status: 404 });
+    return NextResponse.json({ ok: true, app: normalizeMarketItem(updated) });
   } catch (err) {
     return NextResponse.json({ ok: false, error: formatSupabaseRestError(err) }, { status: getSupabaseServerConfig() ? 400 : 503 });
   }

@@ -202,3 +202,130 @@ begin
 end $$;
 
 notify pgrst, 'reload schema';
+
+-- ── 原子计数 RPC ─────────────────────────────────────────────
+-- 点赞/收藏计数原先由 API 先读后写，多人并发会丢更新。
+-- 这里改为在单个事务里：锁定游戏行 → 增删关系行 → 按关系表实数回写计数。
+
+create or replace function public.game_hall_toggle_like(
+  p_game_id text,
+  p_user_id text
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_liked boolean;
+  v_game public.game_hall_games;
+begin
+  -- 锁定游戏行，让同一游戏上的计数更新串行执行
+  perform 1 from public.game_hall_games
+   where id = p_game_id and deleted_at is null
+   for update;
+  if not found then
+    return null;
+  end if;
+
+  delete from public.game_hall_likes
+   where game_id = p_game_id and user_id = p_user_id;
+  if found then
+    v_liked := false;
+  else
+    insert into public.game_hall_likes (game_id, user_id)
+    values (p_game_id, p_user_id)
+    on conflict (game_id, user_id) do nothing;
+    v_liked := true;
+  end if;
+
+  update public.game_hall_games
+     set like_count = (select count(*) from public.game_hall_likes where game_id = p_game_id),
+         updated_at = now()
+   where id = p_game_id
+   returning * into v_game;
+
+  return jsonb_build_object('liked', v_liked, 'game', to_jsonb(v_game));
+end;
+$$;
+
+create or replace function public.game_hall_set_favorite(
+  p_game_id text,
+  p_user_id text,
+  p_favorited boolean
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_game public.game_hall_games;
+begin
+  perform 1 from public.game_hall_games
+   where id = p_game_id and deleted_at is null
+   for update;
+  if not found then
+    return null;
+  end if;
+
+  if p_favorited then
+    insert into public.game_hall_favorites (game_id, user_id)
+    values (p_game_id, p_user_id)
+    on conflict (game_id, user_id) do nothing;
+  else
+    delete from public.game_hall_favorites
+     where game_id = p_game_id and user_id = p_user_id;
+  end if;
+
+  update public.game_hall_games
+     set favorite_count = (select count(*) from public.game_hall_favorites where game_id = p_game_id),
+         updated_at = now()
+   where id = p_game_id
+   returning * into v_game;
+
+  return jsonb_build_object('favorited', p_favorited, 'game', to_jsonb(v_game));
+end;
+$$;
+
+create or replace function public.game_hall_recount_comments(
+  p_game_id text
+)
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_count integer;
+begin
+  perform 1 from public.game_hall_games
+   where id = p_game_id and deleted_at is null
+   for update;
+  if not found then
+    return null;
+  end if;
+
+  update public.game_hall_games
+     set comment_count = (
+           select count(*) from public.game_hall_comments
+            where game_id = p_game_id and deleted_at is null
+         ),
+         updated_at = now()
+   where id = p_game_id
+   returning comment_count into v_count;
+
+  return v_count;
+end;
+$$;
+
+-- 只允许服务端（service_role）调用，避免匿名用户伪造 user_id 直接刷 RPC
+revoke execute on function public.game_hall_toggle_like(text, text) from public, anon;
+revoke execute on function public.game_hall_set_favorite(text, text, boolean) from public, anon;
+grant execute on function public.game_hall_toggle_like(text, text) to service_role;
+grant execute on function public.game_hall_set_favorite(text, text, boolean) to service_role;
+revoke execute on function public.game_hall_recount_comments(text) from public, anon;
+grant execute on function public.game_hall_recount_comments(text) to service_role;
+
+
+notify pgrst, 'reload schema';

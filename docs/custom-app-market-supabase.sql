@@ -126,3 +126,26 @@ begin
 end $$;
 
 notify pgrst, 'reload schema';
+
+-- ── 原子安装计数 RPC ────────────────────────────────────────
+-- install_count 原先由 API 先读后写，并发安装会丢更新，改为单条原子 UPDATE。
+
+create or replace function public.custom_app_market_increment_install(
+  p_app_id text
+)
+returns setof public.custom_app_market_apps
+language sql
+security definer
+set search_path = public
+as $$
+  update public.custom_app_market_apps
+     set install_count = install_count + 1,
+         updated_at = now()
+   where id = p_app_id and deleted_at is null
+   returning *;
+$$;
+
+revoke execute on function public.custom_app_market_increment_install(text) from public, anon;
+grant execute on function public.custom_app_market_increment_install(text) to service_role;
+
+notify pgrst, 'reload schema';
