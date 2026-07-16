@@ -1,0 +1,10 @@
+# https://editorconfig.org
+# 主要目的：强制 UTF-8，避免中文注释/文案被错误编码保存。
+root = true
+
+[*]
+charset = utf-8
+insert_final_newline = true
+
+[*.md]
+trim_trailing_whitespace = false
