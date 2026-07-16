@@ -401,7 +401,6 @@ ${body}
 function BlackMarketTheaterHtmlFrame({
   html,
   title,
-  allowExternalControl = false,
   collapsible = false,
 }: {
   html: string;
@@ -446,7 +445,7 @@ function BlackMarketTheaterHtmlFrame({
         ref={iframeRef}
         title={title}
         className="cp-black-market-preview-frame"
-        sandbox={allowExternalControl ? "allow-scripts allow-same-origin" : "allow-scripts"}
+        sandbox="allow-scripts" /* 安全边界：srcDoc 下 allow-same-origin 会继承宿主源，禁止 */
         allow="autoplay"
         scrolling="no"
         srcDoc={srcDoc}
@@ -498,7 +497,7 @@ function renderSceneMessageHtml(content: string, template?: BlackMarketTheaterTe
   return restoreRenderedHtmlMarkers(html, renderedSegments);
 }
 
-function BlackMarketReplyHtmlFrame({ html, title, allowExternalControl = false }: { html: string; title: string; allowExternalControl?: boolean }) {
+function BlackMarketReplyHtmlFrame({ html, title }: { html: string; title: string; allowExternalControl?: boolean }) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const [frameId] = useState(() => `bm_reply_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`);
   const [height, setHeight] = useState(BLACK_MARKET_REPLY_FRAME_MIN_HEIGHT);
@@ -524,7 +523,7 @@ function BlackMarketReplyHtmlFrame({ html, title, allowExternalControl = false }
       ref={iframeRef}
       title={title}
       className="cp-black-market-reply-frame"
-      sandbox={allowExternalControl ? "allow-scripts allow-same-origin" : "allow-scripts"}
+      sandbox="allow-scripts" /* 安全边界：srcDoc 下 allow-same-origin 会继承宿主源，禁止 */
       allow="autoplay"
       srcDoc={srcDoc}
       style={{ height }}

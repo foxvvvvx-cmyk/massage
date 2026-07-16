@@ -466,7 +466,6 @@ ${body}
 function GameIframe({
   html,
   title,
-  allowExternalControl,
   onBridgeRequest,
 }: {
   html: string;
@@ -520,7 +519,10 @@ function GameIframe({
       ref={iframeRef}
       title={title}
       className="game-hub-frame"
-      sandbox={allowExternalControl ? "allow-scripts allow-same-origin" : "allow-scripts"}
+      /* 安全边界：srcDoc + allow-same-origin 会让游戏 HTML 继承宿主源，
+         可直接读 localStorage/IndexedDB（API key、聊天记录）并操作宿主 DOM。
+         高级权限只放开桥接能力（ensureAdvancedAccess），不放开浏览器沙箱。 */
+      sandbox="allow-scripts"
       allow="autoplay"
       srcDoc={srcDoc}
     />
