@@ -30,3 +30,6 @@ tools/weixin-local-assistant/config.txt
 /public/models/world-builder/
 .vercel
 .netlify/
+.next-verify/
+.npm-cache/
+eslint-report.json

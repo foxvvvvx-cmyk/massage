@@ -236,13 +236,7 @@ export default function MusicPlayer() {
         }));
     }, [player.currentTrack]);
 
-    if (!player.currentTrack) return null;
-
-    const track = player.currentTrack;
-    const hasLyrics = parsedLyrics.current.length > 0;
-    const modeInfo = PLAY_MODE_ICONS[player.playMode];
-
-    const getAdjacentTrack = (direction: "prev" | "next") => {
+    const getAdjacentTrack = useCallback((direction: "prev" | "next") => {
         if (player.queue.length === 0 || !player.currentTrack) return null;
         const idx = player.queue.findIndex(t => t.id === player.currentTrack!.id);
         if (idx < 0) return null;
@@ -252,7 +246,7 @@ export default function MusicPlayer() {
         const offset = direction === "next" ? 1 : -1;
         const nextIdx = (idx + offset + player.queue.length) % player.queue.length;
         return player.queue[nextIdx] ?? null;
-    };
+    }, [player.currentTrack, player.playMode, player.queue]);
 
     const handleSwitchToTrack = useCallback(async (target: typeof player.currentTrack) => {
         if (!target) return;
@@ -277,7 +271,7 @@ export default function MusicPlayer() {
             return;
         }
         player.prev();
-    }, [handleSwitchToTrack, player]);
+    }, [getAdjacentTrack, handleSwitchToTrack, player]);
 
     const handleNext = useCallback(() => {
         const target = getAdjacentTrack("next");
@@ -286,7 +280,13 @@ export default function MusicPlayer() {
             return;
         }
         player.next();
-    }, [handleSwitchToTrack, player]);
+    }, [getAdjacentTrack, handleSwitchToTrack, player]);
+
+    if (!player.currentTrack) return null;
+
+    const track = player.currentTrack;
+    const hasLyrics = parsedLyrics.current.length > 0;
+    const modeInfo = PLAY_MODE_ICONS[player.playMode];
 
     return (
         <div className="music-player">
