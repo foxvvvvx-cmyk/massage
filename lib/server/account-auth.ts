@@ -93,7 +93,8 @@ export function hashSessionToken(token: string): string {
 
 export function hashPassword(password: string): string {
   const salt = base64Url(crypto.randomBytes(16));
-  const hash = crypto.pbkdf2Sync(password, salt, PASSWORD_HASH_ITERATIONS, PASSWORD_KEY_LENGTH, "sha256").toString("base64url");
+  const passwordBytes = Buffer.from(password, "utf8");
+  const hash = crypto.pbkdf2Sync(passwordBytes, salt, PASSWORD_HASH_ITERATIONS, PASSWORD_KEY_LENGTH, "sha256").toString("base64url");
   return `${PASSWORD_HASH_VERSION}$${PASSWORD_HASH_ITERATIONS}$${salt}$${hash}`;
 }
 
@@ -101,7 +102,8 @@ export function verifyPassword(password: string, encodedHash: string): boolean {
   const [version, iterationsRaw, salt, expectedHash] = encodedHash.split("$");
   const iterations = Number(iterationsRaw);
   if (version !== PASSWORD_HASH_VERSION || !Number.isFinite(iterations) || !salt || !expectedHash) return false;
-  const actual = crypto.pbkdf2Sync(password, salt, iterations, PASSWORD_KEY_LENGTH, "sha256").toString("base64url");
+  const passwordBytes = Buffer.from(password, "utf8");
+  const actual = crypto.pbkdf2Sync(passwordBytes, salt, iterations, PASSWORD_KEY_LENGTH, "sha256").toString("base64url");
   const actualBuffer = Buffer.from(actual);
   const expectedBuffer = Buffer.from(expectedHash);
   return actualBuffer.length === expectedBuffer.length && crypto.timingSafeEqual(actualBuffer, expectedBuffer);
