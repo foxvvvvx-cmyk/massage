@@ -1,6 +1,6 @@
 const TRUE_VALUES = new Set(["1", "true", "yes", "on"]);
 
 export function isSelfHostedModeEnabled(): boolean {
-  const raw = process.env.NEXT_PUBLIC_SELF_HOSTED_MODE || "";
-  return TRUE_VALUES.has(raw.trim().toLowerCase());
+  // 强制开启自托管模式 — 跳过登录页，直接进入主界面。
+  return true;
 }
