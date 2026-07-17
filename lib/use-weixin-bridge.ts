@@ -13,7 +13,7 @@ export type BotRunStatus = {
 // ⏸ 临时总开关：暂停微信 Bot 的 getupdates 长轮询，止血 Netlify compute
 //（长轮询会全程占用函数时长）。仅停轮询，不影响后台保活（保活是通用功能）。
 // 恢复功能：改回 false 重新部署。长期方案=用户电脑本地助手接管轮询。
-const WEIXIN_BRIDGE_PAUSED: boolean = true;
+const WEIXIN_BRIDGE_PAUSED: boolean = false;
 
 // 模块级状态：让设置页面也能读到
 const _statusMap = new Map<string, BotRunStatus>();
