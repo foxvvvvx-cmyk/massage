@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { ChevronLeft, Palette } from "lucide-react";
-import { loadBooks, addBook, deleteBook, saveChapters, loadProgress, saveRawFile } from "@/lib/reading-storage";
+import { loadBooks, addBook, deleteBook, saveChapters, loadProgress, saveRawFile, loadSharedReadingSummary, type SharedReadingSummary } from "@/lib/reading-storage";
 import { decodeTxtArrayBuffer, parseTxtContent, parseEpubFile, PDF_PAGES_PER_CHAPTER } from "@/lib/reading-parser";
 import type { Book, BookChapter } from "@/lib/reading-types";
 import type { ReadingAppearance } from "@/lib/reading-appearance";
@@ -86,6 +86,7 @@ function buildImportError(stage: string, err: unknown, format?: Book["format"]):
 
 export function ReadingShelf({ onOpenBook, onClose, appearance, backgroundUrl, onSaveAppearance }: Props) {
     const [books, setBooks] = useState<Book[]>([]);
+    const [sharedSummaryMap, setSharedSummaryMap] = useState<Record<string, SharedReadingSummary>>({});
     const [progressMap, setProgressMap] = useState<Record<string, {
         chapterIndex: number;
         total: number;
@@ -129,6 +130,12 @@ export function ReadingShelf({ onOpenBook, onClose, appearance, backgroundUrl, o
                 };
             }
             setProgressMap(map);
+            // 共读摘要
+            const summaryMap: Record<string, SharedReadingSummary> = {};
+            for (const b of allBooks) {
+                summaryMap[b.id] = await loadSharedReadingSummary(b.id);
+            }
+            setSharedSummaryMap(summaryMap);
         })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
@@ -462,6 +469,29 @@ export function ReadingShelf({ onOpenBook, onClose, appearance, backgroundUrl, o
                                             <div className="reading-list-progress-fill" style={{ width: `${prog?.hasProgress ? progressPct : 0}%` }} />
                                         </div>
                                     </div>
+                                    {(() => {
+                                        const summary = sharedSummaryMap[book.id];
+                                        if (!summary || (summary.companionName === null && summary.myHighlightCount === 0)) return null;
+                                        return (
+                                            <div className="reading-shared-summary">
+                                                {summary.companionName && (
+                                                    <div className="reading-shared-compact">
+                                                        <span className="reading-shared-companion">{summary.companionName}</span>
+                                                        {summary.companionFraction !== null && (
+                                                            <span className="reading-shared-fraction">
+                                                                {Math.round(summary.companionFraction * 100)}%
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                )}
+                                                <div className="reading-shared-stats">
+                                                    {summary.myHighlightCount > 0 && <span>✏ {summary.myHighlightCount}</span>}
+                                                    {summary.favoriteCount > 0 && <span>⭐ {summary.favoriteCount}</span>}
+                                                    {summary.companionNoteCount > 0 && <span>💬 {summary.companionNoteCount}</span>}
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
                                     <button
                                         className="reading-list-delete"
                                         onClick={(e) => { e.stopPropagation(); handleDelete(book.id); }}

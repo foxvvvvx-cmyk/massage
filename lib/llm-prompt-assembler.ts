@@ -106,6 +106,7 @@ export interface AssemblerInput {
     chapterTitle?: string;
     chapterContent?: string;
     annotationHistory?: string;
+    readingQuote?: string;                  // Shared Reading：「聊这句」引用的句子
     noteWallContext?: string;
     diaryEntryContext?: string;
     xiaohongshuFeedContext?: string;
@@ -708,6 +709,7 @@ export function assemblePromptPayload(input: AssemblerInput): LLMMessage[] {
         engine.chapterTitle = input.chapterTitle ?? "";
         engine.chapterContent = input.chapterContent ?? "";
         engine.annotationHistory = input.annotationHistory ?? "";
+        engine.readingQuote = input.readingQuote ?? "";
         engine.noteWallContext = input.noteWallContext ?? "";
         engine.diaryEntryContext = input.diaryEntryContext ?? "";
         engine.xiaohongshuFeedContext = input.xiaohongshuFeedContext ?? "";

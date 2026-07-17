@@ -99,6 +99,7 @@ export type ChatMessage = {
         | "tool_result"
         | "memory_write_request"
         | "reading_discuss"
+        | "reading_discuss_card"
         | "system_instruction"
         | "group_admin_notice"
         | "media_file";
@@ -196,6 +197,13 @@ export type ChatMessage = {
         mediaCompressedAt?: string;
         mediaCleanedAt?: string;
         readingBookTitle?: string; // 阅读讨论所属书名，用于 prompt 短期记忆边界
+        // reading_discuss_card 轻量入口卡片 —— 完整内容在 ReadingNoteThread
+        readingCardBookId?: string;
+        readingCardBookTitle?: string;
+        readingCardSnippet?: string;
+        readingCardThreadId?: string;
+        readingCardNoteCount?: number;
+        readingCardKind?: "discuss" | "complete";
         appId?: string;
         appName?: string;
         appCardTitle?: string;
@@ -267,7 +275,7 @@ const MEDIA_PREVIEW_MAP: Record<string, string> = {
 };
 
 export function isReadingDiscussMessage(msg: Pick<ChatMessage, "origin" | "mediaType">): boolean {
-    return msg.origin === "reading_discuss" || msg.mediaType === "reading_discuss";
+    return msg.origin === "reading_discuss" || msg.mediaType === "reading_discuss" || msg.mediaType === "reading_discuss_card";
 }
 
 export function isSystemInstructionMessage(msg: Pick<ChatMessage, "role" | "mediaType">): boolean {
@@ -921,6 +929,32 @@ export function pushChatMessage(msg: Omit<ChatMessage, "id" | "createdAt" | "sta
     }
 
     return newMsg;
+}
+
+/** 在聊天会话里推一条轻量共读卡片（不存完整讨论，只留入口）。 */
+export function pushReadingDiscussCard(params: {
+    sessionId: string;
+    bookInfo: { id: string; title: string };
+    threadId: string;
+    snippet: string;
+    noteCount?: number;
+    kind?: "discuss" | "complete";
+}): ChatMessage {
+    return pushChatMessage({
+        sessionId: params.sessionId,
+        role: "assistant",
+        content: "",
+        mediaType: "reading_discuss_card",
+        mediaData: {
+            readingCardBookId: params.bookInfo.id,
+            readingCardBookTitle: params.bookInfo.title,
+            readingCardSnippet: params.snippet,
+            readingCardThreadId: params.threadId,
+            readingCardNoteCount: params.noteCount,
+            readingCardKind: params.kind || "discuss",
+        },
+        origin: "reading_discuss",
+    });
 }
 
 export function upsertImportedChatMessage(msg: ChatMessage): { message: ChatMessage; inserted: boolean } {

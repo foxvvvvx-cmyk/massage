@@ -72,6 +72,8 @@ export const MessageBubble = memo(function MessageBubble({ msg, onUpdate, charNa
             return <MediaFileBubble msg={msg} onUpdate={onUpdate} characterId={characterId} />;
         case "xiaohongshu_note_share":
             return <XiaohongshuShareBubble msg={msg} />;
+        case "reading_discuss_card":
+            return <ReadingDiscussCardBubble msg={msg} />;
         case "audio":
             return <VoiceMessageBubble msg={msg} characterId={characterId} onUpdate={onUpdate} defaultTranslationExpanded={defaultTranslationExpanded} />;
         default:
@@ -688,6 +690,37 @@ function PaymentRequestBubble({ msg, charName, userName, onShowDetail }: {
             >
                 <span>代付请求</span>
                 <span>{statusText}</span>
+            </div>
+        </div>
+    );
+}
+
+// ── Reading Discuss Card ────────────────────────
+
+function ReadingDiscussCardBubble({ msg }: { msg: ChatMessage }) {
+    const d = msg.mediaData;
+    const bookTitle = d?.readingCardBookTitle || "一起阅读";
+    const snippet = d?.readingCardSnippet || "";
+    const kind = d?.readingCardKind || "discuss";
+    const noteCount = typeof d?.readingCardNoteCount === "number" ? d.readingCardNoteCount : undefined;
+
+    return (
+        <div className="chat-reading-card" data-no-nav="true">
+            <div className="chat-reading-card-icon" aria-hidden="true">📖</div>
+            <div className="chat-reading-card-body">
+                <div className="chat-reading-card-kicker">
+                    {kind === "complete" ? "一起读完了一本书" : "一起阅读"}
+                </div>
+                <div className="chat-reading-card-title">{bookTitle}</div>
+                {snippet && (
+                    <div className="chat-reading-card-snippet">"{snippet}"</div>
+                )}
+                {kind === "discuss" && (
+                    <div className="chat-reading-card-meta" style={{ marginTop: 4 }}>
+                        讨论已完成
+                        {noteCount !== undefined && <> · {noteCount} 条消息</>}
+                    </div>
+                )}
             </div>
         </div>
     );

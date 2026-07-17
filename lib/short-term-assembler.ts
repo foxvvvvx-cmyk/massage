@@ -870,6 +870,67 @@ function buildCoReadingBoundaryEntries(
     return entries;
 }
 
+// ── Shared Reading: 共读事件 Timeline ──
+
+export type SharedReadingEvent = {
+    companionReading?: {
+        characterId: string;
+        characterName: string;
+        chaptersRead: number;
+        paragraphsRead: number;
+    };
+    sharedComplete?: {
+        characterName: string;
+        statsText: string;
+    };
+};
+
+/**
+ * 从 reading-db 读取近期共读活动并生成 Timeline 条目。
+ * 由 loadNativeTimeline 调用，对每个 reading-db 中有活动的书生成事件。
+ * 注意：这里只是生 Timeline 条目——不写 DB，不触发记忆总结本身。
+ */
+export function buildSharedReadingEntries(
+    bookId: string,
+    event: SharedReadingEvent,
+): NativeTimelineEntry[] {
+    const entries: NativeTimelineEntry[] = [];
+    const now = new Date().toISOString();
+    const ts = `shared_reading_${bookId}`;
+
+    if (event.companionReading) {
+        const { characterName, chaptersRead, paragraphsRead } = event.companionReading;
+        entries.push({
+            id: `${ts}_companion_${now}`,
+            sourceApp: "custom_app",
+            sourceDetail: "custom_app_event",
+            authorType: "character",
+            timestamp: now,
+            content: `${characterName}自己读了一会书（${chaptersRead}章，${paragraphsRead}段），留了新批注。`,
+            customAppId: "reading",
+            customAppName: "一起阅读",
+            customAppLabel: "companion_reading",
+        });
+    }
+
+    if (event.sharedComplete) {
+        const { characterName, statsText } = event.sharedComplete;
+        entries.push({
+            id: `${ts}_complete_${now}`,
+            sourceApp: "custom_app",
+            sourceDetail: "custom_app_event",
+            authorType: "character",
+            timestamp: now,
+            content: `我们一起读完了这本书：${statsText.slice(0, 200)}`,
+            customAppId: "reading",
+            customAppName: "一起阅读",
+            customAppLabel: "shared_complete",
+        });
+    }
+
+    return entries;
+}
+
 /** Keep newest entries that fit within a token budget. */
 function truncateTimelineByTokenBudget(
     entries: NativeTimelineEntry[],

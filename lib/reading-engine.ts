@@ -1,9 +1,9 @@
 // lib/reading-engine.ts — LLM integration for Reading feature.
 // All prompts go through the preset system via assemblePromptPayload. No extra message push.
 
-import type { Book, BookChapter, ReadingAnnotation } from "./reading-types";
+import type { Book, BookChapter, ReadingAnnotation, ReadingNoteThreadMessage } from "./reading-types";
 import type { ChatSession } from "./chat-storage";
-import { loadChatMessages, pushChatMessage } from "./chat-storage";
+import { loadChatMessages, pushChatMessage, type ChatMessage } from "./chat-storage";
 import { loadCharacters } from "./character-storage";
 import { loadReadingInteractionConfig } from "./reading-storage";
 import {
@@ -59,6 +59,7 @@ async function resolveReadingInput(
         chapterTitle: string;
         chapterContent: string;
         annotationHistory: string;
+        readingQuote?: string;
         history?: ReturnType<typeof loadChatMessages>;
     },
 ): Promise<{ input: AssemblerInput; apiConfig: ApiConfig | null; preset: PresetConfig | null } | null> {
@@ -124,6 +125,7 @@ async function resolveReadingInput(
         chapterTitle: options.chapterTitle,
         chapterContent: options.chapterContent,
         annotationHistory: options.annotationHistory,
+        readingQuote: options.readingQuote,
         chatBilingualInstruction: buildReadingBilingualInstruction(
             readingConfig.bilingualTranslationEnabled === true,
             readingConfig.bilingualTranslationPrompt,
@@ -434,4 +436,92 @@ export async function generateReadingChat(
 
     // Return raw text — caller is responsible for parsing and saving (like chat-room's splitAndSaveAIMessages)
     return responseText;
+}
+
+// ── Shared Reading:「聊这句」──
+
+export type SentenceDiscussParams = {
+    /** 被引用的句子 */
+    quote: string;
+    chapterTitle: string;
+    /** 引文附近的正文（少量段落，控制 token） */
+    contextParagraphs: string[];
+    /** 讨论串既有消息（独立于聊天历史） */
+    threadMessages: ReadingNoteThreadMessage[];
+};
+
+/** 把讨论串消息合成 assembler 可用的临时 ChatMessage（不落库） */
+function threadMessagesToHistory(threadMessages: ReadingNoteThreadMessage[]): ChatMessage[] {
+    return threadMessages.map((message, index) => ({
+        id: `reading_thread_${index}`,
+        sessionId: "reading_thread",
+        role: message.role,
+        content: message.content,
+        status: "sent" as const,
+        createdAt: message.createdAt,
+    }));
+}
+
+/**
+ * 围绕一句话的讨论回复。链路与 generateReadingChat 完全一致
+ * （resolveBinding("reading") → assemblePromptPayload → sendLLMRequest），
+ * 只是历史来自讨论串而非聊天会话，并注入 readingQuote 宏。
+ */
+export async function generateSentenceDiscuss(
+    book: Book,
+    characterId: string,
+    params: SentenceDiscussParams,
+): Promise<string | null> {
+    const character = loadCharacters().find(c => c.id === characterId);
+    if (!character) return null;
+
+    const resolved = await resolveReadingInput(characterId, ["reading", "discuss", "quote"], {
+        bookTitle: book.title,
+        chapterTitle: params.chapterTitle,
+        chapterContent: formatChapterContent(params.contextParagraphs),
+        annotationHistory: "（本次是围绕引文的句子讨论）",
+        readingQuote: params.quote,
+        history: threadMessagesToHistory(params.threadMessages),
+    });
+    if (!resolved) return null;
+
+    const { input, apiConfig, preset } = resolved;
+    // 预设未内置 {{readingQuote}} 时兜底：把引文接在章节内容后，保证模型一定能看到
+    if (input.chapterContent && params.quote) {
+        input.chapterContent = `${input.chapterContent}\n\n【正在讨论的句子】${params.quote}`;
+    }
+    const llmMessages = assemblePromptPayload(input);
+    const responseText = await callReadingLLM(
+        apiConfig!,
+        preset,
+        llmMessages,
+        character.name,
+        input.regexes,
+        input.appTags,
+        input.userIdentity?.name,
+    );
+    return responseText || null;
+}
+
+/**
+ * 讨论收尾时生成 Companion 的页边留言（≤60 字）。
+ * 复用同一条链路，追加一条收尾指令作为最后的 user 轮。
+ */
+export async function generateCompanionNote(
+    book: Book,
+    characterId: string,
+    params: SentenceDiscussParams,
+): Promise<string | null> {
+    const closing: ReadingNoteThreadMessage = {
+        role: "user",
+        content: "（我们这段讨论先到这里。请你用自己的口吻，为这句话写一条 60 字以内的页边留言，只输出留言本身，不要引号、不要开场白。）",
+        createdAt: new Date().toISOString(),
+    };
+    const raw = await generateSentenceDiscuss(book, characterId, {
+        ...params,
+        threadMessages: [...params.threadMessages, closing],
+    });
+    if (!raw) return null;
+    const cleaned = raw.trim().split("\n")[0]?.trim().replace(/^["'「『]|["'」』]$/g, "") || "";
+    return cleaned ? cleaned.slice(0, 120) : null;
 }

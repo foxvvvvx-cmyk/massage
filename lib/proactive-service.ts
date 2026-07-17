@@ -35,6 +35,8 @@ import { loadApiConfigs } from "./settings-storage";
 import { determineBaseUrl, buildChatCompletionsUrl, buildRequestHeaders } from "./api-helpers";
 import { bgSetInterval } from "./bg-timer";
 import { resolveCharacterId } from "./memories-sync";
+import { maybeRunCompanionReading, canCompanionRead } from "./reading-companion-service";
+import { loadReadingInteractionConfig } from "./reading-storage";
 
 // ===== Config =====
 
@@ -230,6 +232,19 @@ export function startEmotionLoop(config?: Partial<ProactiveConfig>): () => void 
         (await canContact(cid, proactiveConfig.contactCooldownMs, proactiveConfig.maxDailyMessages, lastUserMsgTime))
       ) {
         await sendProactiveMessage(cid, char.name, engineConfig);
+      }
+
+      // Phase 2: Companion 主动阅读（find_activity 分支或独立门控）
+      // 注意：走独立门控 canCompanionRead（不挤占聊天 canContact 配额）
+      if (threshold.triggered && (threshold.type === "find_activity" || threshold.type === "contact")) {
+        const readingConfig = loadReadingInteractionConfig();
+        if (readingConfig.sharedReadingEnabled) {
+          const companionGate = canCompanionRead(cid, state);
+          if (companionGate.allowed) {
+            console.log(`[proactive] ${char.name} companion reading: ${companionGate.reason}`);
+            void maybeRunCompanionReading(cid, char.name, state);
+          }
+        }
       }
     }
     console.log("[proactive] ── tick end ──");

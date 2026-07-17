@@ -16,7 +16,16 @@ import {
     loadReadingInteractionConfig,
     saveReadingInteractionConfig,
     DEFAULT_READING_INTERACTION_CONFIG,
+    loadHighlights,
+    saveHighlight,
+    deleteHighlight,
+    findHighlightAtSentence,
+    loadNotes,
+    deleteNote,
 } from "@/lib/reading-storage";
+import { splitParagraphSentences, sentenceAtOffset, buildSentenceAnchor, resolveSentenceAnchor, type SentenceSpan } from "@/lib/reading-anchors";
+import { ReadingSentenceMenu, type SentenceMenuTarget } from "./reading-sentence-menu";
+import { ReadingNoteThreadPanel } from "./reading-note-thread";
 import { generateAnnotationBatch, generateReadingChat, parseReadingDiscussResponse, type ReadingDiscussAction, type ReadingDiscussContext } from "@/lib/reading-engine";
 import { loadChatMessages, pushChatMessage, deleteChatMessage, editChatMessage, loadChatContacts, loadChatSessions, isReadingDiscussMessage } from "@/lib/chat-storage";
 import type { ChatMessage, ChatSession } from "@/lib/chat-storage";
@@ -27,14 +36,15 @@ import { ContentDialog } from "@/components/ui/modal";
 import { Toggle } from "@/components/ui/form";
 import { PdfPageRenderer } from "./reading-pdf-viewer";
 import { decodeTxtArrayBuffer, parsePdfPageRange, PDF_PAGES_PER_CHAPTER, parseTxtContent, parseEpubFile } from "@/lib/reading-parser";
-import type { Book, BookChapter, ReadingAnnotation, ReadingProgress } from "@/lib/reading-types";
+import type { Book, BookChapter, ReadingAnnotation, ReadingProgress, ReadingHighlight, ReadingNote } from "@/lib/reading-types";
 import type { Character } from "@/lib/character-types";
 import { splitBilingualText } from "@/lib/bilingual-text";
 
 type TxtPageItem =
-    | { kind: "line"; text: string; chapterIndex: number; paragraphIndex: number; indent?: boolean; segEnd?: boolean }
+    | { kind: "line"; text: string; chapterIndex: number; paragraphIndex: number; charStart: number; indent?: boolean; segEnd?: boolean }
     | { kind: "gap"; chapterIndex: number; paragraphIndex: number }
-    | { kind: "annotation"; annotation: ReadingAnnotation; chapterIndex: number; paragraphIndex: number };
+    | { kind: "annotation"; annotation: ReadingAnnotation; chapterIndex: number; paragraphIndex: number }
+    | { kind: "note"; note: ReadingNote; chapterIndex: number; paragraphIndex: number };
 
 type ParagraphRef = {
     absoluteIndex: number;
@@ -130,6 +140,129 @@ function wrapTextToLines(text: string, maxWidth: number, ctx: CanvasRenderingCon
     return lines.length > 0 ? lines : [""];
 }
 
+function ReadingLine({
+    item,
+    highlights,
+    chapters,
+    onSentence,
+}: {
+    item: Extract<TxtPageItem, { kind: "line" }>;
+    highlights: ReadingHighlight[];
+    chapters: BookChapter[];
+    onSentence: (target: SentenceMenuTarget) => void;
+}) {
+    const chapter = chapters.find((c) => c.index === item.chapterIndex);
+    const paragraph = chapter?.paragraphs[item.paragraphIndex] ?? "";
+
+    // 该段上所有 highlight 的区间（按 charStart..charEnd）
+    const paragraphHighlights = highlights.filter(
+        (h) => h.paragraphIndex === item.paragraphIndex && h.chapterIndex === item.chapterIndex,
+    );
+    const userHighlights = new Set<string>();
+    const companionHighlights = new Set<string>();
+    for (const h of paragraphHighlights) {
+        if (h.sentenceIndex === -1) continue;
+        const spans = splitParagraphSentences(paragraph);
+        const span = spans[h.sentenceIndex];
+        if (span) {
+            const rangeKey = `${span.charStart}:${span.charEnd}`;
+            if (h.authorType === "companion") companionHighlights.add(rangeKey);
+            else userHighlights.add(rangeKey);
+        }
+    }
+
+    // 当前段 + 前后各一段作为 chat 上下文
+    const contextParagraphs = chapter
+        ? chapter.paragraphs.slice(Math.max(0, item.paragraphIndex - 1), Math.min(chapter.paragraphs.length, item.paragraphIndex + 2))
+        : [paragraph];
+
+    const handleLongPress = () => {
+        const sentence = sentenceAtOffset(paragraph, item.charStart);
+        if (sentence) {
+            const anchor = buildSentenceAnchor(item.chapterIndex, item.paragraphIndex, sentence);
+            const chName = chapter?.title ?? `第${item.chapterIndex + 1}章`;
+            onSentence({
+                bookId: "", // 由调用者（viewer）用 book.id 覆写
+                anchor,
+                sentenceText: sentence.text,
+                chapterTitle: chName,
+                contextParagraphs,
+            });
+        }
+    };
+
+    const longPressTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+    const lineStart = item.charStart;
+    const lineEnd = lineStart + item.text.length;
+    const highlightRanges: { charStart: number; charEnd: number; kind: "user" | "companion" | "both" }[] = [];
+    const seenRanges = new Set<string>();
+    for (const [rangeKey, kind] of (() => {
+        const result: [string, "user" | "companion"][] = [];
+        for (const k of userHighlights) result.push([k, "user"]);
+        for (const k of companionHighlights) result.push([k, "companion"]);
+        return result;
+    })()) {
+        const [sStr, eStr] = rangeKey.split(":");
+        const s = Number(sStr);
+        const e = Number(eStr);
+        if (Number.isNaN(s) || Number.isNaN(e)) continue;
+        const overlap = s < lineEnd && e > lineStart;
+        if (!overlap) continue;
+        if (seenRanges.has(rangeKey)) {
+            const existing = highlightRanges.find((hr) => hr.charStart === s && hr.charEnd === e);
+            if (existing) { existing.kind = "both"; continue; }
+        }
+        seenRanges.add(rangeKey);
+        highlightRanges.push({ charStart: Math.max(lineStart, s), charEnd: Math.min(lineEnd, e), kind });
+    }
+
+    if (highlightRanges.length === 0) {
+        return (
+            <p
+                className={`reading-line${item.indent ? " reading-line-indent" : ""}${item.segEnd ? " reading-line-seg-end" : ""}`}
+                onPointerDown={() => { longPressTimer.current = setTimeout(handleLongPress, 500); }}
+                onPointerUp={() => { if (longPressTimer.current) clearTimeout(longPressTimer.current); }}
+                onPointerCancel={() => { if (longPressTimer.current) clearTimeout(longPressTimer.current); }}
+                onPointerLeave={() => { if (longPressTimer.current) clearTimeout(longPressTimer.current); }}
+            >
+                {item.text}
+            </p>
+        );
+    }
+
+    highlightRanges.sort((a, b) => a.charStart - b.charStart);
+    const fragments: React.ReactNode[] = [];
+    let cursor = lineStart;
+    for (const span of highlightRanges) {
+        if (span.charStart > cursor) {
+            fragments.push(<span key={`t${cursor}`}>{item.text.slice(cursor - lineStart, span.charStart - lineStart)}</span>);
+        }
+        const cls = `shared-highlight shared-highlight--${span.kind}`;
+        fragments.push(
+            <span key={`h${span.charStart}`} className={cls}>
+                {item.text.slice(span.charStart - lineStart, span.charEnd - lineStart)}
+            </span>,
+        );
+        cursor = span.charEnd;
+    }
+    if (cursor < lineEnd) {
+        fragments.push(<span key={`t${cursor}`}>{item.text.slice(cursor - lineStart)}</span>);
+    }
+
+    return (
+        <p
+            className={`reading-line${item.indent ? " reading-line-indent" : ""}${item.segEnd ? " reading-line-seg-end" : ""}`}
+            onPointerDown={() => { longPressTimer.current = setTimeout(handleLongPress, 500); }}
+            onPointerUp={() => { if (longPressTimer.current) clearTimeout(longPressTimer.current); }}
+            onPointerCancel={() => { if (longPressTimer.current) clearTimeout(longPressTimer.current); }}
+            onPointerLeave={() => { if (longPressTimer.current) clearTimeout(longPressTimer.current); }}
+        >
+            {fragments}
+        </p>
+    );
+}
+
 function ReadingLoadingView({
     title,
     subtitle,
@@ -219,6 +352,10 @@ export function ReadingViewer({ book, onBack }: Props) {
     const [pdfTotalPages, setPdfTotalPages] = useState(0);
     const [txtPage, setTxtPage] = useState(0);
     const [annotations, setAnnotations] = useState<ReadingAnnotation[]>([]);
+    const [highlights, setHighlights] = useState<ReadingHighlight[]>([]);
+    const [notes, setNotes] = useState<ReadingNote[]>([]);
+    const [sentenceMenu, setSentenceMenu] = useState<SentenceMenuTarget | null>(null);
+    const [noteThreadTarget, setNoteThreadTarget] = useState<SentenceMenuTarget | null>(null);
     const [generating, setGenerating] = useState(false);
     const [companionId, setCompanionId] = useState<string | null>(null);
     const [immersive, setImmersive] = useState(true);
@@ -291,6 +428,23 @@ export function ReadingViewer({ book, onBack }: Props) {
     }, [book.id, chapterIndex, readingConfig.collapseBilingualTranslation]);
 
     const companion = companionId ? (enrichedContacts.find(c => c.characterId === companionId)?.char || loadCharacters().find(c => c.id === companionId)) : null;
+    const hasCompanion = !!companion;
+
+    // ── Sentence menu handlers (defined after refreshSharedReading) ──
+    const handleToggleUnderlineRef = useRef<() => Promise<void>>(async () => {});
+    const handleToggleFavoriteRef = useRef<() => Promise<void>>(async () => {});
+
+    const handleOpenNoteThread = useCallback(() => {
+        if (!sentenceMenu || !companion) return;
+        setNoteThreadTarget(sentenceMenu);
+        setSentenceMenu(null);
+    }, [sentenceMenu, companion]);
+
+    // ── Note thread close handler ──
+    const handleNoteThreadCardPushed = useCallback((_bookId: string, _threadId: string) => {
+        // Card is pushed by the panel itself; viewer just refreshes notes for rendering
+    }, []);
+
     const bilingualTranslationEnabled = readingConfig.bilingualTranslationEnabled === true;
     const defaultTranslationExpanded = readingConfig.collapseBilingualTranslation !== true;
     const currentChapter = chapters[chapterIndex];
@@ -357,7 +511,14 @@ export function ReadingViewer({ book, onBack }: Props) {
                                     )}
                                 </div>
                             )
-                            : <p key={i} className={`reading-line${item.indent ? " reading-line-indent" : ""}${item.segEnd ? " reading-line-seg-end" : ""}`}>{item.text}</p>
+                            : item.kind === "note"
+                                ? (
+                                    <div key={i} className={`reading-note reading-note--${item.note.authorType}`}>
+                                        <span className="reading-note-name">{item.note.authorType === "companion" ? (item.note.characterName || "TA") : "我"}</span>
+                                        <span className="reading-note-text">{item.note.content}</span>
+                                    </div>
+                                )
+                                : <ReadingLine key={i} item={item} highlights={highlights} chapters={chapters} onSentence={setSentenceMenu} />
                 ))}
             </div>
         );
@@ -373,7 +534,12 @@ export function ReadingViewer({ book, onBack }: Props) {
                             <span className="reading-annotation-name">{item.annotation.characterName}</span>
                             <span className="reading-annotation-text">{item.annotation.content}</span>
                         </div>
-                        : <p key={i} className={`reading-line${item.indent ? " reading-line-indent" : ""}${item.segEnd ? " reading-line-seg-end" : ""}`}>{item.text}</p>
+                        : item.kind === "note"
+                            ? <div key={i} className={`reading-note reading-note--${item.note.authorType}`}>
+                                <span className="reading-note-name">{item.note.authorType === "companion" ? (item.note.characterName || "TA") : "我"}</span>
+                                <span className="reading-note-text">{item.note.content}</span>
+                            </div>
+                            : <ReadingLine key={i} item={item} highlights={highlights} chapters={chapters} onSentence={setSentenceMenu} />
             )}
         </div>
     );
@@ -552,6 +718,83 @@ export function ReadingViewer({ book, onBack }: Props) {
             setAnnotations(annots);
         })();
     }, [book.id, chapterIndex, chapters, isPdf]);
+
+    // Load shared-reading highlights & notes for current scope
+    const refreshSharedReading = useCallback(async () => {
+        if (isPdf) {
+            const [highlightGroups, noteGroups] = await Promise.all([
+                Promise.all(chapters.map((chapter) => loadHighlights(book.id, chapter.index))),
+                Promise.all(chapters.map((chapter) => loadNotes(book.id, chapter.index))),
+            ]);
+            setHighlights(highlightGroups.flat());
+            setNotes(noteGroups.flat());
+            return;
+        }
+        const [chapterHighlights, chapterNotes] = await Promise.all([
+            loadHighlights(book.id, chapterIndex),
+            loadNotes(book.id, chapterIndex),
+        ]);
+
+        // 锚点愈合：resolved paragraphIndex 与存储值不同时写回 DB
+        // （解析器版本变化导致段落位移，修一次后不再需要）
+        if (currentChapter) {
+            const healedHighlights = await Promise.all(
+                chapterHighlights.map(async (h) => {
+                    const r = resolveSentenceAnchor(currentChapter, h);
+                    if (r.match !== "lost" && r.paragraphIndex !== h.paragraphIndex) {
+                        const healed = { ...h, paragraphIndex: r.paragraphIndex };
+                        await saveHighlight(healed);
+                        return healed;
+                    }
+                    return h;
+                }),
+            );
+            setHighlights(healedHighlights);
+        } else {
+            setHighlights(chapterHighlights);
+        }
+
+        // Notes 在分页阶段走 resolveSentenceAnchor 已覆盖，此处仅 set
+        setNotes(chapterNotes);
+    }, [book.id, chapterIndex, chapters, isPdf]);
+
+    useEffect(() => { void refreshSharedReading(); }, [refreshSharedReading]);
+
+    // 填充 sentence menu 的 ref 回调（必须在 refreshSharedReading 之后）
+    handleToggleUnderlineRef.current = async () => {
+        if (!sentenceMenu) return;
+        const { anchor } = sentenceMenu;
+        const existing = await findHighlightAtSentence(book.id, anchor.chapterIndex, anchor.paragraphIndex, anchor.sentenceIndex);
+        const mine = existing.find((h) => h.authorType === "user" && h.kind === "underline");
+        if (mine) { await deleteHighlight(mine.id); }
+        else {
+            await saveHighlight({
+                id: `highlight_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+                bookId: book.id, kind: "underline", authorType: "user",
+                createdAt: new Date().toISOString(),
+                ...anchor,
+            });
+        }
+        await refreshSharedReading();
+        setSentenceMenu(null);
+    };
+    handleToggleFavoriteRef.current = async () => {
+        if (!sentenceMenu) return;
+        const { anchor } = sentenceMenu;
+        const existing = await findHighlightAtSentence(book.id, anchor.chapterIndex, anchor.paragraphIndex, anchor.sentenceIndex);
+        const mine = existing.find((h) => h.authorType === "user" && h.kind === "favorite");
+        if (mine) { await deleteHighlight(mine.id); }
+        else {
+            await saveHighlight({
+                id: `highlight_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+                bookId: book.id, kind: "favorite", authorType: "user",
+                createdAt: new Date().toISOString(),
+                ...anchor,
+            });
+        }
+        await refreshSharedReading();
+        setSentenceMenu(null);
+    };
 
     // Load reading-discuss chat messages
     const refreshChatMessages = useCallback(() => {
@@ -1350,6 +1593,8 @@ export function ReadingViewer({ book, onBack }: Props) {
         const annotationSignature = chapterAnnotations
             .map((annotation) => `${annotation.id}:${annotation.content.length}:${isAnnotationTranslationExpanded(annotation.id) ? 1 : 0}`)
             .join("|");
+        const chapterNotes = notes.filter((note) => note.chapterIndex === chapterIndex);
+        const noteSignature = chapterNotes.map((note) => `${note.id}:${note.content.length}`).join("|");
         const paragraphCharCount = currentChapter.paragraphs.reduce((sum, paragraph) => sum + paragraph.length, 0);
         const paginationSignature = [
             currentChapter.id,
@@ -1357,6 +1602,7 @@ export function ReadingViewer({ book, onBack }: Props) {
             currentChapter.paragraphs.length,
             paragraphCharCount,
             annotationSignature,
+            noteSignature,
             bilingualTranslationEnabled ? 1 : 0,
             Math.round(maxWidth),
             Math.round(maxHeight),
@@ -1386,10 +1632,19 @@ export function ReadingViewer({ book, onBack }: Props) {
             return blockHeight + annotationMarginY;
         };
 
+        // 留言块复用批注测量节点（结构同为 名字 + 文本）
+        const measureNoteHeight = (note: ReadingNote) => {
+            if (!annotationNameEl || !annotationTextEl) return lineHeight * 2;
+            annotationNameEl.textContent = note.authorType === "companion" ? (note.characterName || "TA") : "我";
+            annotationTextEl.textContent = note.content;
+            const blockHeight = annotationMeasure.offsetHeight || lineHeight * 2;
+            return blockHeight + annotationMarginY;
+        };
+
         const canvas = document.createElement("canvas");
         const ctx = canvas.getContext("2d");
         if (!ctx) {
-            setTxtPages([[{ kind: "line", text: currentChapter.paragraphs.join(" "), chapterIndex, paragraphIndex: 0, indent: true }]]);
+            setTxtPages([[{ kind: "line", text: currentChapter.paragraphs.join(" "), chapterIndex, paragraphIndex: 0, charStart: 0, indent: true }]]);
             return;
         }
         ctx.font = toCanvasFont(lineStyle);
@@ -1401,20 +1656,36 @@ export function ReadingViewer({ book, onBack }: Props) {
             list.push(annotation);
             annotationMap.set(annotation.paragraphIndex, list);
         }
+        const noteMap = new Map<number, ReadingNote[]>();
+        for (const note of chapterNotes) {
+            const resolved = resolveSentenceAnchor(currentChapter, note);
+            const targetParagraph = resolved.match === "lost" ? note.paragraphIndex : resolved.paragraphIndex;
+            const list = noteMap.get(targetParagraph) || [];
+            list.push(note);
+            noteMap.set(targetParagraph, list);
+        }
 
         currentChapter.paragraphs.forEach((paragraph, index) => {
             const segments = paragraph.split("\n");
+            let segmentCharStart = 0;
             segments.forEach((segment, segmentIndex) => {
                 const shouldIndent = segmentIndex === 0;
                 const wrappedLines = wrapTextToLines(segment, maxWidth, ctx, shouldIndent ? indentWidth : 0);
+                let lineCharStart = segmentCharStart;
                 wrappedLines.forEach((line, lineIndex) => {
-                    tokens.push({ kind: "line", text: line, chapterIndex, paragraphIndex: index, indent: shouldIndent && lineIndex === 0, segEnd: lineIndex === wrappedLines.length - 1 });
+                    tokens.push({ kind: "line", text: line, chapterIndex, paragraphIndex: index, charStart: lineCharStart, indent: shouldIndent && lineIndex === 0, segEnd: lineIndex === wrappedLines.length - 1 });
+                    lineCharStart += line.length;
                 });
+                segmentCharStart += segment.length + 1; // +1 换行符
                 if (segmentIndex < segments.length - 1) tokens.push({ kind: "gap", chapterIndex, paragraphIndex: index });
             });
             const paragraphAnnotations = annotationMap.get(index) || [];
             for (const annotation of paragraphAnnotations) {
                 tokens.push({ kind: "annotation", annotation, chapterIndex, paragraphIndex: index });
+            }
+            const paragraphNotes = noteMap.get(index) || [];
+            for (const note of paragraphNotes) {
+                tokens.push({ kind: "note", note, chapterIndex, paragraphIndex: index });
             }
             if (index < currentChapter.paragraphs.length - 1) tokens.push({ kind: "gap", chapterIndex, paragraphIndex: index });
         });
@@ -1424,7 +1695,13 @@ export function ReadingViewer({ book, onBack }: Props) {
         let usedHeight = 0;
 
         for (const token of tokens) {
-            const tokenHeight = token.kind === "gap" ? gapHeight : token.kind === "annotation" ? measureAnnotationHeight(token.annotation) : lineHeight;
+            const tokenHeight = token.kind === "gap"
+                ? gapHeight
+                : token.kind === "annotation"
+                    ? measureAnnotationHeight(token.annotation)
+                    : token.kind === "note"
+                        ? measureNoteHeight(token.note)
+                        : lineHeight;
             if (token.kind === "gap" && currentPage.length === 0) continue;
 
             if (currentPage.length > 0 && usedHeight + tokenHeight > maxHeight) {
@@ -1440,11 +1717,11 @@ export function ReadingViewer({ book, onBack }: Props) {
 
         const lastPage = trimTrailingGaps(currentPage);
         if (lastPage.length > 0) pages.push(lastPage);
-        if (pages.length === 0) pages.push([{ kind: "line", text: "", chapterIndex, paragraphIndex: 0 }]);
+        if (pages.length === 0) pages.push([{ kind: "line", text: "", chapterIndex, paragraphIndex: 0, charStart: 0 }]);
 
         lastTxtPaginationSignatureRef.current = paginationSignature;
         setTxtPages(pages);
-    }, [annotations, bilingualTranslationEnabled, chapterIndex, currentChapter, isAnnotationTranslationExpanded, isPdf, txtLayoutVersion]);
+    }, [annotations, notes, bilingualTranslationEnabled, chapterIndex, currentChapter, isAnnotationTranslationExpanded, isPdf, txtLayoutVersion]);
 
     const txtTotalPages = txtPagesReadyForCurrentChapter ? txtPages.length : 1;
 
@@ -1759,6 +2036,50 @@ export function ReadingViewer({ book, onBack }: Props) {
                     </div>
                 </div>
             </footer>
+
+            {/* ── Shared Reading: 句子菜单 & 聊这句 ── */}
+            {sentenceMenu && (() => {
+                const paraHighlights = highlights.filter(
+                    (h) => h.paragraphIndex === sentenceMenu.anchor.paragraphIndex &&
+                           h.chapterIndex === sentenceMenu.anchor.chapterIndex &&
+                           h.sentenceIndex === sentenceMenu.anchor.sentenceIndex,
+                );
+                const underlined = paraHighlights.some((h) => h.authorType === "user" && h.kind === "underline");
+                const favorited = paraHighlights.some((h) => h.authorType === "user" && h.kind === "favorite");
+                const companionUnderlined = paraHighlights.some((h) => h.authorType === "companion");
+                return (
+                    <ReadingSentenceMenu
+                        target={{ ...sentenceMenu, bookId: book.id }}
+                        underlined={underlined}
+                        favorited={favorited}
+                        companionUnderlined={companionUnderlined}
+                        hasCompanion={hasCompanion}
+                        onToggleUnderline={() => { void handleToggleUnderlineRef.current(); }}
+                        onToggleFavorite={() => { void handleToggleFavoriteRef.current(); }}
+                        onDiscuss={handleOpenNoteThread}
+                        onClose={() => setSentenceMenu(null)}
+                    />
+                );
+            })()}
+
+            {noteThreadTarget && companion && currentChapter && (
+                <ReadingNoteThreadPanel
+                    book={book}
+                    companion={{ id: companion.id, name: companion.name, characterId: companion.id }}
+                    target={{
+                        anchor: noteThreadTarget.anchor,
+                        sentenceText: noteThreadTarget.sentenceText,
+                        chapterTitle: noteThreadTarget.chapterTitle,
+                        contextParagraphs: noteThreadTarget.contextParagraphs ?? currentChapter.paragraphs.slice(
+                            Math.max(0, noteThreadTarget.anchor.paragraphIndex - 2),
+                            Math.min(currentChapter.paragraphs.length, noteThreadTarget.anchor.paragraphIndex + 3),
+                        ),
+                    }}
+                    onClose={() => { setNoteThreadTarget(null); refreshSharedReading(); }}
+                    onNotesChanged={refreshSharedReading}
+                    onCardPushed={handleNoteThreadCardPushed}
+                />
+            )}
 
             {!showChat && (
                 <button
