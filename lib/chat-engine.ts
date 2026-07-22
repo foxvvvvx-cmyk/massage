@@ -2080,9 +2080,11 @@ async function generateNativeChatCompletion(
         }
         const assistantForToolContext = stripStateAndInnerForPrompt(result.content);
 
+        const thinkingPrefix = result.reasoning ? '[内心]' + result.reasoning + '[/内心]\n\n' : '';
+
         if (result.toolCalls.length === 0) {
             throwIfAborted(options?.signal);
-            const displayText = stripStateAndInnerForPrompt(afterActionStrip);
+            const displayText = thinkingPrefix + stripStateAndInnerForPrompt(afterActionStrip);
             await callbacks?.onTextPart?.(displayText);
             parts.push({ text: displayText });
             break;
@@ -2090,14 +2092,14 @@ async function generateNativeChatCompletion(
 
         throwIfAborted(options?.signal);
         await callbacks?.onNativeToolAssistantTurn?.({
-            content: stripStateAndInnerForPrompt(afterActionStrip),
+            content: thinkingPrefix + stripStateAndInnerForPrompt(afterActionStrip),
             rawContent: result.content,
             reasoning: result.reasoning,
             openRouterReasoningDetails: result.openRouterReasoningDetails,
             toolCalls: result.toolCalls,
         });
         if (afterActionStrip) {
-            parts.push({ text: stripStateAndInnerForPrompt(afterActionStrip) });
+            parts.push({ text: thinkingPrefix + stripStateAndInnerForPrompt(afterActionStrip) });
         }
 
         const loaderCalls = result.toolCalls
