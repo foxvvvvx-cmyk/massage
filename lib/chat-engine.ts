@@ -2025,6 +2025,12 @@ async function generateNativeChatCompletion(
         userName: userIdentity?.name ?? "用户",
     };
     let nativeBundle = buildNativeChatTools(enabledTools, expandedSourceIds, nativeToolBuildOptions);
+    if (enableWebSearch) {
+        llmMessages.push({
+            role: "system",
+            content: "联网搜索每轮最多使用1-2次，不要反复查看同一个页面。",
+        });
+    }
     const requestMessages: LlmRequestMessage[] = toLlmRequestMessages(llmMessages);
     const parts: ChatCompletionPart[] = [];
     const meta = { characterName: character.name, userName: userIdentity?.name };

@@ -542,7 +542,7 @@ function buildAnthropicRequest(
     // Anthropic 官方服务端联网搜索工具（server tool，无需客户端执行）。
     // 返回内容里的 server_tool_use / web_search_tool_result 块会被
     // parseAnthropicResponse / parseAnthropicStreamDelta 自然跳过，只展示 text。
-    anthropicTools.push({ type: "web_search_20250305", name: "web_search" });
+    anthropicTools.push({ type: "web_search_20250305", name: "web_search", max_uses: 2 });
     body.tools = anthropicTools;
     return {
         url: `${baseUrl.replace(/\/$/, "")}/messages`,
