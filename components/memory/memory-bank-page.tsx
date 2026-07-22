@@ -33,16 +33,16 @@ type MemoryView = "list" | "detail" | "settings";
 type MemoryTab = "short" | "shared" | "core" | "long";
 type MemoryBudgetKey = "shortTermTokenBudget" | "coreMemoryTokenBudget" | "longTermTokenBudget";
 
-const MEMORY_TOKEN_BUDGET_MAX = 100000;
+const MEMORY_TOKEN_BUDGET_MAX = 20000;
 const MEMORY_TOKEN_BUDGET_MIN: Record<MemoryBudgetKey, number> = {
     shortTermTokenBudget: 1000,
     coreMemoryTokenBudget: 100,
     longTermTokenBudget: 200,
 };
 const MEMORY_TOKEN_BUDGET_STEP: Record<MemoryBudgetKey, number> = {
-    shortTermTokenBudget: 5000,
-    coreMemoryTokenBudget: 1000,
-    longTermTokenBudget: 1000,
+    shortTermTokenBudget: 2000,
+    coreMemoryTokenBudget: 500,
+    longTermTokenBudget: 500,
 };
 const MANUAL_MEMORY_CONTENT_LIMIT = 3000;
 
