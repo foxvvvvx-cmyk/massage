@@ -245,8 +245,6 @@ export const DATA_MODULES: DataModuleDefinition[] = [
       { type: "indexeddb", dbName: "AiPhoneMapDB", label: "地图冒险" },
       { type: "indexeddb", dbName: "AiPhoneDwellingDB", label: "住宅" },
       { type: "indexeddb", dbName: "AiPhoneCheckPhoneDB", label: "查手机快照" },
-      { type: "indexeddb", dbName: "world-builder-scenes", label: "世界构建场景" },
-      { type: "indexeddb", dbName: "world-builder-models", label: "世界构建模型" },
       {
         type: "kv",
         label: "创作玩法配置",
@@ -263,8 +261,6 @@ export const DATA_MODULES: DataModuleDefinition[] = [
           "ai_phone_interview_magazine_memory_prompt_v1",
           "ai_phone_cocreate_session_v1",
           "ai_phone_cocreate_library_v1",
-          "wb-settings",
-          "wb-tripo-api-key",
           "checkphone-settings",
           "ai_phone_game_state_v1",
           "ai_phone_game_hall_drafts_v1",

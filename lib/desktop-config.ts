@@ -24,8 +24,7 @@ export type IconId =
   | "settings"
   | "theme"
   | "resources"
-  | "characters"
-  | "worldbuilder";
+  | "characters";
 
 export type DesktopIconId = IconId | CustomAppIconId;
 
@@ -49,8 +48,7 @@ export const PAGE_2_DEFAULT: IconId[] = [
   "dwelling",
   "story",
   "vnmode",
-  "mapmode",
-  "worldbuilder"
+  "mapmode"
 ];
 
 export const DOCK_DEFAULT: IconId[] = ["settings", "theme", "resources", "characters"];
@@ -95,12 +93,5 @@ export const ICONS: Record<IconId, IconMeta> = {
     tone: "var(--c-icon-lilac)",
     placeholder: false,
     path: "/characters"
-  },
-  worldbuilder: {
-    id: "worldbuilder",
-    label: "筑境",
-    tone: "var(--c-icon-amber)",
-    placeholder: false,
-    path: "/world-builder"
   },
 };
