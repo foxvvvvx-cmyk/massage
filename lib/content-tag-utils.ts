@@ -31,8 +31,6 @@ const EXTRA_TAG_LABELS: Record<string, string> = {
     mention: "@提及回复",
     manifest: "清单",
     notes: "笔记",
-    notewall: "便签墙",
-    notewall_reply: "便签墙回复",
     action: "动作",
     tool: "工具",
     host: "主持人",
@@ -115,16 +113,6 @@ export const CONTENT_SCOPE_TAG_GROUPS: TagGroupProfile[] = [
         ],
     },
     {
-        id: "diary",
-        label: "手记",
-        tags: ["diary"],
-        minors: [
-            commonMinor("diary", ["diary"]),
-            profile("diary", "notewall", "便签墙生成", ["diary", "notewall"]),
-            profile("diary", "notewall_reply", "便签墙回复", ["diary", "notewall_reply"]),
-        ],
-    },
-    {
         id: "xiaohongshu",
         label: "小红书",
         tags: ["xiaohongshu"],
@@ -176,7 +164,6 @@ const LEGACY_TAG_MIGRATIONS = new Map<string, string[]>([
     [JSON.stringify(["chat", "chat-video"]), ["chat", "video"]],
     [JSON.stringify(["moments_npc"]), ["moments", "npc"]],
     [JSON.stringify(["朋友圈", "NPC回复"]), ["moments", "npc_reply"]],
-    [JSON.stringify(["diary", "notewall_generate"]), ["diary", "notewall"]],
     [JSON.stringify(["xiaohongshu", "character_activity"]), ["xiaohongshu", "activity"]],
     [JSON.stringify(["xiaohongshu", "user_post_reaction"]), ["xiaohongshu", "reaction"]],
     [JSON.stringify(["xiaohongshu", "comment_reply"]), ["xiaohongshu", "comment"]],

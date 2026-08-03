@@ -22,7 +22,7 @@ import {
     toolNameMatches,
 } from "./tool-storage";
 import { executeCustomAppToolCall } from "./custom-app-tool-runtime";
-import { CALENDAR_MANAGEMENT_CAPABILITY_ID, LOCAL_DATA_LIBRARY_CAPABILITY_ID, MEMORY_WRITE_CAPABILITY_ID, MUSIC_CONTROL_CAPABILITY_ID, NOTE_WALL_CAPABILITY_ID, SEND_FILE_CAPABILITY_ID, TIMED_WAKE_CAPABILITY_ID, TOOLBOX_MANAGEMENT_CAPABILITY_ID, getInternalCapability } from "./internal-capability-storage";
+import { CALENDAR_MANAGEMENT_CAPABILITY_ID, LOCAL_DATA_LIBRARY_CAPABILITY_ID, MEMORY_WRITE_CAPABILITY_ID, MUSIC_CONTROL_CAPABILITY_ID, SEND_FILE_CAPABILITY_ID, TIMED_WAKE_CAPABILITY_ID, TOOLBOX_MANAGEMENT_CAPABILITY_ID, getInternalCapability } from "./internal-capability-storage";
 import { loadMemoryEntriesByType, saveMemoryEntry } from "./memory-storage";
 import type { MemoryEntry } from "./memory-types";
 import { loadCharacters } from "./character-storage";
@@ -43,9 +43,6 @@ import {
     parseIsoDate,
     sortScheduleItems,
 } from "./calendar-utils";
-import type { NoteWallBoard, NoteWallComment, NoteWallNote, NoteWallSize } from "./notewall-types";
-import { findNoteWallPlacement, normalizeNoteWallSize } from "./notewall-utils";
-import { recordNoteWallCommentEvent, recordNoteWallNoteEvent } from "./notewall-memory";
 import { getMusicControlBridge } from "./music-control-bridge";
 import { loadAllTracks, type MusicTrack } from "./music-storage";
 import {
@@ -740,7 +737,6 @@ function normalizeInternalToolResult(result: ToolResult): ToolResult {
 }
 
 async function executeInternalTool(call: ToolCall, context?: ToolExecutionContext): Promise<ToolResult | null> {
-    if (isNoteWallToolName(call.name)) return executeNoteWallTool(call, context);
     if (isMusicControlToolName(call.name)) return executeMusicControlTool(call, context);
     if (isCalendarToolName(call.name)) return executeCalendarTool(call, context);
     if (isLocalDataToolName(call.name)) return executeLocalDataTool(call);
@@ -763,13 +759,6 @@ async function executeInternalTool(call: ToolCall, context?: ToolExecutionContex
     }
 
     return executeMemoryWriteTool(call.args, capability, context);
-}
-
-function isNoteWallToolName(name: string): boolean {
-    return name === "查看便签列表"
-        || name === "查看便签详情及评论"
-        || name === "发送便签"
-        || name === "发送便签评论";
 }
 
 function isMusicControlToolName(name: string): boolean {
@@ -1533,63 +1522,6 @@ async function executeToolboxManagementTool(call: ToolCall): Promise<ToolResult>
     }
 }
 
-async function executeNoteWallTool(call: ToolCall, context?: ToolExecutionContext): Promise<ToolResult> {
-    const capability = getInternalCapability(NOTE_WALL_CAPABILITY_ID);
-    if (!capability || !capability.enabled || capability.mode === "off") {
-        return {
-            name: call.name,
-            success: false,
-            error: "便签墙能力未启用",
-            continueConversation: false,
-            persistToHistory: false,
-            userNotice: "便签墙能力未启用",
-        };
-    }
-
-    if (!isSupportedChatToolContext(context)) {
-        return {
-            name: call.name,
-            success: false,
-            error: "当前场景暂不支持便签墙动作",
-            continueConversation: false,
-            persistToHistory: false,
-            userNotice: "当前场景暂不支持便签墙动作",
-        };
-    }
-
-    try {
-        switch (call.name) {
-            case "查看便签列表":
-                return await executeNoteWallListTool(call.args);
-            case "查看便签详情及评论":
-                return await executeNoteWallDetailTool(call.args);
-            case "发送便签":
-                return await executeNoteWallCreateNoteTool(call.args, context.characterId);
-            case "发送便签评论":
-                return await executeNoteWallCreateCommentTool(call.args, context.characterId);
-        }
-    } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return {
-            name: call.name,
-            success: false,
-            error: message,
-            continueConversation: false,
-            persistToHistory: false,
-            userNotice: `${call.name}失败：${message}`,
-        };
-    }
-
-    return {
-        name: call.name,
-        success: false,
-        error: "未知便签墙动作",
-        continueConversation: false,
-        persistToHistory: false,
-        userNotice: "未知便签墙动作",
-    };
-}
-
 async function executeMusicControlTool(call: ToolCall, context?: ToolExecutionContext): Promise<ToolResult> {
     const capability = getInternalCapability(MUSIC_CONTROL_CAPABILITY_ID);
     if (!capability || !capability.enabled || capability.mode === "off") {
@@ -2267,52 +2199,6 @@ function clampToolInteger(value: unknown, min: number, max: number, fallback: nu
     return Math.max(min, Math.min(max, Math.floor(parsed)));
 }
 
-type NoteWallListResponse = {
-    ok: boolean;
-    board?: NoteWallBoard;
-    notes?: NoteWallNote[];
-    error?: string;
-};
-
-type NoteWallNoteResponse = {
-    ok: boolean;
-    board?: NoteWallBoard;
-    note?: NoteWallNote;
-    error?: string;
-};
-
-type NoteWallCommentsResponse = {
-    ok: boolean;
-    comments?: NoteWallComment[];
-    error?: string;
-};
-
-type NoteWallCommentResponse = {
-    ok: boolean;
-    comment?: NoteWallComment;
-    error?: string;
-};
-
-async function noteWallFetchJson<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
-    const response = await fetch(input, init);
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok || data?.ok === false) {
-        throw new Error(data?.error || `HTTP ${response.status}`);
-    }
-    return data as T;
-}
-
-async function loadNoteWall(): Promise<{ board: NoteWallBoard; notes: NoteWallNote[] }> {
-    const data = await noteWallFetchJson<NoteWallListResponse>("/api/notewall/notes", { cache: "no-store" });
-    if (!data.board || !data.notes) throw new Error(data.error || "便签墙数据为空");
-    return { board: data.board, notes: data.notes };
-}
-
-function getCurrentCharacter(characterId: string): { id: string; name: string } {
-    const character = loadCharacters().find(item => item.id === characterId);
-    return { id: characterId, name: character?.name || "角色" };
-}
-
 function cleanToolString(value: unknown, maxLength: number): string {
     return String(value ?? "")
         .replace(/\u0000/g, "")
@@ -2320,220 +2206,10 @@ function cleanToolString(value: unknown, maxLength: number): string {
         .slice(0, maxLength);
 }
 
-function cleanToolMultiline(value: unknown, maxLength: number): string {
-    return cleanToolString(value, maxLength)
-        .replace(/\r\n?/g, "\n")
-        .replace(/\\n/g, "\n")
-        .replace(/\n{5,}/g, "\n\n\n\n");
-}
-
-function boolArg(value: unknown): boolean {
-    if (typeof value === "boolean") return value;
-    const text = cleanToolString(value, 24).toLowerCase();
-    return text === "true" || text === "1" || text === "yes" || text === "y" || text === "匿名";
-}
-
 function numberArg(value: unknown, min: number, max: number, fallback: number): number {
     const parsed = typeof value === "number" ? value : Number(value);
     if (!Number.isFinite(parsed)) return fallback;
     return Math.max(min, Math.min(max, Math.round(parsed)));
-}
-
-function clipToolText(value: string, maxLength: number): string {
-    return value.length > maxLength ? `${value.slice(0, maxLength)}…` : value;
-}
-
-function serializeNoteList(notes: NoteWallNote[], limit: number, sort: string): string {
-    const sorted = [...notes].filter(note => !note.deletedAt);
-    if (sort === "hot") {
-        sorted.sort((a, b) => (b.commentCount - a.commentCount) || Date.parse(b.createdAt) - Date.parse(a.createdAt));
-    } else if (sort === "all") {
-        sorted.sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
-    } else {
-        sorted.sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
-    }
-
-    return JSON.stringify({
-        notes: sorted.slice(0, limit).map(note => ({
-            noteId: note.id,
-            authorName: note.authorName,
-            createdAt: note.createdAt,
-            title: note.summary,
-            bodyPreview: clipToolText(note.body || note.summary, 180),
-            commentCount: note.commentCount,
-        })),
-    });
-}
-
-async function executeNoteWallListTool(args: Record<string, unknown>): Promise<ToolResult> {
-    const limit = numberArg(args.limit, 1, 30, 20);
-    const sort = cleanToolString(args.sort, 20);
-    const normalizedSort = sort === "hot" || sort === "all" ? sort : "latest";
-    const { notes } = await loadNoteWall();
-    return {
-        name: "查看便签列表",
-        success: true,
-        data: truncate(serializeNoteList(notes, limit, normalizedSort)),
-        continueConversation: true,
-        persistToHistory: true,
-        userNotice: "已查看便签列表",
-    };
-}
-
-async function executeNoteWallDetailTool(args: Record<string, unknown>): Promise<ToolResult> {
-    const noteId = cleanToolString(args.noteId ?? args.note_id ?? args.id, 120);
-    if (!noteId) {
-        return {
-            name: "查看便签详情及评论",
-            success: false,
-            error: "缺少 noteId 参数",
-            continueConversation: false,
-            persistToHistory: false,
-            userNotice: "缺少便签 noteId",
-        };
-    }
-
-    const commentLimit = numberArg(args.commentLimit ?? args.comment_limit, 1, 30, 20);
-    const { notes } = await loadNoteWall();
-    const note = notes.find(item => item.id === noteId && !item.deletedAt);
-    if (!note) {
-        return {
-            name: "查看便签详情及评论",
-            success: false,
-            error: "未找到这张便签",
-            continueConversation: false,
-            persistToHistory: false,
-            userNotice: "未找到这张便签",
-        };
-    }
-
-    const commentData = await noteWallFetchJson<NoteWallCommentsResponse>(
-        `/api/notewall/comments?noteId=${encodeURIComponent(noteId)}`,
-        { cache: "no-store" },
-    );
-    const comments = (commentData.comments ?? []).filter(comment => !comment.deletedAt).slice(-commentLimit);
-    return {
-        name: "查看便签详情及评论",
-        success: true,
-        data: truncate(JSON.stringify({
-            note: {
-                noteId: note.id,
-                authorName: note.authorName,
-                createdAt: note.createdAt,
-                title: note.summary,
-                body: note.body || note.summary,
-                commentCount: note.commentCount,
-            },
-            comments: comments.map(comment => ({
-                commentId: comment.id,
-                authorName: comment.authorName,
-                createdAt: comment.createdAt,
-                body: comment.body,
-            })),
-        })),
-        continueConversation: true,
-        persistToHistory: true,
-        userNotice: "已查看便签详情",
-    };
-}
-
-async function executeNoteWallCreateNoteTool(args: Record<string, unknown>, characterId: string): Promise<ToolResult> {
-    const character = getCurrentCharacter(characterId);
-    const body = cleanToolMultiline(args.body ?? args.content ?? args.text, 3000);
-    const summary = cleanToolString(args.summary ?? args.title ?? args.heading ?? body.slice(0, 48), 80);
-    if (!body && !summary) {
-        return {
-            name: "发送便签",
-            success: false,
-            error: "缺少 body 或 summary 参数",
-            continueConversation: false,
-            persistToHistory: false,
-            userNotice: "便签内容为空，未发送",
-        };
-    }
-
-    const size = normalizeNoteWallSize(args.size) as NoteWallSize;
-    const { board, notes } = await loadNoteWall();
-    const placement = findNoteWallPlacement(notes, board, size);
-    const data = await noteWallFetchJson<NoteWallNoteResponse>("/api/notewall/notes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            authorType: "character",
-            authorId: character.id,
-            actorId: character.id,
-            authorName: cleanToolString(args.authorName ?? args.author_name ?? args.signature ?? args.name, 80) || character.name,
-            summary: summary || clipToolText(body, 48),
-            body: body || summary,
-            x: placement.x,
-            y: placement.y,
-            size,
-            paper: cleanToolString(args.paper, 32) || "plain",
-            tape: cleanToolString(args.tape, 32) || "none",
-            font: cleanToolString(args.font, 32) || "default",
-            rawCss: "",
-            isAnonymous: boolArg(args.isAnonymous ?? args.is_anonymous ?? args.anonymous),
-        }),
-    });
-    if (!data.note) throw new Error(data.error || "便签创建失败");
-    recordNoteWallNoteEvent({
-        characterId: character.id,
-        characterName: character.name,
-        note: data.note,
-    });
-
-    return {
-        name: "发送便签",
-        success: true,
-        data: `便签发送成功：noteId=${data.note.id}`,
-        continueConversation: false,
-        persistToHistory: false,
-        userNotice: "已发送便签",
-    };
-}
-
-async function executeNoteWallCreateCommentTool(args: Record<string, unknown>, characterId: string): Promise<ToolResult> {
-    const character = getCurrentCharacter(characterId);
-    const noteId = cleanToolString(args.noteId ?? args.note_id ?? args.id, 120);
-    const body = cleanToolMultiline(args.body ?? args.comment ?? args.text, 1200);
-    if (!noteId || !body) {
-        return {
-            name: "发送便签评论",
-            success: false,
-            error: "缺少 noteId 或 body 参数",
-            continueConversation: false,
-            persistToHistory: false,
-            userNotice: "评论参数不完整，未发送",
-        };
-    }
-
-    const data = await noteWallFetchJson<NoteWallCommentResponse>("/api/notewall/comments", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            noteId,
-            authorId: character.id,
-            actorId: character.id,
-            authorName: cleanToolString(args.authorName ?? args.author_name ?? args.signature ?? args.name, 80) || character.name,
-            body,
-            isAnonymous: boolArg(args.isAnonymous ?? args.is_anonymous ?? args.anonymous),
-        }),
-    });
-    if (!data.comment) throw new Error(data.error || "评论创建失败");
-    recordNoteWallCommentEvent({
-        characterId: character.id,
-        characterName: character.name,
-        comment: data.comment,
-    });
-
-    return {
-        name: "发送便签评论",
-        success: true,
-        data: `评论发送成功：commentId=${data.comment.id}`,
-        continueConversation: false,
-        persistToHistory: false,
-        userNotice: "已发送便签评论",
-    };
 }
 
 async function executeMemoryWriteTool(

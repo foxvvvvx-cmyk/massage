@@ -1209,8 +1209,7 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets }: Deskto
       "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Noto Serif SC", "Source Han Serif SC", "SF Pro Text", "Inter", "Segoe UI",
       "Microsoft YaHei", "STKaiti", "KaiTi", "Arial", "Helvetica", "AIVirtualPhoneUserFont",
       "Huiwen", "Bodoni Moda", "EB Garamond", "Long Cang", "Special Elite", "Cinzel", "Press Start 2P",
-      "Game Hall Fredoka", "Game Hall Caveat", "Game Hall Zen Maru Gothic",
-      "NoteWall Ximai", "NoteWall Xiaozhitiao", "NoteWall Huiwen"
+      "Game Hall Fredoka", "Game Hall Caveat", "Game Hall Zen Maru Gothic"
     ];
     if (systemFonts.some(f => f.toLowerCase() === fontName.toLowerCase())) return;
     const linkId = "user-google-font";

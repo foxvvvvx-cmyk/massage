@@ -13,7 +13,6 @@ import { estimateTokens } from "./token-counter";
 import { loadStoryProjectionEntries } from "./story-storage";
 import { buildTwoLevelMomentThreads } from "./moments-comment-threading";
 import { loadGameProjectionEntries } from "./game-storage";
-import { loadNoteWallProjectionEntries } from "./notewall-memory";
 import { loadXiaohongshuProjectionEntries } from "./xiaohongshu-memory";
 import { formatXiaohongshuShareForPrompt } from "./chat-share";
 import { loadBlackMarketTheaterProjectionEntries } from "./black-market-storage";
@@ -44,8 +43,8 @@ function formatPhotoDirectiveForPrompt(msg: ChatMessage): string {
 
 export type NativeTimelineEntry = {
     id: string;
-    sourceApp: "chat" | "moments" | "story" | "game" | "diary" | "xiaohongshu" | "checkphone" | "custom_app";
-    sourceDetail?: "direct" | "group" | "system" | "story" | "chat_offline" | "game" | "notewall" | "xiaohongshu" | "black_market_theater" | "checkphone" | "custom_app_event"; // chat sub-type: 1:1 vs group chat vs system note
+    sourceApp: "chat" | "moments" | "story" | "game" | "xiaohongshu" | "checkphone" | "custom_app";
+    sourceDetail?: "direct" | "group" | "system" | "story" | "chat_offline" | "game" | "xiaohongshu" | "black_market_theater" | "checkphone" | "custom_app_event"; // chat sub-type: 1:1 vs group chat vs system note
     authorType?: "user" | "character" | "npc"; // who authored this entry
     postAuthorType?: "user" | "character"; // for moments: who owns the parent post
     sessionId?: string;
@@ -553,26 +552,6 @@ export function loadNativeTimeline(
         });
     }
 
-    // ── Note wall projections ──
-    const noteWallEntries = loadNoteWallProjectionEntries(characterId, {
-        afterTimestamp: options?.afterTimestamp,
-    });
-    for (const noteWallEntry of noteWallEntries) {
-        entries.push({
-            id: noteWallEntry.id,
-            sourceApp: "diary",
-            sourceDetail: "notewall",
-            authorType: "character",
-            timestamp: noteWallEntry.timestamp,
-            content: formatStoredPromptEventContent(noteWallEntry.content, {
-                label: "便签墙",
-                timestamp: noteWallEntry.timestamp,
-                timeAware,
-                timestampOptions,
-            }),
-        });
-    }
-
     // ── Xiaohongshu projections ──
     const xiaohongshuEntries = loadXiaohongshuProjectionEntries(characterId, {
         afterTimestamp: options?.afterTimestamp,
@@ -644,7 +623,7 @@ export function loadNativeTimeline(
 }
 
 // Fixed order — lower = further from LLM output (appears higher in prompt)
-const FEATURE_ORDER: Record<string, number> = { game: 0.5, moments: 1, xiaohongshu: 1.5, checkphone: 1.7, story: 2, theater: 2.2, notewall: 2.5, custom_app: 2.6, group_chat: 3, chat: 4 };
+const FEATURE_ORDER: Record<string, number> = { game: 0.5, moments: 1, xiaohongshu: 1.5, checkphone: 1.7, story: 2, theater: 2.2, custom_app: 2.6, group_chat: 3, chat: 4 };
 // Map appId → XML tag name for the "current feature" wrapper
 const FEATURE_TAG: Record<string, string> = {
     chat: "recent_chat",
@@ -652,7 +631,6 @@ const FEATURE_TAG: Record<string, string> = {
     moments: "recent_moments",
     story: "recent_events",
     game: "recent_game",
-    diary: "recent_notewall",
     xiaohongshu: "recent_xiaohongshu",
     checkphone: "recent_checkphone",
 };
@@ -870,11 +848,6 @@ export function prepareShortTermContext(
     const gameEventEntries = timeline.filter(e => e.sourceApp === "game");
     if (gameEventEntries.length > 0) {
         raw.push({ tag: "recent_game", order: FEATURE_ORDER.game, entries: gameEventEntries });
-    }
-
-    const noteWallEntries = timeline.filter(e => e.sourceApp === "diary" && e.sourceDetail === "notewall");
-    if (noteWallEntries.length > 0) {
-        raw.push({ tag: "recent_notewall", order: FEATURE_ORDER.notewall, entries: noteWallEntries });
     }
 
     const xiaohongshuEntries = timeline.filter(e => e.sourceApp === "xiaohongshu");
@@ -1103,11 +1076,6 @@ export function prepareGroupShortTermContext(
         raw.push({ tag: "recent_game", order: FEATURE_ORDER.game, entries: gameEntries });
     }
 
-    const noteWallEntries = timeline.filter(e => e.sourceApp === "diary" && e.sourceDetail === "notewall");
-    if (noteWallEntries.length > 0) {
-        raw.push({ tag: "recent_notewall", order: FEATURE_ORDER.notewall, entries: noteWallEntries });
-    }
-
     const xiaohongshuEntries = timeline.filter(e => e.sourceApp === "xiaohongshu");
     if (xiaohongshuEntries.length > 0) {
         raw.push({ tag: "recent_xiaohongshu", order: FEATURE_ORDER.xiaohongshu, entries: xiaohongshuEntries });
@@ -1215,8 +1183,7 @@ export function prepareGroupShortTermContext(
                                 entry.sourceApp === "checkphone" ? "recent_checkphone" :
                                     entry.sourceApp === "custom_app" ? "recent_custom_app" :
                                         entry.sourceApp === "story" && entry.sourceDetail === "black_market_theater" ? "recent_theater" :
-                                            entry.sourceApp === "diary" && entry.sourceDetail === "notewall" ? "recent_notewall" :
-                                                entry.sourceApp === "chat" ? "recent_chat" : "recent_events"
+                                            entry.sourceApp === "chat" ? "recent_chat" : "recent_events"
                 ),
                 text: entry.content,
             });

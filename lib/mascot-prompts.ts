@@ -502,7 +502,6 @@ prompt 仅在所有 tag 都匹配当前场景时才会注入。
 · moments — 朋友圈
 · story — 剧情模式
 · calendar — 日程生成
-· diary — 便签墙
 · xiaohongshu — 小红书 app
 · reading — 阅读 app
 · checkphone — 查手机功能（含微博/Instagram/YouTube 等 20+ 子 app）
@@ -514,7 +513,6 @@ prompt 仅在所有 tag 都匹配当前场景时才会注入。
 · followup — chat 子细化（追更）
 · timed_wake — chat 子细化（稍后主动联系触发）
 · activity / reaction / comment / mention — xiaohongshu 子细化
-· notewall / notewall_reply — diary 子细化
 · annotate / discuss — reading 子细化
 
 【判断 tag 含义的方法】

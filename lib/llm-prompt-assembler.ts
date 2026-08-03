@@ -100,8 +100,6 @@ export interface AssemblerInput {
     chapterContent?: string;
     annotationHistory?: string;
     readingQuote?: string;                  // Shared Reading：「聊这句」引用的句子
-    noteWallContext?: string;
-    diaryEntryContext?: string;
     xiaohongshuFeedContext?: string;
     xiaohongshuUserPostContext?: string;
     xiaohongshuCommentContext?: string;
@@ -692,8 +690,6 @@ export function assemblePromptPayload(input: AssemblerInput): LLMMessage[] {
         engine.chapterContent = input.chapterContent ?? "";
         engine.annotationHistory = input.annotationHistory ?? "";
         engine.readingQuote = input.readingQuote ?? "";
-        engine.noteWallContext = input.noteWallContext ?? "";
-        engine.diaryEntryContext = input.diaryEntryContext ?? "";
         engine.xiaohongshuFeedContext = input.xiaohongshuFeedContext ?? "";
         engine.xiaohongshuUserPostContext = input.xiaohongshuUserPostContext ?? "";
         engine.xiaohongshuCommentContext = input.xiaohongshuCommentContext ?? "";
@@ -991,8 +987,6 @@ export function assemblePromptPayload(input: AssemblerInput): LLMMessage[] {
         engine.phoneAppLabel = input.phoneAppLabel ?? "";
         engine.phoneSnapshotSummary = input.phoneSnapshotSummary ?? "";
         engine.phoneLastRefreshAt = input.phoneLastRefreshAt ?? "";
-        engine.noteWallContext = input.noteWallContext ?? "";
-        engine.diaryEntryContext = input.diaryEntryContext ?? "";
         engine.xiaohongshuFeedContext = input.xiaohongshuFeedContext ?? "";
         engine.xiaohongshuUserPostContext = input.xiaohongshuUserPostContext ?? "";
         engine.xiaohongshuCommentContext = input.xiaohongshuCommentContext ?? "";

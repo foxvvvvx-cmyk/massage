@@ -64,8 +64,6 @@ export class MacroEngine {
     chapterContent: string = "";
     annotationHistory: string = "";
     readingQuote: string = "";
-    noteWallContext: string = "";
-    diaryEntryContext: string = "";
     xiaohongshuFeedContext: string = "";
     xiaohongshuUserPostContext: string = "";
     xiaohongshuCommentContext: string = "";
@@ -189,8 +187,6 @@ export class MacroEngine {
         if (body === "chapterContent") return this.chapterContent || "\x00TRIM\x00";
         if (body === "annotationHistory") return this.annotationHistory || "\x00TRIM\x00";
         if (body === "readingQuote") return this.readingQuote || "\x00TRIM\x00";
-        if (body === "noteWallContext") return this.noteWallContext || "暂无便签";
-        if (body === "diaryEntryContext") return this.diaryEntryContext || "暂无日记";
         if (body === "xiaohongshuFeedContext") return this.xiaohongshuFeedContext || "暂无小红书笔记";
         if (body === "xiaohongshuUserPostContext") return this.xiaohongshuUserPostContext || "暂无用户小红书笔记";
         if (body === "xiaohongshuCommentContext") return this.xiaohongshuCommentContext || "暂无小红书评论上下文";
