@@ -7,8 +7,6 @@ import { PresetConfig, Prompt, PromptOrderEntry, WorldBookConfig, RegexConfig, W
 import type { UserIdentity } from "@/components/settings/user-identity";
 import { MacroEngine, postProcessTrim } from "./macro-engine";
 import type { RecentBlock, UnifiedRecentItem } from "./short-term-assembler";
-import { readDwellingLayoutCache } from "./dwelling-storage";
-import { formatDwellingContext } from "./dwelling-engine";
 import { matchesActiveTags } from "./content-tag-utils";
 import { formatXiaohongshuShareForPrompt } from "./chat-share";
 import { stripStateAndInnerForPrompt } from "./prompt-sanitizer";
@@ -97,11 +95,6 @@ export interface AssemblerInput {
     phoneSnapshotSummary?: string;
     phoneLastRefreshAt?: string;
     characterRelations?: string;          // formatted world-group relationship marker
-    dwellingContext?: string;               // formatted dwelling layout snapshot for cross-app reference
-    dwellingRoom?: string;
-    dwellingFurniture?: string;
-    dwellingItem?: string;
-    dwellingItemPreview?: string;
     bookTitle?: string;
     chapterTitle?: string;
     chapterContent?: string;
@@ -410,7 +403,6 @@ function getMarkerContent(
     regexGroups?: RegexConfig[],
     regexCtx?: RegexContext,
     characterRelations?: string,
-    dwellingContext?: string,
 ): string | null {
     switch (identifier) {
         case "charDescription":
@@ -438,12 +430,6 @@ function getMarkerContent(
         case "characterRelations": {
             const relations = characterRelations?.trim() || formatCharacterRelationsForPrompt(character.id).trim();
             return relations || null;
-        }
-        case "dwellingContext": {
-            if (dwellingContext?.trim()) return dwellingContext;
-            // Auto-load from in-memory cache if not explicitly provided
-            const cached = readDwellingLayoutCache(character.id);
-            return cached ? formatDwellingContext(cached.layout, cached.updatedAt) : null;
         }
         case "chatHistory":     // backward compat
         case "shortTermMemory":
@@ -701,10 +687,6 @@ export function assemblePromptPayload(input: AssemblerInput): LLMMessage[] {
         engine.phoneAppLabel = input.phoneAppLabel ?? "";
         engine.phoneSnapshotSummary = input.phoneSnapshotSummary ?? "";
         engine.phoneLastRefreshAt = input.phoneLastRefreshAt ?? "";
-        engine.dwellingRoom = input.dwellingRoom ?? "";
-        engine.dwellingFurniture = input.dwellingFurniture ?? "";
-        engine.dwellingItem = input.dwellingItem ?? "";
-        engine.dwellingItemPreview = input.dwellingItemPreview ?? "";
         engine.bookTitle = input.bookTitle ?? "";
         engine.chapterTitle = input.chapterTitle ?? "";
         engine.chapterContent = input.chapterContent ?? "";
@@ -826,7 +808,6 @@ export function assemblePromptPayload(input: AssemblerInput): LLMMessage[] {
                     longTermMemories,
                     regexes, { macroEngine: engine, activeTags },
                     input.characterRelations,
-                    input.dwellingContext,
                 );
                 if (markerContent) {
                     // Expand macros in marker content ({{char}}/{{user}} in char descriptions etc.)
@@ -1010,10 +991,6 @@ export function assemblePromptPayload(input: AssemblerInput): LLMMessage[] {
         engine.phoneAppLabel = input.phoneAppLabel ?? "";
         engine.phoneSnapshotSummary = input.phoneSnapshotSummary ?? "";
         engine.phoneLastRefreshAt = input.phoneLastRefreshAt ?? "";
-        engine.dwellingRoom = input.dwellingRoom ?? "";
-        engine.dwellingFurniture = input.dwellingFurniture ?? "";
-        engine.dwellingItem = input.dwellingItem ?? "";
-        engine.dwellingItemPreview = input.dwellingItemPreview ?? "";
         engine.noteWallContext = input.noteWallContext ?? "";
         engine.diaryEntryContext = input.diaryEntryContext ?? "";
         engine.xiaohongshuFeedContext = input.xiaohongshuFeedContext ?? "";

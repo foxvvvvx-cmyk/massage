@@ -232,12 +232,11 @@ export const DATA_MODULES: DataModuleDefinition[] = [
   {
     id: "creative",
     label: "创作与玩法",
-    description: "故事、住宅、黑市与查手机快照",
+    description: "故事、黑市与查手机快照",
     variant: "success",
     large: true,
     sources: [
       { type: "indexeddb", dbName: "AiPhoneStoryDB", label: "故事" },
-      { type: "indexeddb", dbName: "AiPhoneDwellingDB", label: "住宅" },
       { type: "indexeddb", dbName: "AiPhoneCheckPhoneDB", label: "查手机快照" },
       {
         type: "kv",

@@ -19,7 +19,6 @@ import { PhoneCalendarApp } from "@/components/calendar-app";
 import { XiaohongshuApp } from "@/components/xiaohongshu/xiaohongshu-app";
 import { StoryApp } from "@/components/story/story-app";
 import ReadingApp from "@/components/reading/reading-app";
-import { DwellingApp } from "@/components/dwelling/dwelling-app";
 import { MascotFloat } from "@/components/mascot/mascot-float";
 import { useMusicControlsOptional } from "@/lib/music-context";
 import { PhoneResourcesApp, type ResourceSubPage } from "@/components/phone-resources-app";
@@ -32,7 +31,6 @@ import { deleteDatabase } from "@/lib/data-management/idb";
 import { hydrateStoryStorage } from "@/lib/story-storage";
 import { hydrateMomentsStorage } from "@/lib/moments-storage";
 import { hydrateSettingsDb } from "@/lib/settings-db";
-import { hydrateDwellingStorage } from "@/lib/dwelling-storage";
 import {
   DOCK_DEFAULT,
   ICONS,
@@ -930,12 +928,10 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets }: Deskto
   const backgroundRunSeqRef = useRef(0);
   const pendingCustomAppBackgroundToolsRef = useRef<Map<string, PendingCustomAppBackgroundTool>>(new Map());
   const [resourcesInitialPage, setResourcesInitialPage] = useState<ResourceSubPage>("main");
-  const [dwellingMounted, setDwellingMounted] = useState(false);
   const [xiaohongshuMounted, setXiaohongshuMounted] = useState(false);
   const [xiaohongshuBusy, setXiaohongshuBusy] = useState(false);
   const [shoppingMounted, setShoppingMounted] = useState(false);
   const [shoppingBusy, setShoppingBusy] = useState(false);
-  if (activeApp === "dwelling" && !dwellingMounted) setDwellingMounted(true);
   if (activeApp === "xiaohongshu" && !xiaohongshuMounted) setXiaohongshuMounted(true);
   if (activeApp === "shopping" && !shoppingMounted) setShoppingMounted(true);
   const [widgets, setWidgets] = useState<WidgetInstance[]>([]);
@@ -1487,7 +1483,6 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets }: Deskto
           hydrateSettingsDb(),
           hydrateStoryStorage(),
           hydrateMomentsStorage(),
-          hydrateDwellingStorage(),
         ]);
       } catch (err) {
         console.warn("[Desktop] storage hydration error:", err);
@@ -3100,11 +3095,6 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets }: Deskto
       return <ReadingApp onClose={() => setActiveApp(null)} />;
     }
 
-    if (activeApp === "dwelling") {
-      // DwellingApp is rendered separately (kept alive) — see below
-      return null;
-    }
-
     if (activeApp === "shopping") {
       return null;
     }
@@ -3665,19 +3655,9 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets }: Deskto
                   </>
                 ) : (
                   <>
-                    <section className="phone-app-pane" style={activeApp === "dwelling" || activeApp === "xiaohongshu" || activeApp === "shopping" ? { display: "none" } : undefined}>
+                    <section className="phone-app-pane" style={activeApp === "xiaohongshu" || activeApp === "shopping" ? { display: "none" } : undefined}>
                       {renderAppBody()}
                     </section>
-                    {/* DwellingApp stays mounted while generating — auto-unmounts when idle */}
-                    {dwellingMounted && (
-                      <section className="phone-app-pane" style={activeApp !== "dwelling" ? { display: "none" } : undefined}>
-                        <DwellingApp
-                          onClose={() => setActiveApp(null)}
-                          visible={activeApp === "dwelling"}
-                          onIdle={() => { if (activeApp !== "dwelling") setDwellingMounted(false); }}
-                        />
-                      </section>
-                    )}
                   </>
                 )}
                 {xiaohongshuMounted && (

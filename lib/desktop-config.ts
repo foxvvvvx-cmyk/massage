@@ -8,7 +8,6 @@ export type IconId =
   | "game"
   | "appmarket"
   | "xiaohongshu"
-  | "dwelling"
   | "shopping"
   | "calendar"
   | "moments"
@@ -36,7 +35,6 @@ export const PAGE_2_DEFAULT: IconId[] = [
   "game",
   "appmarket",
   "xiaohongshu",
-  "dwelling",
   "story"
 ];
 
@@ -52,12 +50,6 @@ export const ICONS: Record<IconId, IconMeta> = {
   xiaohongshu: {
     id: "xiaohongshu",
     label: "小红书",
-    tone: "var(--c-icon-rose)",
-    placeholder: false
-  },
-  dwelling: {
-    id: "dwelling",
-    label: "栖所",
     tone: "var(--c-icon-rose)",
     placeholder: false
   },

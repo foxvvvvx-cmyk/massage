@@ -7,7 +7,6 @@ import {
 
 const EXTRA_TAG_LABELS: Record<string, string> = {
     add_friend: "加好友",
-    dwelling: "栖所",
     offline: "线下",
     followup: "追发",
     timed_wake: "稍后主动联系",
@@ -152,17 +151,6 @@ export const CONTENT_SCOPE_TAG_GROUPS: TagGroupProfile[] = [
         })),
     },
     {
-        id: "dwelling",
-        label: "栖所",
-        tags: ["dwelling"],
-        minors: [
-            commonMinor("dwelling", ["dwelling"]),
-            profile("dwelling", "full", "完整布局", ["dwelling", "full"]),
-            profile("dwelling", "items", "物品布局", ["dwelling", "items"]),
-            profile("dwelling", "explore", "探索", ["dwelling", "explore"]),
-        ],
-    },
-    {
         id: "reading",
         label: "阅读",
         tags: ["reading"],
@@ -193,8 +181,6 @@ const LEGACY_TAG_MIGRATIONS = new Map<string, string[]>([
     [JSON.stringify(["xiaohongshu", "user_post_reaction"]), ["xiaohongshu", "reaction"]],
     [JSON.stringify(["xiaohongshu", "comment_reply"]), ["xiaohongshu", "comment"]],
     [JSON.stringify(["xiaohongshu", "mention_reply"]), ["xiaohongshu", "mention"]],
-    [JSON.stringify(["dwelling", "layout_full"]), ["dwelling", "full"]],
-    [JSON.stringify(["dwelling", "layout_items"]), ["dwelling", "items"]],
 ]);
 
 export function normalizePromptScopeTags(tags: unknown): string[] | undefined {

@@ -501,16 +501,11 @@ prompt 仅在所有 tag 都匹配当前场景时才会注入。
 · group_chat — 群聊
 · moments — 朋友圈
 · story — 剧情模式
-· vn — 漫卷（视觉小说）
-· cocreate — 共创小说
 · calendar — 日程生成
-· diary — 日记 / 便签墙
+· diary — 便签墙
 · xiaohongshu — 小红书 app
-· dwelling — 栖所（查看角色的住处状态）
 · reading — 阅读 app
 · checkphone — 查手机功能（含微博/Instagram/YouTube 等 20+ 子 app）
-· adventure — 跑团冒险
-· interview_magazine — 「在场」杂志采访
 · add_friend — 添加好友反应
 
 【常见子场景 tag】（搭配主场景使用）
@@ -518,11 +513,9 @@ prompt 仅在所有 tag 都匹配当前场景时才会注入。
 · post / comment / reply / npc / npc_reply — moments 子细化（朋友圈动作）
 · followup — chat 子细化（追更）
 · timed_wake — chat 子细化（稍后主动联系触发）
-· explore / items / full — dwelling 子细化
 · activity / reaction / comment / mention — xiaohongshu 子细化
-· entries / notewall / notewall_reply — diary 子细化
+· notewall / notewall_reply — diary 子细化
 · annotate / discuss — reading 子细化
-· write / discuss — cocreate 子细化
 
 【判断 tag 含义的方法】
 不要凭空假设 tag 含义。「读取预设」结果里每条 prompt 都会显示它的 tag，根据名字+实际 content 判断它管什么场景就行。
