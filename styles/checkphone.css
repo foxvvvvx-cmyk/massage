@@ -5612,7 +5612,6 @@
 }
 
 .cp-chat-list,
-.cp-chat-moment-feed,
 .cp-chat-bubble-stack,
 .cp-chat-comment-list,
 .cp-chat-mini-list {
@@ -5623,7 +5622,6 @@
 .cp-chat-thread-card,
 .cp-chat-group-card,
 .cp-chat-contact-card,
-.cp-chat-moment-card,
 .cp-chat-mini-card {
   width: 100%;
   border: 0;
@@ -5705,7 +5703,6 @@
 }
 
 .cp-chat-thread-tags,
-.cp-chat-moment-stats,
 .cp-chat-detail-kicker {
   display: flex;
   flex-wrap: wrap;
@@ -5714,9 +5711,7 @@
 
 .cp-chat-thread-tags span,
 .cp-chat-thread-tags em,
-.cp-chat-thread-tags i,
-.cp-chat-moment-stats span,
-.cp-chat-moment-stats em {
+.cp-chat-thread-tags i {
   font-style: normal;
   font-size: calc(11px*var(--app-text-scale,1));
   line-height: 1;
@@ -5734,56 +5729,11 @@
 .cp-chat-mini-card p,
 .cp-chat-contact-note,
 .cp-chat-comment-card p,
-.cp-chat-bubble p,
-.cp-chat-moment-body {
+.cp-chat-bubble p {
   margin: 0;
   font-size: calc(13px*var(--app-text-scale,1));
   line-height: 1.65;
   color: rgba(34, 25, 30, 0.74);
-}
-
-.cp-chat-moment-card {
-  display: grid;
-  gap: 12px;
-  padding: 16px;
-  border-radius: 28px;
-}
-
-.cp-chat-moment-head {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: 10px;
-}
-
-.cp-chat-moment-head--detail {
-  margin-bottom: 6px;
-}
-
-.cp-chat-moment-meta {
-  min-width: 0;
-  display: grid;
-  gap: 4px;
-}
-
-.cp-chat-moment-meta strong {
-  font-size: calc(15px*var(--app-text-scale,1));
-  color: rgba(24, 18, 21, 0.94);
-}
-
-.cp-chat-moment-meta span {
-  font-size: calc(11px*var(--app-text-scale,1));
-  color: rgba(58, 44, 51, 0.46);
-}
-
-.cp-chat-moment-head time {
-  font-size: calc(11px*var(--app-text-scale,1));
-  color: rgba(58, 44, 51, 0.42);
-}
-
-.cp-chat-moment-comments {
-  display: grid;
-  gap: 8px;
 }
 
 .cp-chat-comment-chip,
@@ -5807,8 +5757,7 @@
 }
 
 .cp-chat-detail,
-.cp-chat-contact-detail,
-.cp-chat-moment-detail {
+.cp-chat-contact-detail {
   display: grid;
   gap: 16px;
 }
@@ -5884,17 +5833,6 @@
   max-width: 100%;
   overflow-wrap: anywhere;
   word-break: break-word;
-}
-
-.cp-chat-moment-body--detail {
-  padding: 18px;
-  border-radius: 24px;
-  background: rgba(255, 255, 255, 0.82);
-  box-shadow: 0 16px 32px rgba(124, 106, 116, 0.07);
-}
-
-.cp-chat-moment-stats--detail {
-  justify-content: flex-start;
 }
 
 .cp-chat-reply-to {

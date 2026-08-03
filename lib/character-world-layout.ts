@@ -1,6 +1,6 @@
 // Board layout (drag positions + tilt) for the world-grouping "evidence board".
 // Stored SEPARATELY from character-world-storage so it never touches the
-// world/relation data that the moments engine relies on.
+// underlying world/relation data.
 import { kvGet, kvSet, registerKvMigration } from "./kv-db";
 
 const LAYOUT_KEY = "ai_phone_character_world_layout_v1";

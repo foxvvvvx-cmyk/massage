@@ -8,8 +8,6 @@ import { openIndexedDbAtLeast } from "./idb-open";
 import { kvEntries, kvGet, kvSet, registerKvMigration } from "./kv-db";
 import { deleteMediaRef, isMediaStoreRef, loadMediaBlob, storeMediaBlob } from "./media-cache-storage";
 import { getAudioBlob, deleteTrack, loadAllTracks } from "./music-storage";
-import { momentsDb } from "./moments-db";
-import { hydrateMomentsStorage, updateMomentPost } from "./moments-storage";
 import {
   collectThemeAssetIds,
   deleteThemeAsset,
@@ -36,8 +34,6 @@ export type MediaMaintenanceResult = OrphanThemeCleanupResult & {
   finishedAt: string;
   chatImagesCompressed: number;
   chatImagesCleaned: number;
-  momentImagesCompressed: number;
-  momentImagesCleaned: number;
   xiaohongshuImagesCompressed: number;
   xiaohongshuImagesCleaned: number;
   musicTracksCleaned: number;
@@ -397,43 +393,6 @@ async function compactDataUrlToThemeAsset(dataUrl: string): Promise<{ ref: strin
   };
 }
 
-async function runMomentImageMaintenance(result: MediaMaintenanceResult, nowMs: number, nowIso: string): Promise<void> {
-  await hydrateMomentsStorage().catch(() => undefined);
-  const posts = await momentsDb.posts.toArray().catch(() => []);
-  for (const post of posts) {
-    if (!post.photoUrl) continue;
-    if (isOlderThan(post.createdAt, CLEAN_AFTER_MS, nowMs)) {
-      const updated = updateMomentPost(post.id, { photoUrl: undefined, photoCleanedAt: nowIso });
-      if (updated) await momentsDb.posts.put(updated);
-      result.freedBytes += estimateValueBytes(post.photoUrl);
-      result.momentImagesCleaned += 1;
-      continue;
-    }
-    if (post.photoCompressedAt || !isOlderThan(post.createdAt, COMPRESS_AFTER_MS, nowMs)) continue;
-    const assetId = themeAssetIdFromUrl(post.photoUrl);
-    if (assetId) {
-      const compressed = await compressThemeAssetById(assetId).catch(() => ({ changed: false, freedBytes: 0 }));
-      const updated = updateMomentPost(post.id, { photoCompressedAt: nowIso });
-      if (updated) await momentsDb.posts.put(updated);
-      result.freedBytes += compressed.freedBytes;
-      if (compressed.changed) result.momentImagesCompressed += 1;
-      continue;
-    }
-    if (isDataImageUrl(post.photoUrl)) {
-      const compacted = await compactDataUrlToThemeAsset(post.photoUrl).catch(() => null);
-      if (compacted) {
-        const updated = updateMomentPost(post.id, { photoUrl: compacted.ref, photoCompressedAt: nowIso });
-        if (updated) await momentsDb.posts.put(updated);
-        result.freedBytes += compacted.freedBytes;
-        result.momentImagesCompressed += 1;
-      }
-    }
-  }
-  if (result.momentImagesCleaned > 0 || result.momentImagesCompressed > 0) {
-    window.dispatchEvent(new CustomEvent("moments-updated"));
-  }
-}
-
 function updateXiaohongshuStateNotes(
   state: XiaohongshuState,
   updater: (note: XiaohongshuNote) => XiaohongshuNote,
@@ -712,8 +671,6 @@ function createEmptyResult(startedAt: string): MediaMaintenanceResult {
     finishedAt: startedAt,
     chatImagesCompressed: 0,
     chatImagesCleaned: 0,
-    momentImagesCompressed: 0,
-    momentImagesCleaned: 0,
     xiaohongshuImagesCompressed: 0,
     xiaohongshuImagesCleaned: 0,
     musicTracksCleaned: 0,
@@ -737,8 +694,6 @@ function formatStorageBytes(bytes: number): string {
 export function formatMediaMaintenanceResult(result: MediaMaintenanceResult): string {
   const dynamicChanged = result.chatImagesCompressed
     + result.chatImagesCleaned
-    + result.momentImagesCompressed
-    + result.momentImagesCleaned
     + result.xiaohongshuImagesCompressed
     + result.xiaohongshuImagesCleaned
     + result.musicTracksCleaned
@@ -746,7 +701,6 @@ export function formatMediaMaintenanceResult(result: MediaMaintenanceResult): st
   if (dynamicChanged === 0) return "没有发现需要清理的过期媒体或孤儿主题素材。";
   return [
     `聊天图片：压缩 ${result.chatImagesCompressed}，清理 ${result.chatImagesCleaned}`,
-    `朋友圈图片：压缩 ${result.momentImagesCompressed}，清理 ${result.momentImagesCleaned}`,
     `小红书图片：压缩 ${result.xiaohongshuImagesCompressed}，清理 ${result.xiaohongshuImagesCleaned}`,
     `本地音乐：清理 ${result.musicTracksCleaned}`,
     `孤儿主题素材：删除 ${result.deletedAssets}`,
@@ -764,7 +718,6 @@ export async function runMediaMaintenance(options: { force?: boolean; auto?: boo
     const result = createEmptyResult(startedAt);
     try {
       await runChatImageMaintenance(result, nowMs, startedAt);
-      await runMomentImageMaintenance(result, nowMs, startedAt);
       await runXiaohongshuImageMaintenance(result, nowMs, startedAt);
       await runMusicMaintenance(result, nowMs);
       const orphan = await cleanupOrphanThemeAssets();

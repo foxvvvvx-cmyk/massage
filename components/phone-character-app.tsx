@@ -34,7 +34,6 @@ import {
 } from "@/lib/character-world-storage";
 import { WorldTabStrip, WorldCaseSheet, NewWorldSheet } from "@/components/character/world-tabs";
 import { RelationLinkDialog, RelationPairSheet } from "@/components/character/relation-dialogs";
-import { loadMomentsConfig, saveMomentsConfig } from "@/lib/moments-storage";
 import type { CanvasBgItem } from "@/lib/character-types";
 import { PageShell } from "@/components/ui/page-shell";
 import { ConfirmDialog } from "@/components/ui/modal";
@@ -511,9 +510,9 @@ function CharListView({
   }
 
   /** 「生成配角」确认落库（支持一批）：落库逻辑与聊天名片建档共用 lib/npc-generator 的 materialize */
-  function handleNpcGenerated(results: GeneratedSupportingCharacter[], targetId: string, allowAutoPost: boolean) {
+  function handleNpcGenerated(results: GeneratedSupportingCharacter[], targetId: string) {
     const newChars = results.map((result, index) =>
-      materializeSupportingCharacter(result, targetId, { allowAutoPost, placementIndex: index })
+      materializeSupportingCharacter(result, targetId, { placementIndex: index })
     );
     // materialize 直接写存储；这里回读刷新 React 态（onUpdateChars 会再存一次同数据，无害）
     onUpdateChars(loadCharacters());
@@ -2459,7 +2458,7 @@ function IconTrash({ size = 20 }: { size?: number }) {
 function NpcGeneratorSheet({ characters, onClose, onConfirm }: {
   characters: Character[];
   onClose: () => void;
-  onConfirm: (results: GeneratedSupportingCharacter[], targetId: string, allowAutoPost: boolean) => void;
+  onConfirm: (results: GeneratedSupportingCharacter[], targetId: string) => void;
 }) {
   const [targetId, setTargetId] = useState(characters[0]?.id ?? "");
   const [hint, setHint] = useState("");
@@ -2467,7 +2466,6 @@ function NpcGeneratorSheet({ characters, onClose, onConfirm }: {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [results, setResults] = useState<GeneratedSupportingCharacter[] | null>(null);
-  const [allowAutoPost, setAllowAutoPost] = useState(false);
 
   const targetName = characters.find(c => c.id === targetId)?.name ?? "";
 
@@ -2609,11 +2607,6 @@ function NpcGeneratorSheet({ characters, onClose, onConfirm }: {
               </div>
             ))}
 
-            <label className="flex items-center gap-2 mt-3 wt-paper-label" style={{ fontWeight: 'normal' }}>
-              <input type="checkbox" checked={allowAutoPost} onChange={e => setAllowAutoPost(e.target.checked)} />
-              加好友后允许自动发朋友圈（本批全部生效）
-            </label>
-
             {error && <p className="wt-paper-confirm mt-2">{error}</p>}
 
             <div className="wt-paper-actions mt-4">
@@ -2623,7 +2616,7 @@ function NpcGeneratorSheet({ characters, onClose, onConfirm }: {
               <button
                 className="wt-btn wt-btn-primary flex-1"
                 disabled={confirmDisabled}
-                onClick={() => results && onConfirm(results, targetId, allowAutoPost)}
+                onClick={() => results && onConfirm(results, targetId)}
               >
                 {results.length > 1 ? `确认创建 ${results.length} 位` : "确认创建"}
               </button>

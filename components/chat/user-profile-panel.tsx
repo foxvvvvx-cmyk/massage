@@ -17,11 +17,7 @@ import { CHAT_APP_CSS_EXAMPLE } from "@/lib/css-examples";
 import { Toggle } from "@/components/ui/form";
 import { StickerManager } from "./sticker-manager";
 import { WalletPanel } from "./wallet-panel";
-import { loadMomentsConfig, saveMomentsConfig, DEFAULT_MOMENTS_CONFIG, type MomentsInteractionConfig, getAllPosts } from "@/lib/moments-storage";
 import { loadChatContacts } from "@/lib/chat-storage";
-import { loadCharacters } from "@/lib/character-storage";
-import { triggerImmediatePost } from "@/lib/moments-engine";
-import type { Character } from "@/lib/character-types";
 import { requestNotificationPermission } from "@/lib/browser-notification";
 import { kvGet, kvSet, kvRemove } from "@/lib/kv-db";
 import { formatWalletAmount, getWalletBalance, loadWalletState, WALLET_UPDATED_EVENT } from "@/lib/wallet-storage";
@@ -136,14 +132,13 @@ export function UserProfilePanel({ onClose, className }: UserProfilePanelProps) 
     const [showApiLog, setShowApiLog] = useState(false);
     const [showStickerManager, setShowStickerManager] = useState(false);
     const [showCSSEditor, setShowCSSEditor] = useState(false);
-    const [showMomentsSettings, setShowMomentsSettings] = useState(false);
     const [showWalletPanel, setShowWalletPanel] = useState(false);
     const [identity, setIdentity] = useState<UserIdentity | null>(null);
     const [notifEnabled, setNotifEnabled] = useState(false);
     const [notifHint, setNotifHint] = useState<string | null>(null);
     const [notifChecking, setNotifChecking] = useState(false);
     const [enterToSendEnabled, setEnterToSendEnabled] = useState(false);
-    const [userStats, setUserStats] = useState({ chats: 0, moments: 0, visitors: 1234 });
+    const [userStats, setUserStats] = useState({ chats: 0, visitors: 1234 });
     const [walletSummary, setWalletSummary] = useState(() => {
         const wallet = loadWalletState();
         return {
@@ -170,11 +165,9 @@ export function UserProfilePanel({ onClose, className }: UserProfilePanelProps) 
         // Fetch dynamic user stats
         try {
             const contactsCount = loadChatContacts().length;
-            const userPostsCount = getAllPosts().filter(p => p.authorType === "user").length;
             setUserStats({
                 chats: contactsCount,
-                moments: userPostsCount,
-                visitors: 1234 + contactsCount * 17 + userPostsCount * 43 // simple deterministic mock equation
+                visitors: 1234 + contactsCount * 17 // simple deterministic mock equation
             });
         } catch (e) { }
     }, []);
@@ -236,9 +229,6 @@ export function UserProfilePanel({ onClose, className }: UserProfilePanelProps) 
     }
     if (showStickerManager) {
         return <StickerManager onBack={() => { window.dispatchEvent(new CustomEvent("chat-hide-tabbar", { detail: false })); setShowStickerManager(false); }} />;
-    }
-    if (showMomentsSettings) {
-        return <InlineMomentsSettings onBack={() => { window.dispatchEvent(new CustomEvent("chat-hide-tabbar", { detail: false })); setShowMomentsSettings(false); }} />;
     }
     if (showWalletPanel) {
         return <WalletPanel onBack={() => { window.dispatchEvent(new CustomEvent("chat-hide-tabbar", { detail: false })); setShowWalletPanel(false); }} />;
@@ -315,8 +305,6 @@ export function UserProfilePanel({ onClose, className }: UserProfilePanelProps) 
                             <div className="flex items-center justify-between w-full ts-12 text-[var(--c-text-title)] font-medium mt-0.5">
                                 <span className="opacity-80">Chatting <span className="font-bold opacity-100">{userStats.chats}</span></span>
                                 <span className="opacity-20 text-[calc(10px*var(--app-text-scale,1))] transform scale-y-125">|</span>
-                                <span className="opacity-80">Moments <span className="font-bold opacity-100">{userStats.moments}</span></span>
-                                <span className="opacity-20 text-[calc(10px*var(--app-text-scale,1))] transform scale-y-125">|</span>
                                 <span className="opacity-80">Visitors <span className="font-bold opacity-100">{userStats.visitors}</span></span>
                             </div>
                         </div>
@@ -349,12 +337,6 @@ export function UserProfilePanel({ onClose, className }: UserProfilePanelProps) 
                     {/* Quick Features Row */}
                     <div className="mx-4 mb-4 bg-[var(--c-card)] rounded-2xl flex items-center justify-between p-4 px-6"
                          style={{ boxShadow: "0 8px 24px rgba(0,0,0,0.025)" }}>
-                        <button className="flex flex-col items-center gap-2 flex-1" onClick={() => { window.dispatchEvent(new CustomEvent("chat-hide-tabbar", { detail: true })); setShowMomentsSettings(true); }}>
-                            <div className="w-[42px] h-[42px] rounded-[14px] bg-[color-mix(in_srgb,var(--c-warning)_15%,transparent)] text-[var(--c-warning)] flex items-center justify-center">
-                                <Radio size={22} strokeWidth={2} />
-                            </div>
-                            <span className="ts-12 font-semibold text-[var(--c-text-title)]">朋友圈互动</span>
-                        </button>
                         <button className="flex flex-col items-center gap-2 flex-1" onClick={() => { window.dispatchEvent(new CustomEvent("chat-hide-tabbar", { detail: true })); setShowStickerManager(true); }}>
                             <div className="w-[42px] h-[42px] rounded-[14px] bg-[#10b981]/15 text-[#10b981] flex items-center justify-center">
                                 <Sticker size={22} strokeWidth={2} />
@@ -438,7 +420,7 @@ function ChatCSSEditor({ onBack }: { onBack: () => void }) {
         <PageShell title="自定义 CSS" onBack={() => { window.dispatchEvent(new CustomEvent("chat-hide-tabbar", { detail: false })); onBack(); }}>
             <div className="p-4 flex flex-col gap-3 flex-1">
                 <div className="ts-12 text-[var(--c-text)] opacity-70">
-                    在此输入 CSS 自定义聊天页面样式（联系人列表、朋友圈、聊天室默认样式等）。单独聊天室的 CSS 优先级更高。
+                    在此输入 CSS 自定义聊天页面样式（联系人列表、聊天室默认样式等）。单独聊天室的 CSS 优先级更高。
                 </div>
                 <textarea
                     value={css}
@@ -503,7 +485,7 @@ function FollowUpSettingsEditor({ onBack }: { onBack: () => void }) {
                     </div>
                     <ProfileSettingsSliderItem
                         icon={Heart}
-                        color={CONTENT_APP_ACCENTS.moments}
+                        color="#06B6D4"
                         label="焦虑阈值"
                         desc={`低于 ${config.anxietyThreshold} 时不触发追发`}
                         value={config.anxietyThreshold}
@@ -667,333 +649,3 @@ function ApiLogViewer({ onBack }: { onBack: () => void }) {
     );
 }
 
-/* ══════════════════════════════════════════
-   Inline Moments Interaction Settings (testing)
-   ══════════════════════════════════════════ */
-function InlineMomentsSettings({ onBack }: { onBack: () => void }) {
-    const [config, setConfig] = useState<MomentsInteractionConfig>(loadMomentsConfig);
-    const [editingBilingualPrompt, setEditingBilingualPrompt] = useState(false);
-    const [bilingualPromptDraft, setBilingualPromptDraft] = useState(config.bilingualTranslationPrompt);
-    const [showCharPicker, setShowCharPicker] = useState(false);
-    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-    const [posting, setPosting] = useState(false);
-    const [showAutoPostList, setShowAutoPostList] = useState(false);
-
-    const contacts = loadChatContacts();
-    const chars = loadCharacters();
-    const enriched = contacts
-        .map(c => ({ ...c, char: chars.find(ch => ch.id === c.characterId) }))
-        .filter(c => c.char) as (typeof contacts[number] & { char: Character })[];
-
-    const update = (patch: Partial<MomentsInteractionConfig>) => {
-        const next = { ...config, ...patch };
-        setConfig(next);
-        saveMomentsConfig(next);
-    };
-
-    // 自动发帖角色开关：只拦调度发帖；评论/点赞/手动立即发帖不受影响
-    const disabledAutoPostIds = new Set(config.autoPostDisabledCharacterIds);
-    // 徽标只统计好友范围内被关闭的——生成配角会被预置进禁用名单但未必是好友
-    const disabledContactCount = enriched.filter(c => disabledAutoPostIds.has(c.characterId)).length;
-    const toggleAutoPost = (characterId: string, enabled: boolean) => {
-        const next = new Set(config.autoPostDisabledCharacterIds);
-        if (enabled) next.delete(characterId); else next.add(characterId);
-        update({ autoPostDisabledCharacterIds: [...next] });
-    };
-
-    const openBilingualPromptEditor = () => {
-        setBilingualPromptDraft(config.bilingualTranslationPrompt || DEFAULT_MOMENTS_CONFIG.bilingualTranslationPrompt);
-        setEditingBilingualPrompt(true);
-    };
-
-    const saveBilingualPromptDraft = () => {
-        update({ bilingualTranslationPrompt: bilingualPromptDraft });
-        setEditingBilingualPrompt(false);
-    };
-
-    const toggleSelect = (charId: string) => {
-        setSelectedIds(prev => {
-            const next = new Set(prev);
-            if (next.has(charId)) next.delete(charId); else next.add(charId);
-            return next;
-        });
-    };
-
-    const handleBatchPost = () => {
-        if (selectedIds.size === 0 || posting) return;
-        setPosting(true);
-        setShowCharPicker(false);
-        triggerImmediatePost([...selectedIds]);
-        setSelectedIds(new Set());
-    };
-
-    useEffect(() => {
-        const handler = () => setPosting(false);
-        window.addEventListener("moments-immediate-post-done", handler);
-        return () => window.removeEventListener("moments-immediate-post-done", handler);
-    }, []);
-
-    return (
-        <PageShell title="朋友圈互动设置" onBack={onBack} className="absolute inset-0 z-[100]">
-            <div className="page-menu profile-settings-menu">
-                <div className="menu-group">
-                    <ProfileSettingsSliderItem
-                        icon={Radio}
-                        color={CONTENT_APP_ACCENTS.moments}
-                        label="最短发帖间隔"
-                        desc={`${config.postIntervalMinHours}-${config.postIntervalMaxHours} 小时范围`}
-                        value={config.postIntervalMinHours}
-                        valueLabel={`${config.postIntervalMinHours}小时`}
-                        min={1}
-                        max={48}
-                        step={1}
-                        onChange={v => update({ postIntervalMinHours: Math.min(v, config.postIntervalMaxHours) })}
-                    />
-                    <ProfileSettingsSliderItem
-                        icon={Clock}
-                        color={BINDING_ACCENTS.voice}
-                        label="最长发帖间隔"
-                        desc="自动发帖等待时间上限"
-                        value={config.postIntervalMaxHours}
-                        valueLabel={`${config.postIntervalMaxHours}小时`}
-                        min={1}
-                        max={72}
-                        step={1}
-                        onChange={v => update({ postIntervalMaxHours: Math.max(v, config.postIntervalMinHours) })}
-                    />
-                </div>
-
-                <div className="menu-group">
-                    <ProfileSettingsSliderItem
-                        icon={MessageSquare}
-                        color={CONTENT_APP_ACCENTS.chat}
-                        label="首条评论延迟"
-                        desc="发布后第一条评论的等待时间"
-                        value={config.firstCommentDelaySec}
-                        valueLabel={`${config.firstCommentDelaySec}秒`}
-                        min={5}
-                        max={600}
-                        step={5}
-                        onChange={v => update({ firstCommentDelaySec: v })}
-                    />
-                    <ProfileSettingsSliderItem
-                        icon={MessageSquareDashed}
-                        color={CONTENT_APP_ACCENTS.group_chat}
-                        label="后续评论间隔"
-                        desc="连续评论之间的等待时间"
-                        value={config.commentGapSec}
-                        valueLabel={`${config.commentGapSec}秒`}
-                        min={5}
-                        max={300}
-                        step={5}
-                        onChange={v => update({ commentGapSec: v })}
-                    />
-                </div>
-
-                <div className="menu-group">
-                    <ProfileSettingsSliderItem
-                        icon={MessageSquare}
-                        color={BINDING_ACCENTS.api}
-                        label="评论概率"
-                        desc="角色看到动态后发表评论的概率"
-                        value={Math.round(config.commentProb * 100)}
-                        valueLabel={`${Math.round(config.commentProb * 100)}%`}
-                        min={0}
-                        max={100}
-                        step={5}
-                        onChange={v => update({ commentProb: v / 100 })}
-                    />
-                    <ProfileSettingsSliderItem
-                        icon={ThumbsUp}
-                        color={CONTENT_APP_ACCENTS.shopping}
-                        label="点赞概率"
-                        desc="角色看到动态后点赞的概率"
-                        value={Math.round(config.likeProb * 100)}
-                        valueLabel={`${Math.round(config.likeProb * 100)}%`}
-                        min={0}
-                        max={100}
-                        step={5}
-                        onChange={v => update({ likeProb: v / 100 })}
-                    />
-                </div>
-
-                <div className="menu-group">
-                    <ProfileSettingsSliderItem
-                        icon={Clock}
-                        color={CONTENT_APP_ACCENTS.calendar}
-                        label="NPC互动延迟"
-                        desc="NPC 对朋友圈产生互动的延迟"
-                        value={config.npcReactionDelayMin}
-                        valueLabel={`${config.npcReactionDelayMin}分钟`}
-                        min={1}
-                        max={60}
-                        step={1}
-                        onChange={v => update({ npcReactionDelayMin: v })}
-                    />
-                    <ProfileSettingsSliderItem
-                        icon={Bell}
-                        color={BINDING_ACCENTS.embedding}
-                        label="角色回复NPC评论延迟"
-                        desc="角色回复 NPC 评论前的等待时间"
-                        value={config.replyDelaySec}
-                        valueLabel={`${config.replyDelaySec}秒`}
-                        min={1}
-                        max={30}
-                        step={1}
-                        onChange={v => update({ replyDelaySec: v })}
-                    />
-                </div>
-
-                <div className="menu-group">
-                    <div className="menu-item">
-                        <ProfileSettingsIcon icon={MessageSquare} color={CONTENT_APP_ACCENTS.moments} />
-                        <div className="menu-label-group">
-                            <span className="menu-label">朋友圈双语翻译</span>
-                            <span className="menu-desc">外语帖子、评论和回复自动附中文译文</span>
-                        </div>
-                        <div className="menu-right">
-                            <Toggle
-                                checked={config.bilingualTranslationEnabled}
-                                onChange={checked => update({ bilingualTranslationEnabled: checked })}
-                            />
-                        </div>
-                    </div>
-                    {config.bilingualTranslationEnabled && (
-                        <>
-                            <div className="menu-item">
-                                <ProfileSettingsIcon icon={MessageSquareDashed} color={BINDING_ACCENTS.voice} />
-                                <div className="menu-label-group">
-                                    <span className="menu-label">折叠中文译文</span>
-                                    <span className="menu-desc">关闭后默认直接展开中文</span>
-                                </div>
-                                <div className="menu-right">
-                                    <Toggle
-                                        checked={config.collapseBilingualTranslation}
-                                        onChange={checked => update({ collapseBilingualTranslation: checked })}
-                                    />
-                                </div>
-                            </div>
-                            <button className="menu-item" onClick={openBilingualPromptEditor}>
-                                <ProfileSettingsIcon icon={FileCode2} color={BINDING_ACCENTS.api} />
-                                <div className="menu-label-group">
-                                    <span className="menu-label">朋友圈双语提示词</span>
-                                </div>
-                                <div className="menu-right">
-                                    <span className="menu-desc mr-1">
-                                        {config.bilingualTranslationPrompt === DEFAULT_MOMENTS_CONFIG.bilingualTranslationPrompt ? "默认" : "已自定义"}
-                                    </span>
-                                    <ChevronRight size={16} />
-                                </div>
-                            </button>
-                        </>
-                    )}
-                </div>
-
-                <div className="menu-group">
-                    <div className="menu-item" onClick={() => setShowAutoPostList(!showAutoPostList)} style={{ cursor: "pointer" }}>
-                        <ProfileSettingsIcon icon={Radio} color={CONTENT_APP_ACCENTS.moments} />
-                        <div className="menu-label-group">
-                            <span className="menu-label">自动发帖角色</span>
-                            <span className="menu-desc">
-                                {disabledContactCount > 0
-                                    ? `已关闭 ${disabledContactCount} 个角色的自动发帖`
-                                    : "所有好友角色都会按间隔自动发帖"}
-                            </span>
-                        </div>
-                        <div className="menu-right">
-                            <ChevronRight size={16} style={showAutoPostList ? { transform: "rotate(90deg)" } : undefined} />
-                        </div>
-                    </div>
-                    {showAutoPostList && enriched.map(c => (
-                        <div key={c.characterId} className="menu-item" style={{ cursor: "default" }}>
-                            <div className="chat-contact-avatar" style={{ width: 32, height: 32 }}>
-                                {c.char.avatar ? <img src={c.char.avatar} alt="" /> : <ChatFallbackAvatar />}
-                            </div>
-                            <div className="menu-label-group">
-                                <span className="menu-label">{c.char.name}</span>
-                            </div>
-                            <div className="menu-right">
-                                <Toggle
-                                    checked={!disabledAutoPostIds.has(c.characterId)}
-                                    onChange={checked => toggleAutoPost(c.characterId, checked)}
-                                />
-                            </div>
-                        </div>
-                    ))}
-                    {showAutoPostList && enriched.length === 0 && (
-                        <div className="menu-item" style={{ cursor: "default" }}>
-                            <div className="menu-label-group"><span className="menu-desc">还没有好友角色</span></div>
-                        </div>
-                    )}
-                </div>
-
-                <div className="menu-group">
-                    <div className="menu-item" onClick={() => setShowCharPicker(!showCharPicker)} style={{ cursor: "pointer" }}>
-                        <ProfileSettingsIcon icon={Send} color={CONTENT_APP_ACCENTS.chat} />
-                        <div className="menu-label-group">
-                            <span className="menu-label">立即发帖</span>
-                            <span className="menu-desc">{posting ? "发帖中..." : "选择角色立即发一条朋友圈"}</span>
-                        </div>
-                        {showCharPicker && selectedIds.size > 0 && (
-                            <button className="ui-btn ui-btn-success ts-12" style={{ padding: "4px 12px" }}
-                                onClick={e => { e.stopPropagation(); handleBatchPost(); }}
-                            >发帖 ({selectedIds.size})</button>
-                        )}
-                    </div>
-                    {showCharPicker && (
-                        <div className="chat-contact-list">
-                            {enriched.map(c => (
-                                <div key={c.characterId} className="chat-contact-item" onClick={() => toggleSelect(c.characterId)}>
-                                    <div className="chat-contact-avatar"
-                                        style={selectedIds.has(c.characterId) ? { outline: "3px solid var(--c-success)", outlineOffset: "2px" } : undefined}
-                                    >
-                                        {c.char.avatar ? (
-                                            <img src={c.char.avatar} alt="" />
-                                        ) : (
-                                            <ChatFallbackAvatar />
-                                        )}
-                                    </div>
-                                    <span className="chat-contact-name">{c.char.name}</span>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-
-                <div className="menu-group">
-                    <button className="menu-item" onClick={() => { setConfig(DEFAULT_MOMENTS_CONFIG); saveMomentsConfig(DEFAULT_MOMENTS_CONFIG); }}>
-                        <ProfileSettingsIcon icon={RotateCcw} color={BINDING_ACCENTS.regex} />
-                        <div className="menu-label-group"><span className="menu-label menu-label-danger">恢复默认</span></div>
-                    </button>
-                </div>
-
-            </div>
-            {editingBilingualPrompt && (
-                <div className="modal-overlay">
-                    <div className="modal-dialog chat-bilingual-prompt-dialog">
-                        <div className="ts-17 font-semibold text-center text-[var(--c-text)]">朋友圈双语提示词</div>
-                        <textarea
-                            className="ui-input chat-bilingual-prompt-textarea"
-                            value={bilingualPromptDraft}
-                            onChange={event => setBilingualPromptDraft(event.target.value)}
-                        />
-                        <div className="flex gap-3 w-full">
-                            <button
-                                onClick={() => setBilingualPromptDraft(DEFAULT_MOMENTS_CONFIG.bilingualTranslationPrompt)}
-                                className="ui-btn ui-btn-outline flex-1"
-                            >
-                                恢复默认
-                            </button>
-                            <button onClick={() => setEditingBilingualPrompt(false)} className="ui-btn ui-btn-ghost flex-1">
-                                取消
-                            </button>
-                            <button onClick={saveBilingualPromptDraft} className="ui-btn ui-btn-success flex-1">
-                                保存
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-        </PageShell>
-    );
-}

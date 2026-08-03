@@ -1,5 +1,5 @@
 export const DEFAULT_CHECKPHONE_BILINGUAL_PROMPT =
-  "This rule only applies to non-Chinese output; Chinese text should be output normally. For readable phone-check text, including titles, bodies, notes, comments, messages, inner thoughts, feelings, status text, Moments, posts, and feed bodies, non-Chinese content must use: complete original text|complete Simplified Chinese translation. For non-Chinese Moments/post/feed body text, keep the original and Chinese translation in the same field; do not put the Chinese translation in a separate paragraph or line without \"|\". Use \"|\" only as the whole-text bilingual separator; use colons, commas, or line breaks inside the text.";
+  "This rule only applies to non-Chinese output; Chinese text should be output normally. For readable phone-check text, including titles, bodies, notes, comments, messages, inner thoughts, feelings, status text, posts, and feed bodies, non-Chinese content must use: complete original text|complete Simplified Chinese translation. For non-Chinese post/feed body text, keep the original and Chinese translation in the same field; do not put the Chinese translation in a separate paragraph or line without \"|\". Use \"|\" only as the whole-text bilingual separator; use colons, commas, or line breaks inside the text.";
 
 export const DEFAULT_XIAOHONGSHU_BILINGUAL_PROMPT = [
   "【小红书双语输出规则（仅非中文角色使用，中文角色忽略此规则）】",
@@ -47,15 +47,6 @@ export const DEFAULT_GROUP_OFFLINE_CHAT_BILINGUAL_PROMPT = [
   "- 使用双语格式的对白必须作为独立段落输出，前后用空行与旁白或其他动作隔开；不要把旁白和“原文|译文”混在同一段。",
   "- 不要为了双语恢复 [角色名]: 群聊气泡格式；仍然遵守线下连续叙事和 XML 输出格式。",
   "- 中文对白正常输出，不要添加 |译文；不要改动 XML 标签。",
-].join("\n");
-
-export const DEFAULT_MOMENTS_BILINGUAL_PROMPT = [
-  "【朋友圈双语规则（仅非中文角色使用，中文角色忽略此规则)】",
-  "- **不改变协议头和结构标签**：只对你实际输出的正文内容使用双语格式，不要翻译或改动协议头和结构标签，不要改动 [回复 昵称]、[不回复]、[NPC点赞]、[NPC评论]、昵称、以及“昵称 回复 被回复者昵称:”这类结构。",
-  "- **中文正常输出无需译文**：如果正文是中文，直接正常输出，不要添加译文",
-  "- **非中文语言译文输出格式**：非中文语言，正文必须使用“原文|对应的简体中文译文”的格式输出，必须有|分割符号。",
-  "- **朋友圈正文双语补充**：如果朋友圈正文、评论正文或回复正文使用非中文，必须在同一段正文里写成“完整外文原文|完整简体中文译文”。",
-  "- **照片双语规则**：如果输出 [照片:使用参考图:描述] 或 [照片:不使用参考图:描述]，只允许描述部分使用双语格式，不要改动照片标签外层结构。",
 ].join("\n");
 
 export const DEFAULT_READING_BILINGUAL_PROMPT = [

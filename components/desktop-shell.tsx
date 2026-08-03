@@ -4,7 +4,6 @@ import { Component, memo, useCallback, useEffect, useInsertionEffect, useLayoutE
 
 import { updateStatusBarTone } from "@/lib/bg-tone";
 import { startFollowUpService, stopFollowUpService } from "@/lib/follow-up-service";
-import { startMomentsService, stopMomentsService } from "@/lib/moments-engine";
 import { bgTimerCleanup } from "@/lib/bg-timer";
 import { PhoneThemeApp } from "@/components/phone-theme-app";
 import { PhoneCharacterApp } from "@/components/phone-character-app";
@@ -27,7 +26,6 @@ import { GameHubApp } from "@/components/game/game-hub-app";
 import { hydrateKvDb, kvGet, kvSet, kvRemove, kvKeysWithPrefix } from "@/lib/kv-db";
 import { deleteDatabase } from "@/lib/data-management/idb";
 import { hydrateStoryStorage } from "@/lib/story-storage";
-import { hydrateMomentsStorage } from "@/lib/moments-storage";
 import { hydrateSettingsDb } from "@/lib/settings-db";
 import {
   DOCK_DEFAULT,
@@ -1156,7 +1154,6 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets }: Deskto
           hydrateChatStorage(),
           hydrateSettingsDb(),
           hydrateStoryStorage(),
-          hydrateMomentsStorage(),
         ]);
       } catch (err) {
         console.warn("[Desktop] storage hydration error:", err);
@@ -1176,7 +1173,6 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets }: Deskto
 
       if (cancelled) return;
       startFollowUpService();
-      startMomentsService();
       const stopWeixinCloudRealtimeSync = startWeixinCloudRealtimeSync();
       servicesStarted = true;
       cleanupWeixinCloudRealtimeSync = stopWeixinCloudRealtimeSync;
@@ -1187,7 +1183,6 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets }: Deskto
       cleanupWeixinCloudRealtimeSync?.();
       if (servicesStarted) {
         stopFollowUpService();
-        stopMomentsService();
       }
       bgTimerCleanup();
     };

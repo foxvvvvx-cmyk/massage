@@ -19,7 +19,6 @@ export const CONTENT_APP_ACCENTS: Record<ContentAppId, string> = {
     story: "#EC4899",
     game: "#3B82F6",
     calendar: "#14B8A6",
-    moments: "#06B6D4",
     group_chat: "#22C55E",
     shopping: "#F59E0B",
 };

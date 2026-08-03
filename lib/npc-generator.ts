@@ -15,7 +15,6 @@ import {
     loadCharacterWorldGroups,
     moveCharacterToWorld,
 } from "./character-world-storage";
-import { loadMomentsConfig, saveMomentsConfig, loadMomentPosts, loadMomentComments } from "./moments-storage";
 import { loadMemoryConfig } from "./memory-storage";
 import { retrieveCoreMemoriesForPrompt, retrieveMemoriesForPrompt } from "./memory-service";
 import { formatCoreMemories, formatLongTermMemories } from "./memory-injector";
@@ -97,43 +96,6 @@ type GenerationOptions = {
     chatContext?: string;
 };
 
-/** 目标角色最近的朋友圈动态 + 评论区：出现过的路人名字（一次性 NPC）是最好的建档素材 */
-function buildMomentsContext(character: Character, maxPosts = 6, maxChars = 1600): string {
-    try {
-        const characters = loadCharacters();
-        const nameById = new Map(characters.map(c => [c.id, c.name || "未命名"]));
-        const posts = loadMomentPosts()
-            .filter(post => post.authorType === "character" && post.authorId === character.id)
-            .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
-            .slice(0, maxPosts);
-        if (posts.length === 0) return "";
-
-        const lines: string[] = [];
-        for (const post of posts) {
-            const content = (post.content || "").trim().slice(0, 120);
-            if (content) lines.push(`动态：${content}`);
-            const likeNames = post.likes
-                .map(like => like.authorType === "user" ? "用户" : like.authorType === "npc" ? like.authorName : nameById.get(like.authorId))
-                .filter((name): name is string => Boolean(name));
-            if (likeNames.length > 0) lines.push(`  点赞：${likeNames.join("、")}`);
-            for (const comment of loadMomentComments(post.id).slice(0, 6)) {
-                const author = comment.authorType === "user"
-                    ? "用户"
-                    : comment.authorType === "npc"
-                        ? (comment.authorName || "路人")
-                        : (nameById.get(comment.authorId) || "路人");
-                const text = (comment.content || "").trim().slice(0, 60);
-                if (text) lines.push(`  ${author} 评论：${text}`);
-            }
-        }
-        let context = lines.join("\n");
-        if (context.length > maxChars) context = context.slice(0, maxChars);
-        return context;
-    } catch {
-        return "";
-    }
-}
-
 function buildSystemPrompt(character: Character, worldContext: string, coreMemories: string, longTermMemories: string, options: GenerationOptions): string {
     const sections: string[] = [];
     sections.push(`你是角色档案助手。以下是角色「${character.name}」的资料，请为TA生成配角（同一世界观中的次要人物），用于丰富TA的人际圈。`);
@@ -142,15 +104,13 @@ function buildSystemPrompt(character: Character, worldContext: string, coreMemor
     if (coreMemories) sections.push(`【核心记忆】\n${coreMemories}`);
     if (longTermMemories) sections.push(`【相关长期记忆】\n${longTermMemories}`);
     if (worldContext) sections.push(`【世界观与人际】\n${worldContext}`);
-    const momentsContext = buildMomentsContext(character);
-    if (momentsContext) sections.push(`【「${character.name}」最近的朋友圈（含评论区出现过的人）】\n${momentsContext}`);
     if (options.chatContext?.trim()) {
         sections.push(`【推荐语境（「${character.name}」与用户的最近对话摘录）】\n${options.chatContext.trim()}`);
     }
     const rules = [
         "生成要求：",
         `- 配角要与「${character.name}」的世界观、生活圈自然契合；不得与已有角色重名或定位重复`,
-        "- 优先呼应角色的记忆与经历：记忆或朋友圈里出现过、但「同世界已有角色」名单里没有的人（某位同事、旧友、家人、常来评论的路人）是最好的配角素材——直接沿用其名字与已透露的信息建档",
+        "- 优先呼应角色的记忆与经历：记忆里出现过、但「同世界已有角色」名单里没有的人（某位同事、旧友、家人）是最好的配角素材——直接沿用其名字与已透露的信息建档",
         "- 人设完整但克制：TA 是配角，不是另一位主角，不要写成天命之子",
     ];
     if (options.fixedName) {
@@ -271,13 +231,13 @@ export async function generateNamedSupportingCharacter(
     return first;
 }
 
-/** 落库：建角色卡 → 贴目标角色旁放置 → 入同世界 → 建双向关系 → 预置发帖开关。
+/** 落库：建角色卡 → 贴目标角色旁放置 → 入同世界 → 建双向关系。
  *  角色 app「生成配角」与聊天名片「现场建档」共用这一份逻辑。
  *  直接写存储；调用方若持有 React 态需自行重新加载。 */
 export function materializeSupportingCharacter(
     result: GeneratedSupportingCharacter,
     targetCharacterId: string,
-    options: { allowAutoPost?: boolean; placementIndex?: number } = {},
+    options: { placementIndex?: number } = {},
 ): Character {
     const characters = loadCharacters();
     const target = characters.find(c => c.id === targetCharacterId);
@@ -310,12 +270,5 @@ export function materializeSupportingCharacter(
         if (result.reverseRelationLabel) addCharacterWorldRelation(groupId, targetCharacterId, newChar.id, result.reverseRelationLabel);
     }
 
-    // 自动发朋友圈默认关闭：预置进禁用名单（加好友后才会真的进入发帖调度）
-    if (!options.allowAutoPost) {
-        const cfg = loadMomentsConfig();
-        if (!cfg.autoPostDisabledCharacterIds.includes(newChar.id)) {
-            saveMomentsConfig({ ...cfg, autoPostDisabledCharacterIds: [...cfg.autoPostDisabledCharacterIds, newChar.id] });
-        }
-    }
     return newChar;
 }

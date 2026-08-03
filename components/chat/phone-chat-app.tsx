@@ -3,11 +3,10 @@
 import { memo, useState, useEffect, useRef } from "react";
 import { ChatMessageList } from "./chat-message-list";
 import { ChatContactsList } from "./chat-contacts-list";
-import { MomentsFeed } from "./moments-feed";
 import { ChatRoom } from "./chat-room";
 import { MascotChatRoom } from "./mascot-chat-room";
 import { UserProfilePanel } from "./user-profile-panel";
-import { MessageCircle, Users, Aperture, UserRound } from "lucide-react";
+import { MessageCircle, Users, UserRound } from "lucide-react";
 import { ChatSession, loadChatSessions, pushChatMessage, hydrateChatStorage } from "@/lib/chat-storage";
 import { notifyMascotPageContext } from "@/lib/mascot-events";
 import { loadCharacters } from "@/lib/character-storage";
@@ -17,7 +16,7 @@ import { formatXiaohongshuShareForPrompt, type ChatSharePayload } from "@/lib/ch
 import { CHAT_OPEN_SESSION_EVENT, CHAT_OPEN_ADD_CONTACT_EVENT } from "@/lib/chat-notification-events";
 import { getMascotSettingsSnapshot } from "@/lib/mascot-settings";
 
-type TabKey = "messages" | "contacts" | "feeds" | "me";
+type TabKey = "messages" | "contacts" | "me";
 
 export type PhoneChatAppProps = {
     onClose: () => void;
@@ -243,7 +242,6 @@ export const PhoneChatApp = memo(function PhoneChatApp({ onClose, initialSession
                         }}
                     />
                 )}
-                {activeTab === "feeds" && <MomentsFeed onCloseApp={onClose} />}
                 {activeTab === "me" && <UserProfilePanel onClose={() => setActiveTab("messages")} />}
             </div>
 
@@ -262,13 +260,6 @@ export const PhoneChatApp = memo(function PhoneChatApp({ onClose, initialSession
                 >
                     <UsersIcon active={activeTab === "contacts"} />
                     <span style={{ fontSize: "calc(10px*var(--app-text-scale,1))", color: activeTab === "contacts" ? undefined : "var(--c-text)" }}>联系人</span>
-                </button>
-                <button
-                    className={`chat-tab ${activeTab === "feeds" ? "chat-tab-active" : ""}`}
-                    onClick={() => setActiveTab("feeds")}
-                >
-                    <CompassIcon active={activeTab === "feeds"} />
-                    <span style={{ fontSize: "calc(10px*var(--app-text-scale,1))", color: activeTab === "feeds" ? undefined : "var(--c-text)" }}>动态</span>
                 </button>
                 <button
                     className={`chat-tab ${activeTab === "me" ? "chat-tab-active" : ""}`}
@@ -304,10 +295,6 @@ function MessageCircleIcon({ active }: { active: boolean }) {
 
 function UsersIcon({ active }: { active: boolean }) {
     return <Users fill="none" stroke="currentColor" strokeWidth={active ? 1.8 : 1.7} size={20} style={{ transform: active ? "scale(1.1)" : "scale(1)", transition: "all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)" }} />;
-}
-
-function CompassIcon({ active }: { active: boolean }) {
-    return <Aperture fill="none" stroke="currentColor" strokeWidth={active ? 1.8 : 1.7} size={20} style={{ transform: active ? "scale(1.1) rotate(25deg)" : "scale(1) rotate(0deg)", transition: "all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)" }} />;
 }
 
 function MeIcon({ active }: { active: boolean }) {

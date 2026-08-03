@@ -501,7 +501,7 @@ const LOCAL_DATA_LIBRARY_SUBTOOLS: InternalToolDefinition[] = [
     },
     {
         name: "搜索资料记录",
-        description: "在本地资料库指定路径内按关键词搜索记录；可用于查角色、聊天、朋友圈、工具箱等。",
+        description: "在本地资料库指定路径内按关键词搜索记录；可用于查角色、聊天、工具箱等。",
         parameterSchema: LOCAL_DATA_SEARCH_PARAMETER_SCHEMA,
     },
     {
@@ -514,14 +514,14 @@ const LOCAL_DATA_LIBRARY_SUBTOOLS: InternalToolDefinition[] = [
 const LOCAL_DATA_LIBRARY_USAGE_GUIDE = [
     "以下是你获取指令的返回结果：",
     "服务：本地资料库",
-    "用途：浏览、读取和搜索{{user}}小手机里的本地数据，包括角色卡、聊天、朋友圈、记忆、工具箱、设置和应用数据。",
+    "用途：浏览、读取和搜索{{user}}小手机里的本地数据，包括角色卡、聊天、记忆、工具箱、设置和应用数据。",
     "",
     "这是一个虚拟文件系统，不是真实源码目录。先列目录，再按需读取或搜索，避免一次读取过多数据。",
     "",
     "常见路径：",
     "- /characters：角色卡与素材",
     "- /chat：聊天联系人、会话、消息和线下模式记录",
-    "- /social：朋友圈、小红书、好友申请和社交互动状态",
+    "- /social：小红书、好友申请和社交互动状态",
     "- /memory：长期记忆、核心记忆和事件计数",
     "- /settings：预设、世界书、正则、工具箱和绑定设置",
     "",
@@ -1019,7 +1019,7 @@ const BUILTIN_INTERNAL_CAPABILITIES: InternalCapabilityConfig[] = [
     {
         id: LOCAL_DATA_LIBRARY_CAPABILITY_ID,
         name: "本地资料库",
-        description: "浏览、读取和搜索{{user}}小手机里的本地数据，包括角色卡、聊天、朋友圈、记忆、工具箱、设置和应用数据。",
+        description: "浏览、读取和搜索{{user}}小手机里的本地数据，包括角色卡、聊天、记忆、工具箱、设置和应用数据。",
         enabled: true,
         mode: "auto",
         createdAt: 0,

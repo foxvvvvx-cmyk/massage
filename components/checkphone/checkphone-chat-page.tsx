@@ -9,7 +9,6 @@ import {
   MessageCircleMore,
   RefreshCw,
   Users,
-  Aperture,
   UserCircle,
   Trash2,
   Search,
@@ -27,7 +26,6 @@ import type {
   CheckPhoneChatBubble,
   CheckPhoneChatConversation,
   CheckPhoneChatGroup,
-  CheckPhoneChatMomentItem,
   CheckPhoneChatPayload,
   CheckPhoneSnapshot,
 } from "@/lib/checkphone-config";
@@ -36,7 +34,6 @@ import {
   findCustomStickerByName,
   resolveCustomStickerUrl,
 } from "@/lib/custom-sticker-storage";
-import { getChatImageFromIndexedDB } from "@/lib/chat-asset-storage";
 import { findStickerByName } from "@/lib/sticker-data";
 import {
   clearPhoneSnapshot,
@@ -51,7 +48,7 @@ type CheckPhoneChatPageProps = {
   onBack: () => void;
 };
 
-type ChatTabId = "conversations" | "groups" | "moments" | "contacts";
+type ChatTabId = "conversations" | "groups" | "contacts";
 type ChatTextPart =
   | { type: "text"; value: string }
   | { type: "sticker"; label: string };
@@ -70,13 +67,6 @@ const CHAT_TABS: Array<{ id: ChatTabId; label: string; title: string; descriptio
     title: "Group Chats",
     description: "Shared rooms and loose plans.",
     icon: Users,
-  },
-  {
-    id: "moments",
-    label: "Moments",
-    title: "Moments",
-    description: "Public traces from the day.",
-    icon: Aperture,
   },
   {
     id: "contacts",
@@ -154,10 +144,6 @@ function formatGroupMemberCountLabel(label: string): string {
 function formatGroupMemberCountWithUnit(label: string): string {
   const count = formatGroupMemberCountLabel(label);
   return /^\d+$/.test(count) ? `${count}人` : count;
-}
-
-function formatMomentCountLabel(label: string): string {
-  return label.trim().replace(/\s*(?:赞|评论)\s*$/, "");
 }
 
 const CHECKPHONE_BUBBLE_MERGE_THRESHOLD_MS = 5 * 60_000;
@@ -352,13 +338,6 @@ function formatCheckPhoneDisplayDate(dateLabel: string): string {
   return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
 }
 
-function sortCheckPhoneItemsByRecent<T extends { timeLabel: string }>(items: T[]): T[] {
-  return items
-    .map((item, index) => ({ item, index, rank: parseCheckPhoneTimeRank(item.timeLabel) }))
-    .sort((a, b) => Number(b.rank > 0) - Number(a.rank > 0) || b.rank - a.rank || a.index - b.index)
-    .map(({ item }) => item);
-}
-
 function sortCheckPhoneGroupsByRecent(items: CheckPhoneChatGroup[]): CheckPhoneChatGroup[] {
   return items
     .map((item, index) => {
@@ -486,103 +465,6 @@ function CheckPhoneMessageContent({
         ),
       )}
     </span>
-  );
-}
-
-function getMomentMediaDescription(item: CheckPhoneChatMomentItem): string {
-  const photoDescription = item.photoDescription?.trim();
-  if (photoDescription) return photoDescription;
-
-  const mediaLabel = item.mediaLabel.trim();
-  if (
-    !mediaLabel ||
-    /^(文字|动态|有图|无图|图片|配图|照片|\d+\s*张图?)$/.test(mediaLabel)
-  ) {
-    return "";
-  }
-
-  const bracketDescription = mediaLabel.match(/^[^（(]*[（(]([\s\S]+)[）)]$/)?.[1]?.trim();
-  if (bracketDescription) return bracketDescription;
-
-  const colonDescription = mediaLabel.match(/^(?:一张图|图片|配图|照片|文字图片|图像|画面)[：:]\s*([\s\S]+)$/)?.[1]?.trim();
-  if (colonDescription) return colonDescription;
-
-  return mediaLabel.length > 8 ? mediaLabel : "";
-}
-
-function CheckPhoneMomentMedia({
-  item,
-}: {
-  item: CheckPhoneChatMomentItem;
-}) {
-  const [resolvedPhotoUrl, setResolvedPhotoUrl] = useState<string | null>(null);
-  const mediaDescription = getMomentMediaDescription(item);
-
-  useEffect(() => {
-    let cancelled = false;
-    const photoUrl = item.photoUrl?.trim();
-    if (!photoUrl) {
-      setResolvedPhotoUrl(null);
-      return;
-    }
-    if (photoUrl.startsWith("asset://")) {
-      getChatImageFromIndexedDB(photoUrl.slice(8)).then((url) => {
-        if (!cancelled) setResolvedPhotoUrl(url);
-      });
-    } else {
-      setResolvedPhotoUrl(photoUrl);
-    }
-    return () => {
-      cancelled = true;
-    };
-  }, [item.photoUrl]);
-
-  if (!resolvedPhotoUrl && !mediaDescription) return null;
-
-  return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: "8px",
-        margin: "0 0 16px",
-        alignItems: "flex-start",
-      }}
-    >
-      {resolvedPhotoUrl ? (
-        <img
-          src={resolvedPhotoUrl}
-          alt={mediaDescription}
-          style={{
-            maxWidth: "100%",
-            maxHeight: "220px",
-            objectFit: "scale-down",
-            borderRadius: "12px",
-            border: "1px solid #f0f0f0",
-            background: "#f8f8f8",
-          }}
-        />
-      ) : null}
-      {mediaDescription ? (
-        <div
-          style={{
-            width: "100%",
-            fontSize: "calc(12px*var(--app-text-scale,1))",
-            fontStyle: "italic",
-            lineHeight: 1.6,
-            color: "rgba(62, 67, 95, 0.62)",
-            background: "#f7f4ff",
-            borderRadius: "12px",
-            padding: "14px 34px",
-            boxSizing: "border-box",
-            whiteSpace: "pre-wrap",
-            textAlign: "center",
-          }}
-        >
-          <CheckPhoneBilingualText text={mediaDescription} tone="chat" />
-        </div>
-      ) : null}
-    </div>
   );
 }
 
@@ -802,10 +684,6 @@ export function CheckPhoneChatPage({
     () => sortCheckPhoneGroupsByRecent(payload?.groups ?? []),
     [payload],
   );
-  const sortedMomentsFeed = useMemo(
-    () => sortCheckPhoneItemsByRecent(payload?.momentsFeed ?? []),
-    [payload],
-  );
   const activeConversation = useMemo(
     () =>
       payload?.conversations.find(
@@ -821,7 +699,7 @@ export function CheckPhoneChatPage({
 
   const subtitle = activeGroup
     ? formatCheckPhoneGroupActivityLabel(activeGroup.activityLabel)
-    : payload?.headerSubtitle || "会话、群聊与朋友圈";
+    : payload?.headerSubtitle || "会话与群聊";
   const homeTitle =
     CHAT_TABS.find((tab) => tab.id === selectedTab)?.title ?? "Chats";
   const homeDescription =
@@ -1061,7 +939,7 @@ export function CheckPhoneChatPage({
         {loaded && !payload && !loading && (
           <div className="cp-chat-status cp-empty-copy">
             <p>暂无聊天内容</p>
-            <span className="cp-chat-hint">点刷新同步会话群聊朋友圈与联系人</span>
+            <span className="cp-chat-hint">点刷新同步会话群聊与联系人</span>
           </div>
         )}
 
@@ -1451,236 +1329,6 @@ export function CheckPhoneChatPage({
                         </div>
                       </div>
                     </button>
-                  ))}
-                </div>
-              )}
-
-              {selectedTab === "moments" && (
-                  <div
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "18px",
-                      padding: "16px 18px",
-                    }}
-                  >
-                  {sortedMomentsFeed.map((item) => (
-                    <article
-                      key={item.id}
-                        style={{
-                          background: "rgba(255, 255, 255, 0.86)",
-                          padding: "18px 18px 20px",
-                          borderRadius: "16px",
-                          border: "1px solid rgba(255, 255, 255, 0.78)",
-                          boxShadow: "0 10px 24px rgba(70, 76, 112, 0.04)",
-                          display: "flex",
-                          flexDirection: "column",
-                        }}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "12px",
-                          marginBottom: "16px",
-                        }}
-                      >
-                        <div
-                          style={{
-                              width: "44px",
-                              height: "44px",
-                              borderRadius: "50%",
-                              background: "linear-gradient(145deg, #e7ddff, #f7f2ff)",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                              fontSize: "calc(14px*var(--app-text-scale,1))",
-                              color: "#7b57e8",
-                              fontWeight: "600",
-                          }}
-                        >
-                          {getInitial(item.authorLabel)}
-                        </div>
-                        <div
-                          style={{
-                            display: "flex",
-                            flexDirection: "column",
-                            flex: 1,
-                          }}
-                        >
-                          <strong
-                            style={{
-                                fontSize: "calc(14px*var(--app-text-scale,1))",
-                                color: "#20243a",
-                                fontWeight: 600,
-                            }}
-                          >
-                            {item.authorLabel}
-                          </strong>
-                          <time
-                            style={{
-                                fontSize: "calc(10px*var(--app-text-scale,1))",
-                                color: "rgba(62, 67, 95, 0.48)",
-                                marginTop: "2px",
-                            }}
-                          >
-                            {formatCheckPhoneDisplayTime(item.timeLabel)}
-                            </time>
-                          </div>
-                          <div
-                            aria-hidden="true"
-                            style={{
-                              color: "rgba(62, 67, 95, 0.36)",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              flexShrink: 0,
-                              transform: "translateY(-14px)",
-                            }}
-                          >
-                            <MoreHorizontal size={22} strokeWidth={2.2} />
-                          </div>
-                        </div>
-                        <p
-                          style={{
-                            margin: "2px 0 18px",
-                            fontSize: "calc(13px*var(--app-text-scale,1))",
-                            color: "#353a54",
-                            lineHeight: 1.75,
-                            letterSpacing: "0.01em",
-                          }}
-                      >
-                        <CheckPhoneBilingualText text={item.body} tone="chat" />
-                      </p>
-                      <CheckPhoneMomentMedia item={item} />
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "16px",
-                          marginBottom: "16px",
-                        }}
-                      >
-                        {item.mediaLabel && !getMomentMediaDescription(item) && (
-                          <span
-                            style={{
-                              fontSize: "calc(10px*var(--app-text-scale,1))",
-                              color: "#666",
-                              background: "#f9f9f9",
-                              padding: "4px 8px",
-                              borderRadius: "4px",
-                            }}
-                          >
-                            {item.mediaLabel}
-                          </span>
-                        )}
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "11px",
-                              marginLeft: "auto",
-                              color: "rgba(130, 100, 235, 0.72)",
-                              fontSize: "calc(13px*var(--app-text-scale,1))",
-                              fontWeight: 500,
-                              lineHeight: 1,
-                            }}
-                          >
-                            <span
-                              style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                gap: "6px",
-                                height: "18px",
-                              }}
-                            >
-                              <Heart
-                                size={18}
-                                fill="currentColor"
-                                strokeWidth={0}
-                                style={{ display: "block", flexShrink: 0, transform: "translateY(-1px)" }}
-                              />
-                              {formatMomentCountLabel(item.likeCountLabel)}
-                            </span>
-                            <span
-                              aria-hidden="true"
-                              style={{
-                                width: "1px",
-                                height: "12px",
-                                background: "rgba(130, 100, 235, 0.20)",
-                              }}
-                            />
-                            <span
-                              style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                gap: "6px",
-                                height: "18px",
-                              }}
-                            >
-                              <MessageCircleMore
-                                size={19}
-                                fill="rgba(130, 100, 235, 0.72)"
-                                color="#fff"
-                                strokeWidth={2.5}
-                                style={{ display: "block", flexShrink: 0, transform: "translateY(-1px)" }}
-                              />
-                              {formatMomentCountLabel(item.commentCountLabel)}
-                            </span>
-                          </div>
-                      </div>
-                      {item.comments.length > 0 && (
-                        <div
-                          style={{
-                              background: "rgba(248, 247, 255, 0.82)",
-                              padding: "14px",
-                              borderRadius: "12px",
-                              border: "1px solid rgba(155, 132, 235, 0.10)",
-                              display: "flex",
-                            flexDirection: "column",
-                            gap: "8px",
-                          }}
-                        >
-                          {item.comments.map((comment) => (
-                            <div
-                              key={comment.id}
-                              style={{
-                                fontSize: "calc(11px*var(--app-text-scale,1))",
-                                color: "#333",
-                                lineHeight: 1.5,
-                              }}
-                            >
-                                <strong style={{ fontWeight: 600, color: "#7b57e8" }}>
-                                {comment.authorLabel}
-                              </strong>
-                              {comment.replyToLabel ? (
-                                <span
-                                  style={{ color: "#999", margin: "0 4px" }}
-                                >
-                                  to
-                                </span>
-                              ) : (
-                                <span style={{ margin: "0 4px" }}>:</span>
-                              )}
-                              {comment.replyToLabel ? (
-                                <strong
-                                  style={{
-                                      fontWeight: 600,
-                                      color: "#7b57e8",
-                                    marginRight: "4px",
-                                  }}
-                                >
-                                  {comment.replyToLabel}:
-                                </strong>
-                              ) : null}
-                              <span><CheckPhoneBilingualText text={comment.text} tone="chat" variant="inline" /></span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </article>
                   ))}
                 </div>
               )}

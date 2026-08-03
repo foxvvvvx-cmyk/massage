@@ -1,29 +1,19 @@
 // lib/action-parser.ts
 // Global action tag parser + dispatcher.
 // Extracts structured action tags from LLM output and dispatches them
-// to the appropriate subsystem (moments, chat, etc.).
+// to the appropriate subsystem (chat, etc.).
 
-import {
-    addMomentPost,
-    addMomentComment,
-    addPendingReaction,
-    getVisibleComments,
-    getVisiblePosts,
-    loadMomentsConfig,
-} from "./moments-storage";
 import { loadChatContacts, loadChatSessions, createOrGetSession, pushChatMessage, createResponseBatchId, addChatContact } from "./chat-storage";
 import { loadCharacters } from "./character-storage";
 import { clearRequestsForCharacter, dispatchFriendRequestUpdated } from "./friend-request-storage";
 import { sendBrowserNotification } from "./browser-notification";
 import { dispatchChatMessageNotice } from "./chat-notification-events";
-import type { MomentPost, MomentComment } from "./moments-types";
-import { generateMomentPhotoUrl, parseMomentPostResponse } from "./moments-engine";
 import { isAbortError, throwIfAborted } from "./abort-utils";
 
 // ── Types ──
 
 export type ActionTag = {
-    type: string;      // "朋友圈" | "评论" | "回复" | "消息" | "私信" | "群消息"
+    type: string;      // "消息" | "私信" | "群消息"
     actor?: string;    // character name performing the action (group chat multi-role)
     target?: string;   // quoted keyword (for content matching / group name)
     content: string;   // action body
@@ -33,14 +23,13 @@ export type ActionTag = {
 export type ActionContext = {
     characterId: string;
     sessionId?: string;
-    sourceEngine: "chat" | "moments" | "group_chat" | "followup";
+    sourceEngine: "chat" | "group_chat" | "followup";
     signal?: AbortSignal;
 };
 
 // ── Parser ──
 
-const ACTION_TAGS = ["朋友圈", "群消息", "评论", "回复", "消息", "私信"] as const;
-const MOMENTS_ACTION_NOTICE_GAP_MS = 800;
+const ACTION_TAGS = ["群消息", "消息", "私信"] as const;
 
 function normalizeActionQuotes(text: string): string {
     return text.replace(/[\u201C\u201D\u2018\u2019\u300C\u300D]/g, "\"");
@@ -131,12 +120,6 @@ function collectActionBlocks(text: string, requireClosingTag: boolean): {
  * Returns the clean text (with all action tags stripped) and an array of parsed actions.
  *
  * Supported formats:
- *   [朋友圈]内容[/朋友圈]                     — single-person
- *   ["角色名"朋友圈]内容[/朋友圈]              — group (actor)
- *   [评论 "关键词"]内容[/评论]                  — single-person
- *   ["角色名"评论 "关键词"]内容[/评论]          — group (actor + target)
- *   [回复 "关键词"]内容[/回复]                  — single-person
- *   ["角色名"回复 "关键词"]内容[/回复]          — group (actor + target)
  *   [消息]内容[/消息]                          — single-person
  *   ["角色名"私信]内容[/私信]                  — group (actor)
  *   [群消息 "群名"]内容[/群消息]                — cross-context
@@ -178,10 +161,9 @@ export function parseActionTags(text: string): {
  */
 const KNOWN_ACTION_TAGS = [
     // 中文方括号格式
-    "朋友圈", "评论", "回复", "消息", "群消息", "私信",
+    "消息", "群消息", "私信",
     // XML 格式 (AI 偶尔幻觉输出)
-    "action_chat_message", "action_moments_post",
-    "action_comment", "action_reply",
+    "action_chat_message",
     "optional_actions",
     // 群聊 XML 格式幻觉
     "group_chat_context", "group_chat_format",
@@ -224,36 +206,21 @@ export async function dispatchActions(
     actions: ActionTag[],
     context: ActionContext,
 ): Promise<void> {
-    let momentsChatNoticeIndex = 0;
     for (const action of actions) {
         try {
             throwIfAborted(context.signal);
             const effectiveCtx = resolveActorContext(action, context);
             if (!effectiveCtx) { console.log("[ActionParser]", `SKIP: actor "${action.actor}" not found`); continue; }
             console.log("[ActionParser]", `dispatching: type=${action.type} charId=${effectiveCtx.characterId}`);
-            const shouldStaggerNotice = context.sourceEngine === "moments"
-                && (action.type === "消息" || action.type === "私信" || action.type === "群消息");
-            const noticeDelayMs = shouldStaggerNotice
-                ? momentsChatNoticeIndex++ * MOMENTS_ACTION_NOTICE_GAP_MS
-                : 0;
             switch (action.type) {
-                case "朋友圈":
-                    await dispatchMomentsPost(action, effectiveCtx);
-                    break;
-                case "评论":
-                    dispatchMomentsComment(action, effectiveCtx);
-                    break;
-                case "回复":
-                    dispatchMomentsReply(action, effectiveCtx);
-                    break;
                 case "消息":
-                    dispatchChatMessage(action, effectiveCtx, noticeDelayMs);
+                    dispatchChatMessage(action, effectiveCtx);
                     break;
                 case "私信":
-                    dispatchPrivateMessage(action, effectiveCtx, noticeDelayMs);
+                    dispatchPrivateMessage(action, effectiveCtx);
                     break;
                 case "群消息":
-                    dispatchGroupChatMessage(action, effectiveCtx, noticeDelayMs);
+                    dispatchGroupChatMessage(action, effectiveCtx);
                     break;
             }
         } catch (err) {
@@ -305,105 +272,6 @@ function dispatchChatMessageNoticeWithDelay(
     dispatchChatMessageNotice(detail);
 }
 
-async function dispatchMomentsPost(action: ActionTag, context: ActionContext): Promise<void> {
-    // Re-wrap content in [朋友圈]...[/朋友圈] so parseMomentPostResponse can parse it
-    const wrapped = `[朋友圈]${action.content}[/朋友圈]`;
-    const parsed = parseMomentPostResponse(wrapped);
-    if (!parsed) {
-        console.warn("[ActionParser] Failed to parse moments post content");
-        return;
-    }
-
-    const contacts = loadChatContacts();
-    const visibility = contacts.map(c => c.characterId);
-    const photoUrl = parsed.photoDescription
-        ? await generateMomentPhotoUrl(parsed.photoDescription, context.characterId, parsed.photoUseReferenceImage === true, context.signal)
-        : undefined;
-    throwIfAborted(context.signal);
-
-    const post = addMomentPost({
-        authorType: "character",
-        authorId: context.characterId,
-        content: parsed.content,
-        photoDescription: parsed.photoDescription,
-        photoUseReferenceImage: parsed.photoUseReferenceImage === true,
-        photoGenerationStatus: parsed.photoDescription ? (photoUrl ? "generated" : "failed") : undefined,
-        photoGenerationError: parsed.photoDescription && !photoUrl ? "生图配置未启用或生成失败" : undefined,
-        photoUrl,
-        visibility,
-    });
-
-    console.log(`[ActionParser] Created moments post from ${context.sourceEngine} engine`);
-    dispatchMomentsUpdated();
-
-    // Trigger NPC reactions (same as moments-engine flow)
-    const cfg = loadMomentsConfig();
-    const delay = (cfg.npcReactionDelayMin + Math.random() * cfg.npcReactionDelayMin) * 60 * 1000;
-    addPendingReaction({
-        type: "npc_reaction",
-        postId: post.id,
-        characterId: context.characterId,
-        fireAt: Date.now() + delay,
-    });
-}
-
-function dispatchMomentsComment(action: ActionTag, context: ActionContext): void {
-    if (!action.target) {
-        console.warn("[ActionParser] 评论 action missing target keyword");
-        return;
-    }
-
-    const post = findPostByContent(action.target, context.characterId);
-    if (!post) {
-        console.warn(`[ActionParser] No post found matching keyword: "${action.target}"`);
-        return;
-    }
-
-    addMomentComment({
-        postId: post.id,
-        authorType: "character",
-        authorId: context.characterId,
-        content: action.content,
-    });
-
-    console.log(`[ActionParser] Created comment on post "${post.content.slice(0, 20)}..." from ${context.sourceEngine}`);
-    dispatchMomentsUpdated();
-    if (post.authorType === "user") {
-        sendBrowserNotification("朋友圈", { body: `${resolveActionCharacterName(action, context)} 评论了你的动态` });
-    }
-}
-
-function dispatchMomentsReply(action: ActionTag, context: ActionContext): void {
-    if (!action.target) {
-        console.warn("[ActionParser] 回复 action missing target keyword");
-        return;
-    }
-
-    const found = findCommentByContent(action.target, context.characterId);
-    if (!found) {
-        console.warn(`[ActionParser] No comment found matching keyword: "${action.target}"`);
-        return;
-    }
-
-    const { post, comment } = found;
-
-    addMomentComment({
-        postId: post.id,
-        authorType: "character",
-        authorId: context.characterId,
-        content: action.content,
-        replyToCommentId: comment.id,
-        replyToAuthorId: comment.authorId,
-        replyToAuthorType: comment.authorType,
-        replyToAuthorName: comment.authorName,
-    });
-
-    console.log(`[ActionParser] Created reply to comment "${comment.content.slice(0, 20)}..." from ${context.sourceEngine}`);
-    dispatchMomentsUpdated();
-    if (comment.authorType === "user") {
-        sendBrowserNotification("朋友圈", { body: `${resolveActionCharacterName(action, context)} 回复了你的评论` });
-    }
-}
 
 function dispatchChatMessage(action: ActionTag, context: ActionContext, noticeDelayMs = 0): void {
     if (!action.content) return;
@@ -498,41 +366,3 @@ function dispatchGroupChatMessage(action: ActionTag, context: ActionContext, not
     }
 }
 
-// ── Content Matching Helpers ──
-
-function findPostByContent(keyword: string, viewerCharacterId: string): MomentPost | null {
-    const posts = getVisiblePosts(viewerCharacterId);
-    // Search most recent posts first (already sorted newest-first)
-    for (const post of posts.slice(0, 50)) {
-        if (contentMatchesActionKeyword(post.content, keyword)) return post;
-    }
-    return null;
-}
-
-function contentMatchesActionKeyword(content: string, keyword: string): boolean {
-    return content.includes(keyword) || normalizeActionQuotes(content).includes(normalizeActionQuotes(keyword));
-}
-
-function findCommentByContent(keyword: string, viewerCharacterId: string): { post: MomentPost; comment: MomentComment } | null {
-    const posts = getVisiblePosts(viewerCharacterId);
-    const postById = new Map(posts.map(post => [post.id, post]));
-    const comments = posts.flatMap(post => getVisibleComments(post.id, viewerCharacterId));
-
-    // Search newest comments first
-    const sorted = [...comments].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-    for (const comment of sorted.slice(0, 100)) {
-        if (contentMatchesActionKeyword(comment.content, keyword)) {
-            const post = postById.get(comment.postId);
-            if (post) return { post, comment };
-        }
-    }
-    return null;
-}
-
-// ── Helpers ──
-
-function dispatchMomentsUpdated(): void {
-    if (typeof window !== "undefined") {
-        window.dispatchEvent(new CustomEvent("moments-updated"));
-    }
-}

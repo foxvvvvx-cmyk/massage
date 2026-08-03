@@ -91,7 +91,7 @@ export function isNativeGoogleApi(config: ApiConfig): boolean {
 
 /**
  * Send a simple LLM request (single user message) and return the text response.
- * Used by summarizer, moments-engine, and other non-chat LLM calls.
+ * Used by summarizer and other non-chat LLM calls.
  * Handles all provider formats automatically.
  */
 export async function simpleLLMCall(

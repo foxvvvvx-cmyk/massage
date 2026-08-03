@@ -1,17 +1,15 @@
 // lib/short-term-assembler.ts
-// Reads native app data (chat messages, moments posts/comments) and provides
+// Reads native app data (chat messages, feature projections) and provides
 // a unified timeline. Replaces the old ShortTermEvent IndexedDB approach.
 // Used by: memory-bank-page (UI display), memory-summarizer (summarization input).
 
 import { isReadingDiscussMessage, isSystemInstructionMessage, loadChatSessions, loadChatMessages, type ChatMessage } from "./chat-storage";
 import { buildGroupAdminBracketText } from "./group-admin";
-import { loadMomentPosts, loadMomentComments } from "./moments-storage";
 import { loadCharacters } from "./character-storage";
 import { resolveUserIdentity } from "./settings-storage";
 import { loadMemoryConfig } from "./memory-storage";
 import { estimateTokens } from "./token-counter";
 import { loadStoryProjectionEntries } from "./story-storage";
-import { buildTwoLevelMomentThreads } from "./moments-comment-threading";
 import { loadGameProjectionEntries } from "./game-storage";
 import { loadXiaohongshuProjectionEntries } from "./xiaohongshu-memory";
 import { formatXiaohongshuShareForPrompt } from "./chat-share";
@@ -21,11 +19,6 @@ import { renderUserNameMacro } from "./user-macro";
 import { loadChatOfflineProjectionEntries } from "./chat-offline-storage";
 import { loadCheckPhoneProjectionEntries } from "./checkphone-storage";
 import { formatShoppingPaymentRequestHistory } from "./shopping-payment-request";
-import {
-    canCharacterSeeMomentPost,
-    getVisibleMomentCommentsForCharacter,
-    getVisibleMomentLikesForCharacter,
-} from "./character-world-storage";
 import {
     formatPromptEventLabel,
     formatPromptTimestamp,
@@ -42,38 +35,17 @@ function formatPhotoDirectiveForPrompt(msg: ChatMessage): string {
 
 export type NativeTimelineEntry = {
     id: string;
-    sourceApp: "chat" | "moments" | "story" | "game" | "xiaohongshu" | "checkphone" | "custom_app";
+    sourceApp: "chat" | "story" | "game" | "xiaohongshu" | "checkphone" | "custom_app";
     sourceDetail?: "direct" | "group" | "system" | "story" | "chat_offline" | "game" | "xiaohongshu" | "black_market_theater" | "checkphone" | "custom_app_event"; // chat sub-type: 1:1 vs group chat vs system note
     authorType?: "user" | "character" | "npc"; // who authored this entry
-    postAuthorType?: "user" | "character"; // for moments: who owns the parent post
     sessionId?: string;
     groupSessionId?: string; // for group chat: which group session
     groupName?: string;      // for group chat: display name of the group
     timestamp: string; // ISO date
     content: string;   // formatted content for display / summarization
-    momentsMeta?: NativeMomentMeta;
     customAppId?: string;
     customAppName?: string;
     customAppLabel?: string;
-};
-
-export type NativeMomentComment = {
-    id: string;
-    author: string;
-    content: string;
-    createdAt: string;
-    time: string;
-    replyToCommentId?: string;
-    replyToAuthorName?: string;
-};
-
-export type NativeMomentMeta = {
-    author: string;
-    content: string;
-    location?: string;
-    photoUrl?: string;
-    photoDescription?: string;
-    comments: NativeMomentComment[];
 };
 
 /** A single feature's recent data block for prompt injection. */
@@ -117,7 +89,7 @@ function renderCharacterMacro(text: string, charName?: string | null): string {
 
 /**
  * Load a unified timeline of native app data for a character.
- * Aggregates chat messages and moments interactions into a single sorted list.
+ * Aggregates chat messages and feature projections into a single sorted list.
  *
  * @param characterId - The character to load data for
  * @param options.afterTimestamp - Only include entries after this ISO timestamp
@@ -346,128 +318,6 @@ export function loadNativeTimeline(
         }
     }
 
-    // ── Moments posts & comments (grouped by post) ──
-    // Each post + its comments become ONE timeline entry.
-    const posts = loadMomentPosts();
-    for (const post of posts) {
-        if (!canCharacterSeeMomentPost(post, characterId)) continue;
-        const isCharPost = post.authorId === characterId;
-        const isUserPost = post.authorType === "user";
-        const comments = getVisibleMomentCommentsForCharacter(post, characterId, loadMomentComments(post.id));
-        const likes = getVisibleMomentLikesForCharacter(post, characterId, post.likes);
-        const filteredComments = options?.afterTimestamp
-            ? comments.filter(c => c.createdAt > options.afterTimestamp!)
-            : comments;
-        const filteredLikes = options?.afterTimestamp
-            ? likes.filter(like => like.createdAt > options.afterTimestamp!)
-            : likes;
-        const didCharacterLike = filteredLikes.some(like => like.authorType === "character" && like.authorId === characterId);
-        const didCharacterComment = filteredComments.some(comment => comment.authorType === "character" && comment.authorId === characterId);
-        const wasCharacterRepliedTo = filteredComments.some(comment => comment.replyToAuthorType === "character" && comment.replyToAuthorId === characterId);
-        if (!isCharPost && !isUserPost && !didCharacterLike && !didCharacterComment && !wasCharacterRepliedTo) continue;
-
-        const postAuthor = post.authorType === "character"
-            ? chars.find(ch => ch.id === post.authorId)
-            : undefined;
-        const authorName = isUserPost ? userName : (post.authorId === characterId ? charName : (postAuthor?.name ?? "某人"));
-        const postAuthorType = isUserPost ? "user" as const : "character" as const;
-
-        // Skip entire post if both post and all comments are before afterTimestamp
-        if (options?.afterTimestamp && post.createdAt <= options.afterTimestamp && filteredComments.length === 0 && filteredLikes.length === 0) continue;
-        const eventTimestamps = [post.createdAt, ...filteredComments.map(c => c.createdAt), ...filteredLikes.map(like => like.createdAt)]
-            .filter(Boolean)
-            .sort();
-        const eventTimestamp = eventTimestamps[eventTimestamps.length - 1] || post.createdAt;
-
-        // Build post line
-        const postLabel = formatPromptEventLabel("朋友圈", post.createdAt, timeAware, timestampOptions);
-        const locationPart = post.location ? ` 📍${post.location}` : "";
-        const photoPart = post.photoDescription ? `，[照片:不使用参考图:${post.photoDescription}]` : "";
-        const lines: string[] = [
-            `${postLabel} ${authorName}发了一条动态："${post.content}"${photoPart}${locationPart}`,
-        ];
-        const structuredComments: NativeMomentComment[] = [];
-
-        const resolveLikeName = (like: typeof filteredLikes[number]): string => {
-            if (like.authorType === "user") return userName;
-            if (like.authorId === characterId) return charName;
-            if (like.authorType === "npc") return like.authorName || "未知";
-            return chars.find(ch => ch.id === like.authorId)?.name ?? "未知";
-        };
-
-        const likeNames = filteredLikes.map(resolveLikeName).filter(Boolean);
-        if (likeNames.length > 0) {
-            lines.push(`♡ 点赞：${likeNames.join("，")}`);
-        }
-
-        // Resolve comment author name
-        const resolveCommentName = (c: typeof filteredComments[number]): string => {
-            if (c.authorType === "user") return userName;
-            if (c.authorId === characterId) return charName;
-            if (c.authorType === "npc") return c.authorName!;
-            return chars.find(ch => ch.id === c.authorId)?.name ?? "未知";
-        };
-        // Resolve reply target name
-        const resolveReplyTarget = (c: typeof filteredComments[number]): string | undefined => {
-            if (!c.replyToAuthorId) return undefined;
-            if (c.replyToAuthorName) return c.replyToAuthorName;
-            if (c.replyToAuthorType === "user") return userName;
-            if (c.replyToAuthorId === characterId) return charName;
-            if (c.replyToAuthorType === "npc") {
-                // Look up NPC name from the comment being replied to
-                const targetComment = filteredComments.find(fc => fc.id === c.replyToCommentId);
-                return targetComment?.authorName ?? c.replyToAuthorId;
-            }
-            return chars.find(ch => ch.id === c.replyToAuthorId)?.name ?? "未知";
-        };
-
-        // Build two-level threaded comment lines
-        const threads = buildTwoLevelMomentThreads(filteredComments);
-        for (const thread of threads) {
-            const rootName = resolveCommentName(thread.root);
-            const rootTs = timeAware ? formatPromptTimestamp(thread.root.createdAt, timestampOptions) : "";
-            lines.push(`💬 ${rootTs ? `${rootTs} ` : ""}${rootName}评论："${thread.root.content}"`);
-            for (const reply of thread.replies) {
-                const replyName = resolveCommentName(reply);
-                const replyTarget = resolveReplyTarget(reply);
-                const replyTs = timeAware ? formatPromptTimestamp(reply.createdAt, timestampOptions) : "";
-                lines.push(`  ↳ ${replyTs ? `${replyTs} ` : ""}${replyName}→${replyTarget || rootName}："${reply.content}"`);
-            }
-        }
-
-        // Build structured comments for momentsMeta
-        for (const comment of filteredComments) {
-            const cName = resolveCommentName(comment);
-            const replyToAuthorName = resolveReplyTarget(comment);
-            structuredComments.push({
-                id: comment.id,
-                author: cName,
-                content: comment.content,
-                createdAt: comment.createdAt,
-                time: formatPromptTimestamp(comment.createdAt, timestampOptions),
-                replyToCommentId: comment.replyToCommentId,
-                replyToAuthorName,
-            });
-        }
-
-        entries.push({
-            id: post.id,
-            sourceApp: "moments",
-            authorType: postAuthorType,
-            postAuthorType,
-            timestamp: eventTimestamp,
-            content: lines.join("\n"),
-            momentsMeta: {
-                author: authorName,
-                content: post.content,
-                location: post.location,
-                photoUrl: post.photoUrl,
-                photoDescription: post.photoDescription,
-                comments: structuredComments,
-            },
-        });
-    }
-
     // ── Story projections ──
     const storyEntries = loadStoryProjectionEntries(characterId, {
         afterTimestamp: options?.afterTimestamp,
@@ -592,12 +442,11 @@ export function loadNativeTimeline(
 }
 
 // Fixed order — lower = further from LLM output (appears higher in prompt)
-const FEATURE_ORDER: Record<string, number> = { game: 0.5, moments: 1, xiaohongshu: 1.5, checkphone: 1.7, story: 2, theater: 2.2, custom_app: 2.6, group_chat: 3, chat: 4 };
+const FEATURE_ORDER: Record<string, number> = { game: 0.5, xiaohongshu: 1.5, checkphone: 1.7, story: 2, theater: 2.2, custom_app: 2.6, group_chat: 3, chat: 4 };
 // Map appId → XML tag name for the "current feature" wrapper
 const FEATURE_TAG: Record<string, string> = {
     chat: "recent_chat",
     group_chat: "recent_group_chat",
-    moments: "recent_moments",
     story: "recent_events",
     game: "recent_game",
     xiaohongshu: "recent_xiaohongshu",
@@ -791,12 +640,6 @@ export function prepareShortTermContext(
 
     // ── Collect non-history entries per block ──
     const raw: { tag: string; order: number; entries: NativeTimelineEntry[] }[] = [];
-
-    // All moments-related entries now participate in the unified recent timeline.
-    const momentsEntries = timeline.filter(e => e.sourceApp === "moments");
-    if (momentsEntries.length > 0) {
-        raw.push({ tag: "recent_moments", order: FEATURE_ORDER.moments, entries: momentsEntries });
-    }
 
     if (appId !== "story") {
         const storyEntries = timeline.filter(e =>
@@ -1021,11 +864,6 @@ export function prepareGroupShortTermContext(
 
     const raw: { tag: string; order: number; entries: NativeTimelineEntry[] }[] = [];
 
-    const momentsEntries = timeline.filter(e => e.sourceApp === "moments");
-    if (momentsEntries.length > 0) {
-        raw.push({ tag: "recent_moments", order: FEATURE_ORDER.moments, entries: momentsEntries });
-    }
-
     const storyEntries = timeline.filter(e =>
         e.sourceApp === "story"
         && e.sourceDetail !== "black_market_theater"
@@ -1146,13 +984,12 @@ export function prepareGroupShortTermContext(
                 timestamp: item.timestamp,
                 sourceApp: entry.sourceApp,
                 sourceTag: entry.sourceDetail === "group" ? "recent_group_chat" : (
-                    entry.sourceApp === "moments" ? "recent_moments" :
-                        entry.sourceApp === "game" ? "recent_game" :
-                            entry.sourceApp === "xiaohongshu" ? "recent_xiaohongshu" :
-                                entry.sourceApp === "checkphone" ? "recent_checkphone" :
-                                    entry.sourceApp === "custom_app" ? "recent_custom_app" :
-                                        entry.sourceApp === "story" && entry.sourceDetail === "black_market_theater" ? "recent_theater" :
-                                            entry.sourceApp === "chat" ? "recent_chat" : "recent_events"
+                    entry.sourceApp === "game" ? "recent_game" :
+                        entry.sourceApp === "xiaohongshu" ? "recent_xiaohongshu" :
+                            entry.sourceApp === "checkphone" ? "recent_checkphone" :
+                                entry.sourceApp === "custom_app" ? "recent_custom_app" :
+                                    entry.sourceApp === "story" && entry.sourceDetail === "black_market_theater" ? "recent_theater" :
+                                        entry.sourceApp === "chat" ? "recent_chat" : "recent_events"
                 ),
                 text: entry.content,
             });

@@ -67,7 +67,7 @@ export async function runSummarizationPipeline(
         return { success: false, error: "未配置记忆总结 API（请在绑定配置 → 辅助API绑定中设置）" };
     }
 
-    // Read native app data (chat messages, moments) directly — no separate event log
+    // Read native app data (chat messages, feature projections) directly — no separate event log
     const afterTimestamp = options?.force ? undefined : (getLastSummarizedTimestamp(characterId) ?? undefined);
     const allEntries = loadNativeTimeline(characterId, afterTimestamp ? { afterTimestamp } : undefined);
 

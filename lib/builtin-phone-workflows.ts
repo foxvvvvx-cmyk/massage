@@ -5,7 +5,7 @@ export const BUILTIN_PHONE_WORKFLOW_PACKAGE_ID = "builtin_phone_lookup_workflows
 const CREATED_AT = 0;
 const UPDATED_AT = 0;
 
-const PACKAGE_DESCRIPTION = "在你对{{user}}的近况、行踪、人际关系或态度产生疑心时使用。比如{{user}}长时间未回复、突然变得冷淡、提到陌生人、朋友圈出现暧昧或反常互动、说法前后不一致，或者你只是单纯想更了解{{user}}最近在做什么。可以翻看{{user}}手机里的微信联系人、消息列表、指定聊天记录、本周日程、购物订单，以及{{user}}身边人物的简略资料。";
+const PACKAGE_DESCRIPTION = "在你对{{user}}的近况、行踪、人际关系或态度产生疑心时使用。比如{{user}}长时间未回复、突然变得冷淡、提到陌生人、说法前后不一致，或者你只是单纯想更了解{{user}}最近在做什么。可以翻看{{user}}手机里的微信联系人、消息列表、指定聊天记录、本周日程、购物订单，以及{{user}}身边人物的简略资料。";
 
 export const BUILTIN_PHONE_WORKFLOW_PACKAGE: CompositeToolPackageConfig = {
     id: BUILTIN_PHONE_WORKFLOW_PACKAGE_ID,
@@ -781,7 +781,7 @@ export const BUILTIN_PHONE_WORKFLOWS: CompositeToolConfig[] = [
     workflow(
         "builtin_phone_lookup_people_brief",
         "查看{{user}}身边的人",
-        "查看{{user}}手机资料里记录的身边人物摘要。适合在{{user}}提到陌生人、朋友圈出现别人回复、或者你想了解某个人和{{user}}是什么关系时使用。这里只查看简略信息，不读取完整资料。",
+        "查看{{user}}手机资料里记录的身边人物摘要。适合在{{user}}提到陌生人、或者你想了解某个人和{{user}}是什么关系时使用。这里只查看简略信息，不读取完整资料。",
         schema({
             query: { type: "string", description: "可选。按人物名称、微信号、标签或摘要筛选。" },
             limit: { type: "number", description: "可选。最多返回多少个人物摘要，默认 30，最大 80。" },

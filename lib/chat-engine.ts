@@ -2305,7 +2305,7 @@ export async function generateChatCompletion(
         }
         throwIfAborted(options?.signal);
 
-        // Parse actions (朋友圈 etc) — strip from display text but keep tool tags
+        // Parse actions (private/group messages etc) — strip from display text but keep tool tags
         const { cleanText: afterActionStrip, actions } = parseActionTags(filteredOutput);
         if (actions.length > 0) {
             throwIfAborted(options?.signal);

@@ -60,7 +60,7 @@ export function ContactCardGenerateFlow({
         // 防重：写入前再查一次（用户可能刚好手动建了同名角色）
         const existing = resolveContactCard(recommenderCharacterId, contactName);
         if (!existing.character) {
-            materializeSupportingCharacter(draft, recommenderCharacterId, { allowAutoPost: false });
+            materializeSupportingCharacter(draft, recommenderCharacterId);
         }
         onCreated();
         onClose();

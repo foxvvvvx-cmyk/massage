@@ -173,28 +173,6 @@ export type CheckPhoneChatGroup = {
   messages: CheckPhoneChatBubble[];
 };
 
-export type CheckPhoneChatMomentComment = {
-  id: string;
-  authorLabel: string;
-  timeLabel: string;
-  text: string;
-  replyToLabel?: string;
-};
-
-export type CheckPhoneChatMomentItem = {
-  id: string;
-  authorLabel: string;
-  authorAccent: string;
-  timeLabel: string;
-  body: string;
-  mediaLabel: string;
-  photoUrl?: string;
-  photoDescription?: string;
-  likeCountLabel: string;
-  commentCountLabel: string;
-  comments: CheckPhoneChatMomentComment[];
-};
-
 export type CheckPhoneChatContact = {
   id: string;
   name: string;
@@ -209,7 +187,6 @@ export type CheckPhoneChatPayload = {
   headerSubtitle: string;
   conversations: CheckPhoneChatConversation[];
   groups: CheckPhoneChatGroup[];
-  momentsFeed: CheckPhoneChatMomentItem[];
   contacts: CheckPhoneChatContact[];
 };
 

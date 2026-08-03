@@ -90,19 +90,6 @@ export const CONTENT_SCOPE_TAG_GROUPS: TagGroupProfile[] = [
         ],
     },
     {
-        id: "moments",
-        label: "朋友圈",
-        tags: ["moments"],
-        minors: [
-            commonMinor("moments", ["moments"]),
-            profile("moments", "post", "发帖", ["moments", "post"]),
-            profile("moments", "comment", "评论", ["moments", "comment"]),
-            profile("moments", "reply", "回复", ["moments", "reply"]),
-            profile("moments", "npc", "NPC互动", ["moments", "npc"]),
-            profile("moments", "npc_reply", "NPC回复", ["moments", "npc_reply"]),
-        ],
-    },
-    {
         id: "group_chat",
         label: "群聊",
         tags: ["group_chat"],
@@ -162,8 +149,6 @@ const LEGACY_TAG_MIGRATIONS = new Map<string, string[]>([
     [JSON.stringify(["chat", "chat-text"]), ["chat", "text"]],
     [JSON.stringify(["chat", "chat-voice"]), ["chat", "voice"]],
     [JSON.stringify(["chat", "chat-video"]), ["chat", "video"]],
-    [JSON.stringify(["moments_npc"]), ["moments", "npc"]],
-    [JSON.stringify(["朋友圈", "NPC回复"]), ["moments", "npc_reply"]],
     [JSON.stringify(["xiaohongshu", "character_activity"]), ["xiaohongshu", "activity"]],
     [JSON.stringify(["xiaohongshu", "user_post_reaction"]), ["xiaohongshu", "reaction"]],
     [JSON.stringify(["xiaohongshu", "comment_reply"]), ["xiaohongshu", "comment"]],

@@ -209,21 +209,6 @@ export class MacroEngine {
         if (body === "cocreateArchivedChapterContext") return this.cocreateArchivedChapterContext || "暂无已结束章节。";
         if (body === "cocreateWriterNotebook") return this.cocreateWriterNotebook || "暂无笔记。";
 
-        // realCharacterList — 用户创建的其他角色名单（不含当前角色），供朋友圈等场景做"真实角色"判定
-        if (body === "realCharacterList") {
-            try {
-                // 延迟 require，避免模块加载期的存储访问与潜在循环依赖
-                // eslint-disable-next-line @typescript-eslint/no-require-imports
-                const { loadCharacters } = require("./character-storage") as typeof import("./character-storage");
-                const names = loadCharacters()
-                    .map(c => (c.name || "").trim())
-                    .filter(n => n && n !== this.charName);
-                return names.length ? names.join("、") : "（无）";
-            } catch {
-                return "（无）";
-            }
-        }
-
         // time — shortcut for current datetime like "2026年3月2日15:40"
         if (body === "time") {
             const now = new Date();

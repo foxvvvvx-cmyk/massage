@@ -1,10 +1,8 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useState, useMemo } from "react";
 import type { NativeTimelineEntry } from "@/lib/short-term-assembler";
-import { buildTwoLevelMomentThreads } from "@/lib/moments-comment-threading";
 import { findStickerByName } from "@/lib/sticker-data";
-import { getChatImageFromIndexedDB } from "@/lib/chat-asset-storage";
 
 /* ================================================================
    Parsed types — structured data extracted from pre-formatted content
@@ -30,28 +28,6 @@ type ParsedGroupChat = {
     message: string;
 };
 
-type MomentComment = {
-    id: string;
-    createdAt: string;
-    time: string;
-    author: string;
-    content: string;
-    replyToCommentId?: string;
-    replyToAuthorName?: string;
-};
-
-type ParsedMoment = {
-    type: "moments";
-    id: string;
-    timestamp: string;
-    author: string;
-    content: string;
-    location?: string;
-    photoUrl?: string;
-    photoDescription?: string;
-    comments: MomentComment[];
-};
-
 type ParsedSystem = {
     type: "system";
     id: string;
@@ -68,7 +44,7 @@ type ParsedProjection = {
     message: string;
 };
 
-type ParsedEntry = ParsedChat | ParsedGroupChat | ParsedMoment | ParsedSystem | ParsedProjection;
+type ParsedEntry = ParsedChat | ParsedGroupChat | ParsedSystem | ParsedProjection;
 
 type TimelineCluster = {
     id: string;
@@ -185,71 +161,12 @@ function parseEntry(evt: NativeTimelineEntry, userName: string): ParsedEntry | n
         };
     }
 
-    // Moments post: [朋友圈 ...] Author发了一条动态："..."
-    if (evt.sourceApp === "moments") {
-        if (evt.momentsMeta) {
-            return {
-                type: "moments",
-                id: evt.id,
-                timestamp: evt.timestamp,
-                author: evt.momentsMeta.author,
-                content: evt.momentsMeta.content,
-                location: evt.momentsMeta.location,
-                photoUrl: evt.momentsMeta.photoUrl,
-                photoDescription: evt.momentsMeta.photoDescription,
-                comments: evt.momentsMeta.comments,
-            };
-        }
-        const m = content.match(/^\[朋友圈(?: [^\]]+)?\] (.+?)发了一条动态[：:]"([\s\S]*?)"([\s\S]*)$/);
-        if (m) {
-            const rest = m[3];
-            const locMatch = rest.match(/📍(.+?)(?:\n|$)/);
-            const lines = content.split("\n").slice(1);
-            const comments: MomentComment[] = [];
-            for (const [index, line] of lines.entries()) {
-                const cm = line.match(/^\s+.*?(\d{2}:\d{2}) (.+?)(评论|回复.+?)[：:]"(.+?)"$/);
-                if (cm) {
-                    const replyToAuthorName = cm[3].startsWith("回复") ? cm[3].slice(2) : undefined;
-                    comments.push({
-                        id: `${evt.id}-comment-${index}`,
-                        createdAt: `${evt.timestamp}|${String(index).padStart(3, "0")}`,
-                        time: cm[1],
-                        author: cm[2],
-                        content: cm[4],
-                        replyToAuthorName,
-                    });
-                }
-            }
-            return {
-                type: "moments",
-                id: evt.id,
-                timestamp: evt.timestamp,
-                author: m[1],
-                content: m[2],
-            location: locMatch ? locMatch[1] : undefined,
-            photoDescription: m[3].match(/\[照片[:：]\s*([^\]]+)\]/)?.[1],
-            comments,
-        };
-        }
-    }
-
     // Fallback — strip header tag + sender prefix
     const stripped = content.replace(/^\[.*?\]\s*/, "");
     const fbMsg = stripped
-        .replace(/^.+?发了一条动态[：:]\s*"?/, "")  // moments prefix
         .replace(/^.+?[：:]\s*/, "")                   // chat sender prefix
         .replace(/"$/, "");
 
-    if (evt.sourceApp === "moments") {
-        return {
-            type: "moments",
-            id: evt.id,
-            timestamp: evt.timestamp,
-            author: "...",
-            content: fbMsg || stripped,
-            comments: [],
-        };
-    }
     return {
         type: "chat",
         id: evt.id,
@@ -296,9 +213,6 @@ function buildCluster(entries: ParsedEntry[]): TimelineCluster {
         } else if (e.type === "group") {
             tagSet.add("群聊");
             pool.push(e.message);
-        } else if (e.type === "moments") {
-            tagSet.add("朋友圈");
-            pool.push(e.content);
         } else if (e.type === "projection") {
             tagSet.add(e.label);
             pool.push(e.message);
@@ -355,49 +269,10 @@ function renderWithStickers(text: string) {
     });
 }
 
-function MomentMemoryPhoto({ photoUrl, photoDescription }: { photoUrl?: string; photoDescription?: string }) {
-    const [resolvedPhotoUrl, setResolvedPhotoUrl] = useState<string | null>(null);
-
-    useEffect(() => {
-        let cancelled = false;
-        setResolvedPhotoUrl(null);
-        if (!photoUrl) return;
-        if (photoUrl.startsWith("asset://")) {
-            getChatImageFromIndexedDB(photoUrl.slice(8)).then((url) => {
-                if (!cancelled) setResolvedPhotoUrl(url ?? null);
-            });
-        } else {
-            setResolvedPhotoUrl(photoUrl);
-        }
-        return () => { cancelled = true; };
-    }, [photoUrl]);
-
-    if (!resolvedPhotoUrl && !photoDescription) return null;
-
-    return (
-        <div className="mem-tl-moment-photo-wrap">
-            {resolvedPhotoUrl && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={resolvedPhotoUrl} alt="" className="mem-tl-moment-photo" />
-            )}
-            {photoDescription && (
-                <div className="mem-tl-moment-photo-desc">{photoDescription}</div>
-            )}
-        </div>
-    );
-}
-
 function fmtTime(ts: string): string {
     const d = new Date(ts);
     if (isNaN(d.getTime())) return "";
     return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-}
-
-function fmtMomentCommentTime(comment: MomentComment): string {
-    const fromCreatedAt = fmtTime(comment.createdAt);
-    if (fromCreatedAt) return fromCreatedAt;
-    const shortTime = comment.time.match(/\b(\d{2}:\d{2})\b/);
-    return shortTime ? shortTime[1] : comment.time;
 }
 
 function fmtDate(ts: string): string {
@@ -429,11 +304,9 @@ function ClusterDetail({ cluster }: { cluster: TimelineCluster }) {
     return (
         <div className="mem-tl-card-detail" onClick={(event) => event.stopPropagation()}>
             {(() => {
-                const groups: { type: "chat-group" | "moment" | "projection"; entries: ParsedEntry[] }[] = [];
+                const groups: { type: "chat-group" | "projection"; entries: ParsedEntry[] }[] = [];
                 for (const entry of cluster.entries) {
-                    if (entry.type === "moments") {
-                        groups.push({ type: "moment", entries: [entry] });
-                    } else if (entry.type === "projection") {
+                    if (entry.type === "projection") {
                         groups.push({ type: "projection", entries: [entry] });
                     } else {
                         // chat, group, system all go into chat-group
@@ -508,7 +381,7 @@ function ClusterDetail({ cluster }: { cluster: TimelineCluster }) {
                                     );
                                 })}
                             </div>
-                        ) : group.type === "projection" ? (
+                        ) : (
                             (() => {
                                 const entry = group.entries[0] as ParsedProjection;
                                 return (
@@ -516,69 +389,6 @@ function ClusterDetail({ cluster }: { cluster: TimelineCluster }) {
                                         <span className="ui-status-tag" data-variant="action" style={{ marginRight: 6, fontSize: "calc(10px*var(--app-text-scale,1))" }}>{entry.label}</span>
                                         <span className="mem-tl-projection-text">{entry.message}</span>
                                         <span className="mem-tl-bubble-ts" style={{ marginLeft: 6 }}>{fmtTime(entry.timestamp)}</span>
-                                    </div>
-                                );
-                            })()
-                        ) : (
-                            (() => {
-                                const entry = group.entries[0] as ParsedMoment;
-                                const commentThreads = buildTwoLevelMomentThreads(entry.comments);
-                                return (
-                                    <div className="mem-tl-moment">
-                                        <div className="mem-tl-moment-head">
-                                            <span className="mem-tl-moment-author">{entry.author}</span>
-                                            <span className="mem-tl-bubble-ts">{fmtTime(entry.timestamp)}</span>
-                                        </div>
-                                        <p className="mem-tl-moment-text">{entry.content}</p>
-                                        {entry.location && <span className="mem-tl-moment-loc">{entry.location}</span>}
-                                        <MomentMemoryPhoto
-                                            photoUrl={entry.photoUrl}
-                                            photoDescription={entry.photoDescription}
-                                        />
-                                        {entry.comments.length > 0 && (
-                                            <div className="mem-tl-moment-cmts">
-                                                {commentThreads.map(({ root, replies }) => (
-                                                    <div key={root.id} className="mem-tl-moment-cmt-group">
-                                                        <div className="mem-tl-moment-cmt">
-                                                            <span className="mem-tl-moment-cmt-author">{root.author}</span>
-                                                            {root.replyToAuthorName && (
-                                                                <>
-                                                                    <span className="mem-tl-moment-cmt-action">回复</span>
-                                                                    <span className="mem-tl-moment-cmt-author">{root.replyToAuthorName}</span>
-                                                                    <span className="mem-tl-moment-cmt-action">:</span>
-                                                                </>
-                                                            )}
-                                                            {!root.replyToAuthorName && (
-                                                                <span className="mem-tl-moment-cmt-action">评论:</span>
-                                                            )}
-                                                            <span className="mem-tl-moment-cmt-text">{root.content}</span>
-                                                            <span className="mem-tl-bubble-ts">{fmtMomentCommentTime(root)}</span>
-                                                        </div>
-                                                        {replies.length > 0 && (
-                                                            <div className="mem-tl-moment-cmt-children">
-                                                                {replies.map((reply) => (
-                                                                    <div key={reply.id} className="mem-tl-moment-cmt mem-tl-moment-reply">
-                                                                        <span className="mem-tl-moment-cmt-author">{reply.author}</span>
-                                                                        {reply.replyToAuthorName && (
-                                                                            <>
-                                                                                <span className="mem-tl-moment-cmt-action">回复</span>
-                                                                                <span className="mem-tl-moment-cmt-author">{reply.replyToAuthorName}</span>
-                                                                                <span className="mem-tl-moment-cmt-action">:</span>
-                                                                            </>
-                                                                        )}
-                                                                        {!reply.replyToAuthorName && (
-                                                                            <span className="mem-tl-moment-cmt-action">评论:</span>
-                                                                        )}
-                                                                        <span className="mem-tl-moment-cmt-text">{reply.content}</span>
-                                                                        <span className="mem-tl-bubble-ts">{fmtMomentCommentTime(reply)}</span>
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
                                     </div>
                                 );
                             })()
@@ -611,7 +421,7 @@ export function MemoryTimeline({ events, userName }: Props) {
     if (clusters.length === 0) {
         return (
             <p className="text-center ts-14 mt-10 text-secondary">
-                暂无数据。聊天或朋友圈互动后会自动显示。
+                暂无数据。聊天互动后会自动显示。
             </p>
         );
     }

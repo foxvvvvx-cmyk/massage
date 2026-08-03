@@ -2,7 +2,6 @@ import { loadCharacters } from "./character-storage";
 import { loadChatContacts } from "./chat-storage";
 import { kvGet, kvSet, registerKvMigration } from "./kv-db";
 import type { Character } from "./character-types";
-import type { MomentComment, MomentLike, MomentPost } from "./moments-types";
 
 const CHARACTER_WORLDS_KEY = "ai_phone_character_worlds_v1";
 export const CHARACTER_WORLDS_UPDATED_EVENT = "character-worlds-updated";
@@ -265,60 +264,6 @@ export function areCharactersInSameWorld(firstCharacterId: string, secondCharact
     const firstGroupId = getCharacterWorldGroupId(firstCharacterId);
     const secondGroupId = getCharacterWorldGroupId(secondCharacterId);
     return Boolean(firstGroupId && secondGroupId && firstGroupId === secondGroupId);
-}
-
-export function canCharacterSeeMomentPost(post: MomentPost, viewerCharacterId: string): boolean {
-    if (post.authorType === "user") return post.visibility.includes(viewerCharacterId);
-    if (post.authorId === viewerCharacterId) return true;
-    return post.visibility.includes(viewerCharacterId) && areCharactersInSameWorld(post.authorId, viewerCharacterId);
-}
-
-export function isMomentRealCharacterAllowedForViewer(viewerCharacterId: string, targetCharacterId: string): boolean {
-    return areCharactersInSameWorld(viewerCharacterId, targetCharacterId);
-}
-
-export function isMomentRealCharacterAllowedForPost(post: MomentPost, targetCharacterId: string, anchorCharacterId?: string): boolean {
-    if (post.authorType === "character") {
-        return areCharactersInSameWorld(post.authorId, targetCharacterId);
-    }
-    if (anchorCharacterId) {
-        return areCharactersInSameWorld(anchorCharacterId, targetCharacterId);
-    }
-    return post.visibility.includes(targetCharacterId);
-}
-
-export function isMomentCommentVisibleToCharacter(post: MomentPost, comment: MomentComment, viewerCharacterId: string): boolean {
-    if (!canCharacterSeeMomentPost(post, viewerCharacterId)) return false;
-
-    if (comment.replyToAuthorType === "character" && comment.replyToAuthorId) {
-        return areCharactersInSameWorld(viewerCharacterId, comment.replyToAuthorId);
-    }
-
-    if (comment.authorType === "user") return true;
-
-    if (comment.authorType === "character" && !areCharactersInSameWorld(viewerCharacterId, comment.authorId)) {
-        return false;
-    }
-
-    if (comment.authorType === "npc" && post.authorType === "character" && !areCharactersInSameWorld(viewerCharacterId, post.authorId)) {
-        return false;
-    }
-
-    return true;
-}
-
-export function getVisibleMomentCommentsForCharacter(post: MomentPost, viewerCharacterId: string, comments: MomentComment[]): MomentComment[] {
-    return comments.filter(comment => isMomentCommentVisibleToCharacter(post, comment, viewerCharacterId));
-}
-
-export function getVisibleMomentLikesForCharacter(post: MomentPost, viewerCharacterId: string, likes: MomentLike[]): MomentLike[] {
-    if (!canCharacterSeeMomentPost(post, viewerCharacterId)) return [];
-    return likes.filter(like => {
-        if (like.authorType === "user") return true;
-        if (like.authorType === "character") return areCharactersInSameWorld(viewerCharacterId, like.authorId);
-        if (post.authorType === "character") return areCharactersInSameWorld(viewerCharacterId, post.authorId);
-        return true;
-    });
 }
 
 export function formatCharacterRelationsForPrompt(characterId: string): string {

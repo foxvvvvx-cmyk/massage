@@ -179,12 +179,12 @@ export type ImageGenerationSettings = {
 export type ContentAppId =
     | "chat" | "music" | "reading"
     | "forum" | "story" | "game"
-    | "calendar" | "moments" | "group_chat" | "shopping";
+    | "calendar" | "group_chat" | "shopping";
 
 export const CONTENT_APP_IDS: ContentAppId[] = [
     "chat", "music", "reading",
     "story", "game",
-    "calendar", "moments", "group_chat", "shopping"
+    "calendar", "group_chat", "shopping"
 ];
 
 export const CONTENT_APP_LABELS: Record<ContentAppId, string> = {
@@ -195,7 +195,6 @@ export const CONTENT_APP_LABELS: Record<ContentAppId, string> = {
     story: "剧情",
     game: "游戏",
     calendar: "日历",
-    moments: "朋友圈",
     group_chat: "群聊",
     shopping: "购物",
 };

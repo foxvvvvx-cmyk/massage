@@ -220,13 +220,8 @@ export function MemoryBankPage({ view, selectedCharId, onSelectChar, onNotice }:
         }
         // Native timeline is sync (localStorage) — no await needed
         const timeline = loadNativeTimeline(charId);
-        setShortTermEvents(timeline.filter(e =>
-            !(e.sourceApp === "moments" && e.postAuthorType === "user")
-        ));
-        setSharedEvents(timeline.filter(e =>
-            (e.sourceApp === "moments" && e.postAuthorType === "user") ||
-            (e.sourceApp === "chat" && e.sourceDetail === "group")
-        ));
+        setShortTermEvents(timeline);
+        setSharedEvents(timeline.filter(e => e.sourceApp === "chat" && e.sourceDetail === "group"));
         setLoading(false);
     }, []);
 
@@ -611,7 +606,7 @@ export function MemoryBankPage({ view, selectedCharId, onSelectChar, onNotice }:
                         /* ── Shared events: card view ── */
                         sharedEvents.length === 0 ? (
                             <p className="text-center ts-14 mt-10 text-secondary">
-                                暂无共享事件。用户发朋友圈或参与群聊后会自动显示。
+                                暂无共享事件。用户参与群聊后会自动显示。
                             </p>
                         ) : (
                             <MemoryTimeline
@@ -847,7 +842,7 @@ export function MemoryBankPage({ view, selectedCharId, onSelectChar, onNotice }:
                         icon={Users}
                         color={BINDING_ACCENTS.voice}
                         label="短期记忆+最近上下文"
-                        desc="聊天历史、朋友圈、群聊与跨应用近期事件截断量"
+                        desc="聊天历史、群聊与跨应用近期事件截断量"
                         value={config.shortTermTokenBudget}
                         min={MEMORY_TOKEN_BUDGET_MIN.shortTermTokenBudget}
                         max={MEMORY_TOKEN_BUDGET_MAX}

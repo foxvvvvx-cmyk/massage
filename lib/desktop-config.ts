@@ -7,7 +7,6 @@ export type IconId =
   | "xiaohongshu"
   | "shopping"
   | "calendar"
-  | "moments"
   | "group_chat"
   | "settings"
   | "theme"
@@ -50,7 +49,6 @@ export const ICONS: Record<IconId, IconMeta> = {
   },
   shopping: { id: "shopping", label: "购物", tone: "var(--c-icon-amber)", placeholder: false },
   calendar: { id: "calendar", label: "日历", tone: "var(--c-icon-rose)", placeholder: true },
-  moments: { id: "moments", label: "朋友圈", tone: "var(--c-icon-lilac)", placeholder: false },
   group_chat: { id: "group_chat", label: "群聊", tone: "var(--c-icon-teal)", placeholder: false },
   settings: { id: "settings", label: "设置", tone: "var(--c-icon-slate)", placeholder: false },
   theme: { id: "theme", label: "主题", tone: "var(--c-icon-violet)", placeholder: true },

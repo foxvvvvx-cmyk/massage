@@ -6,7 +6,6 @@ import { resolveUserIdentity } from "@/lib/settings-storage";
 import { PENDING_REPLY_PREFIX } from "@/lib/friend-request-engine";
 import { loadCharacters } from "@/lib/character-storage";
 import { Character } from "@/lib/character-types";
-import { loadMomentPosts } from "@/lib/moments-storage";
 import {
     getPendingFriendRequests,
     clearRequestsForCharacter,
@@ -42,7 +41,6 @@ type ChatContactsListProps = {
 export function ChatContactsList({ onCloseApp, onSelectSession, onSelectMascot, pendingAddContactId, onPendingAddContactConsumed, onPendingAddContactBack }: ChatContactsListProps) {
     const [contacts, setContacts] = useState<(ChatContact & { char?: Character })[]>([]);
     const [contactFilter, setContactFilter] = useState("");
-    const [latestPost, setLatestPost] = useState<Record<string, string>>({});
     const [pendingRequests, setPendingRequests] = useState<FriendRequest[]>([]);
     const [showRequestList, setShowRequestList] = useState(false);
     const [selectedRequest, setSelectedRequest] = useState<FriendRequest | null>(null);
@@ -108,13 +106,6 @@ export function ChatContactsList({ onCloseApp, onSelectSession, onSelectMascot, 
         })).filter(c => c.char);
         enriched.sort((a, b) => (a.char?.name || "").localeCompare(b.char?.name || ""));
         setContacts(enriched);
-
-        const posts = loadMomentPosts();
-        const map: Record<string, string> = {};
-        for (const p of posts) {
-            if (!map[p.authorId]) map[p.authorId] = p.content;
-        }
-        setLatestPost(map);
 
         setPendingRequests(getPendingFriendRequests());
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -290,9 +281,6 @@ export function ChatContactsList({ onCloseApp, onSelectSession, onSelectMascot, 
                                             <div className="flex-1 overflow-hidden h-[48px] flex flex-col justify-center gap-1">
                                                 <div className="ts-16 font-medium text-[var(--c-text-title)] truncate">
                                                     {char.name || "UNNAMED"}
-                                                </div>
-                                                <div className="ts-13 text-[var(--c-text)] opacity-80 truncate font-normal">
-                                                    {latestPost[char.id] || "暂无动态"}
                                                 </div>
                                             </div>
                                         </div>

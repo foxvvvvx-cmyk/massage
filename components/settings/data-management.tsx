@@ -105,7 +105,7 @@ const MODULE_ACCENTS: Record<DataModuleId, string> = {
   characters: BINDING_ACCENTS.preset,
   desktop: BINDING_ACCENTS.voice,
   memory: BINDING_ACCENTS.memory,
-  social: CONTENT_APP_ACCENTS.moments,
+  social: "#06B6D4",
   apps: CONTENT_APP_ACCENTS.calendar,
   creative: CONTENT_APP_ACCENTS.story,
   cache: BINDING_ACCENTS.regex,
@@ -603,10 +603,10 @@ export function DataManagement({ onNotice }: DataManagementProps) {
         <DataSectionTitle>Media Cleanup</DataSectionTitle>
         <div className="menu-group">
           <div className="menu-item data-readonly-item">
-            <DataSettingsIcon icon={Archive} color={CONTENT_APP_ACCENTS.moments} />
+            <DataSettingsIcon icon={Archive} color="#06B6D4" />
             <div className="menu-label-group">
               <span className="menu-label">图片/多媒体文件自动压缩及清理</span>
-              <span className="menu-desc">开启后每天最多执行一次：4 天以上压缩聊天、朋友圈、小红书动态图片；7 天以上清理聊天图片、朋友圈/小红书真实图和本地音乐。壁纸、图标、dock、字体等常驻资源不纳入自动清理。</span>
+              <span className="menu-desc">开启后每天最多执行一次：4 天以上压缩聊天、小红书动态图片；7 天以上清理聊天图片、小红书真实图和本地音乐。壁纸、图标、dock、字体等常驻资源不纳入自动清理。</span>
             </div>
             <span className="menu-right">
               <Toggle checked={mediaConfig.enabled} onChange={updateMediaMaintenance} disabled={Boolean(busy)} />
@@ -649,7 +649,7 @@ export function DataManagement({ onNotice }: DataManagementProps) {
           <div className="menu-item data-readonly-item">
             <div className="menu-label-group">
               <span className="menu-label">本地导出·不含图片/多媒体</span>
-              <span className="menu-desc">仅【本地导出备份文件】生效：去掉壁纸、聊天图、朋友圈图等大文件（保留角色头像），文件更小、导出不卡。云端备份已支持分片上传，会完整备份图片，不受此开关影响。</span>
+              <span className="menu-desc">仅【本地导出备份文件】生效：去掉壁纸、聊天图等大文件（保留角色头像），文件更小、导出不卡。云端备份已支持分片上传，会完整备份图片，不受此开关影响。</span>
             </div>
             <span className="menu-right">
               <Toggle checked={cloudConfig.excludeMedia} onChange={(checked) => updateCloud({ excludeMedia: checked })} />
@@ -995,7 +995,7 @@ export function DataManagement({ onNotice }: DataManagementProps) {
                   ? `覆盖导入会用备份中的数据覆盖已选模块：${confirmRequest.labels}。建议先导出当前数据。是否继续？`
                   : `将合并导入以下模块：${confirmRequest.labels}。列表型数据会按 ID 去重合并，同 ID 项以备份为准。是否继续？`
                 : confirmRequest.type === "media-maintenance"
-                  ? "将按规则压缩/清理过期动态媒体：4 天以上压缩图片，7 天以上清理聊天图片、朋友圈/小红书真实图和本地音乐，并清理确定无引用的旧主题素材。壁纸、图标、dock、字体等仍在引用的常驻资源不会删除。是否继续？"
+                  ? "将按规则压缩/清理过期动态媒体：4 天以上压缩图片，7 天以上清理聊天图片、小红书真实图和本地音乐，并清理确定无引用的旧主题素材。壁纸、图标、dock、字体等仍在引用的常驻资源不会删除。是否继续？"
                   : confirmRequest.type === "orphan-theme"
                     ? "将扫描当前仍被引用的主题素材，只删除确定无引用的旧图片、旧字体、旧 dock、旧图标皮肤等素材。是否继续？"
                     : `清理 ${confirmRequest.labels} 会删除对应数据。建议先备份。是否继续？`

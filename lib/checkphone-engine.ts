@@ -56,12 +56,6 @@ import { assemblePromptPayload } from "./llm-prompt-assembler";
 import { formatCoreMemories, formatLongTermMemories } from "./memory-injector";
 import { loadMemoryConfig } from "./memory-storage";
 import { retrieveCoreMemoriesForPrompt, retrieveMemoriesForPrompt } from "./memory-service";
-import { getAllPosts, loadMomentComments } from "./moments-storage";
-import {
-  canCharacterSeeMomentPost,
-  getVisibleMomentCommentsForCharacter,
-  getVisibleMomentLikesForCharacter,
-} from "./character-world-storage";
 import { buildCalendarScheduleMarker } from "./calendar-storage";
 import { getWeekStartIso } from "./calendar-utils";
 import {
@@ -697,7 +691,6 @@ function formatSnapshotSummary(payload: unknown): string {
   if (
     Array.isArray(record.conversations) &&
     Array.isArray(record.groups) &&
-    Array.isArray(record.momentsFeed) &&
     Array.isArray(record.contacts)
   ) {
     const conversationSummary = record.conversations
@@ -710,17 +703,7 @@ function formatSnapshotSummary(payload: unknown): string {
       })
       .filter(Boolean)
       .slice(0, 4);
-    const momentSummary = record.momentsFeed
-      .map((item) => {
-        if (!item || typeof item !== "object") return "";
-        const post = item as Record<string, unknown>;
-        const authorLabel = typeof post.authorLabel === "string" ? post.authorLabel.trim() : "";
-        const body = typeof post.body === "string" ? post.body.trim() : "";
-        return [authorLabel, body].filter(Boolean).join("：");
-      })
-      .filter(Boolean)
-      .slice(0, 3);
-    return [...conversationSummary, ...momentSummary].join("\n");
+    return conversationSummary.join("\n");
   }
   if (record.headline && Array.isArray(record.accounts) && Array.isArray(record.activities)) {
     const headline = record.headline && typeof record.headline === "object" ? record.headline as Record<string, unknown> : null;
@@ -1012,64 +995,17 @@ function extractRealGroups(
     .filter(Boolean) as CheckPhoneChatPayload["groups"];
 }
 
-function extractRealMoments(characterId: string, userName: string): CheckPhoneChatPayload["momentsFeed"] {
-  const posts = getAllPosts()
-    .filter((post) =>
-      (post.authorType === "user" || (post.authorType === "character" && post.authorId === characterId)) &&
-      canCharacterSeeMomentPost(post, characterId)
-    )
-    .slice()
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  return posts.map((post) => {
-    const comments = getVisibleMomentCommentsForCharacter(post, characterId, loadMomentComments(post.id));
-    const likes = getVisibleMomentLikesForCharacter(post, characterId, post.likes);
-    const authorLabel = resolveCheckPhoneDisplayName(post.authorType, post.authorId, undefined, userName, characterId);
-    return {
-      id: `real_moment_${post.id}`,
-      authorLabel,
-      authorAccent:
-        post.authorType === "user"
-          ? "真实动态"
-          : "朋友圈",
-      timeLabel: formatChatUiTime(post.createdAt),
-      body: post.content.trim(),
-      mediaLabel: post.photoUrl || post.photoDescription ? "有图" : "文字",
-      photoUrl: post.photoUrl,
-      photoDescription: post.photoDescription,
-      likeCountLabel: `${likes.length} 赞`,
-      commentCountLabel: `${comments.length} 评论`,
-      comments: comments.slice(0, 8).map((comment) => ({
-        id: comment.id,
-        authorLabel: resolveCheckPhoneDisplayName(
-          comment.authorType,
-          comment.authorId,
-          comment.authorName,
-          userName,
-          characterId,
-        ),
-        timeLabel: formatChatUiTime(comment.createdAt),
-        text: comment.content.trim(),
-        replyToLabel: comment.replyToAuthorName
-          || (comment.replyToAuthorType === "user" ? userName : undefined)
-          || undefined,
-      })),
-    };
-  });
-}
-
 function buildRealCheckPhoneChatPayload(characterId: string): CheckPhoneChatPayload {
   const sessions = loadChatSessions();
   const userName = resolveUserIdentity(characterId, "checkphone")?.name ?? "用户";
   const directSession = sessions.find((session) => !session.isGroup && session.contactId === characterId);
   const conversations = extractDirectConversation(directSession, characterId, userName);
   const groups = extractRealGroups(sessions, characterId, userName);
-  const momentsFeed = extractRealMoments(characterId, userName);
   return {
     headerTitle: "聊天",
     headerSubtitle: "真实互动与补充内容",
     conversations,
     groups,
-    momentsFeed,
     contacts: [],
   };
 }
@@ -1077,7 +1013,6 @@ function buildRealCheckPhoneChatPayload(characterId: string): CheckPhoneChatPayl
 function formatRealChatSnapshotForPrompt(realPayload: CheckPhoneChatPayload): string {
   const conversationLines = realPayload.conversations.map((item) => `- 会话 ${item.name}｜${item.preview}`);
   const groupLines = realPayload.groups.map((item) => `- 群聊 ${item.name}｜${item.preview}`);
-  const momentLines = realPayload.momentsFeed.map((item) => `- 朋友圈 ${item.authorLabel}｜${item.body}`);
   const contactLines = realPayload.contacts.map((item) => `- 联系人 ${item.name}｜${item.tagLabel}｜${item.note}`);
   return [
     "[真实会话]",
@@ -1085,9 +1020,6 @@ function formatRealChatSnapshotForPrompt(realPayload: CheckPhoneChatPayload): st
     "",
     "[真实群聊]",
     groupLines.length > 0 ? groupLines.join("\n") : "- 无",
-    "",
-    "[真实朋友圈]",
-    momentLines.length > 0 ? momentLines.join("\n") : "- 无",
     "",
     "[真实联系人]",
     contactLines.length > 0 ? contactLines.join("\n") : "- 无",
@@ -1147,16 +1079,6 @@ function mergeChatPayload(
         });
       }),
       (item) => normalizeEntityName(item.name) || item.id,
-    ).slice(0, 8),
-    momentsFeed: mergeBy(
-      realPayload.momentsFeed,
-      (supplemental?.momentsFeed ?? []).filter(
-        (item) => {
-          const author = normalizeEntityName(item.authorLabel);
-          return !!author && !blockedNpcOnlyNames.has(author);
-        },
-      ),
-      (item) => `${item.id}::${item.authorLabel}::${item.body}`,
     ).slice(0, 8),
     contacts: mergeBy(
       [],
@@ -4947,37 +4869,6 @@ function parseChatSupplementalMessages(
     });
 }
 
-function parseChatMomentComments(
-  fields: Record<string, string>,
-  prefix: string,
-): CheckPhoneChatPayload["momentsFeed"][number]["comments"] {
-  const commentNumbers = Object.keys(fields)
-    .map((key) => key.match(/^评论(\d+)作者$/)?.[1])
-    .filter(Boolean)
-    .map(Number)
-    .sort((a, b) => a - b);
-  const authorByNumber = new Map(
-    commentNumbers.map((number) => [number, fields[`评论${number}作者`] || ""]),
-  );
-
-  return commentNumbers.map((number) => {
-    const replyTarget = fields[`评论${number}回复对象`]?.trim() || "";
-    const replyTargetNumber = Number(replyTarget.match(/^评论(\d+)$/)?.[1] || 0);
-    const replyToLabel =
-      replyTargetNumber > 0 && replyTargetNumber < number
-        ? authorByNumber.get(replyTargetNumber) || undefined
-        : undefined;
-
-    return {
-      id: `${prefix}_comment_${number}`,
-      authorLabel: fields[`评论${number}作者`] || "",
-      timeLabel: fields[`评论${number}时间`] || "",
-      text: fields[`评论${number}内容`] || "",
-      replyToLabel,
-    };
-  });
-}
-
 function parseChatBlockPayload(text: string): PhoneBlockParseResult {
   const source = stripJsonWrapperNoise(text).replace(/\r/g, "").trim();
   if (!source) return { parsed: null, sanitizedCandidate: "", parseMode: "failed", parseError: "LLM 返回为空" };
@@ -4998,18 +4889,6 @@ function parseChatBlockPayload(text: string): PhoneBlockParseResult {
     activityLabel: entry.fields["活跃"] || "最近活跃",
     messages: parseChatSupplementalMessages(entry.fields, `supp_group_${entry.order}`, true),
   }));
-  const supplementalMoments = extractTopLevelTaggedBlocks(source, "补充动态").map((entry) => ({
-    id: `supp_moment_${entry.order}`,
-    authorLabel: entry.fields["作者"] || "",
-    authorAccent: entry.fields["标记"] || "最近动态",
-    timeLabel: entry.fields["时间"] || "",
-    body: entry.fields["正文"] || "",
-    mediaLabel: entry.fields["媒体"] || "动态",
-    photoDescription: entry.fields["媒体"] || undefined,
-    likeCountLabel: entry.fields["点赞"] || "0 赞",
-    commentCountLabel: entry.fields["评论数"] || "0 评论",
-    comments: parseChatMomentComments(entry.fields, `supp_moment_${entry.order}`),
-  }));
   const supplementalContacts = extractTopLevelTaggedBlocks(source, "补充联系人").map((entry) => ({
     id: `supp_contact_${entry.order}`,
     name: entry.fields["名称"] || "",
@@ -5019,12 +4898,12 @@ function parseChatBlockPayload(text: string): PhoneBlockParseResult {
     note: entry.fields["备注"] || "",
   }));
 
-  if (supplementalConversations.length + supplementalGroups.length + supplementalMoments.length + supplementalContacts.length === 0) {
+  if (supplementalConversations.length + supplementalGroups.length + supplementalContacts.length === 0) {
     return { parsed: null, sanitizedCandidate: source, parseMode: "failed", parseError: "未找到聊天补充块" };
   }
 
   return {
-    parsed: { supplementalConversations, supplementalGroups, supplementalMoments, supplementalContacts },
+    parsed: { supplementalConversations, supplementalGroups, supplementalContacts },
     sanitizedCandidate: source,
     parseMode: "sanitized",
   };
@@ -5046,13 +4925,6 @@ function normalizeChatPayload(payload: unknown): Partial<CheckPhoneChatPayload> 
       ? record.groups
       : Array.isArray(record.groupThreads)
         ? record.groupThreads
-        : [];
-  const momentSource = Array.isArray(record.supplementalMoments)
-    ? record.supplementalMoments
-    : Array.isArray(record.momentsFeed)
-      ? record.momentsFeed
-      : Array.isArray(record.moments)
-        ? record.moments
         : [];
   const contactSource = Array.isArray(record.supplementalContacts)
     ? record.supplementalContacts
@@ -5130,52 +5002,6 @@ function normalizeChatPayload(payload: unknown): Partial<CheckPhoneChatPayload> 
     })
     .filter(Boolean) as CheckPhoneChatPayload["groups"];
 
-  const momentsFeed = momentSource
-    .map((item) => {
-      if (!item || typeof item !== "object") return null;
-      const post = item as Record<string, unknown>;
-      const id = typeof post.id === "string" && post.id.trim() ? post.id.trim() : "";
-      const authorLabel = typeof post.authorLabel === "string" ? post.authorLabel.trim() : "";
-      const authorAccent = typeof post.authorAccent === "string" && post.authorAccent.trim() ? post.authorAccent.trim() : "最近动态";
-      const timeLabel = typeof post.timeLabel === "string" ? post.timeLabel.trim() : "";
-      const body = typeof post.body === "string" ? post.body.trim() : "";
-      const mediaLabel = typeof post.mediaLabel === "string" && post.mediaLabel.trim() ? post.mediaLabel.trim() : "动态";
-      const photoUrl = typeof post.photoUrl === "string" && post.photoUrl.trim() ? post.photoUrl.trim() : undefined;
-      const photoDescription =
-        typeof post.photoDescription === "string" && post.photoDescription.trim() ? post.photoDescription.trim() : undefined;
-      const likeCountLabel = typeof post.likeCountLabel === "string" && post.likeCountLabel.trim() ? post.likeCountLabel.trim() : "0 赞";
-      const commentCountLabel = typeof post.commentCountLabel === "string" && post.commentCountLabel.trim() ? post.commentCountLabel.trim() : "0 评论";
-      const comments = (Array.isArray(post.comments) ? post.comments : [])
-        .map((entry) => {
-          if (!entry || typeof entry !== "object") return null;
-          const comment = entry as Record<string, unknown>;
-          const commentId = typeof comment.id === "string" && comment.id.trim() ? comment.id.trim() : "";
-          const commentAuthor = typeof comment.authorLabel === "string" ? comment.authorLabel.trim() : "";
-          const commentTime = typeof comment.timeLabel === "string" ? comment.timeLabel.trim() : "";
-          const text = typeof comment.text === "string" ? comment.text.trim() : "";
-          const replyToLabel =
-            typeof comment.replyToLabel === "string" && comment.replyToLabel.trim() ? comment.replyToLabel.trim() : undefined;
-          if (!commentId || !commentAuthor || !commentTime || !text) return null;
-          return { id: commentId, authorLabel: commentAuthor, timeLabel: commentTime, text, replyToLabel };
-        })
-        .filter(Boolean) as CheckPhoneChatPayload["momentsFeed"][number]["comments"];
-      if (!id || !authorLabel || !timeLabel || !body) return null;
-      return {
-        id,
-        authorLabel,
-        authorAccent,
-        timeLabel,
-        body,
-        mediaLabel,
-        photoUrl,
-        photoDescription,
-        likeCountLabel,
-        commentCountLabel,
-        comments: comments.slice(0, 8),
-      };
-    })
-    .filter(Boolean) as CheckPhoneChatPayload["momentsFeed"];
-
   const contacts = contactSource
     .map((item) => {
       if (!item || typeof item !== "object") return null;
@@ -5201,14 +5027,13 @@ function normalizeChatPayload(payload: unknown): Partial<CheckPhoneChatPayload> 
     return true;
   };
 
-  if (!uniqueIds(conversations) || !uniqueIds(groups) || !uniqueIds(momentsFeed) || !uniqueIds(contacts)) {
+  if (!uniqueIds(conversations) || !uniqueIds(groups) || !uniqueIds(contacts)) {
     return null;
   }
 
   return {
     conversations: conversations.slice(0, 6),
     groups: groups.slice(0, 5),
-    momentsFeed: momentsFeed.slice(0, 6),
     contacts: contacts.slice(0, 8),
   };
 }
