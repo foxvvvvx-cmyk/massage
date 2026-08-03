@@ -24,12 +24,7 @@ import { CUSTOM_APPS_UPDATED_EVENT, loadInstalledCustomApps } from "@/lib/custom
 import { toCustomAppIconId } from "@/lib/custom-app-types";
 import type { InstalledCustomApp } from "@/lib/custom-app-types";
 
-/** Map ContentAppId → IconId (only needed where they differ) */
-const APP_ICON_MAP: Partial<Record<ContentAppId, IconId>> = {
-    adventure: "mapmode",
-    vn: "vnmode",
-};
-const appIconId = (appId: ContentAppId): IconId => APP_ICON_MAP[appId] ?? appId as IconId;
+const appIconId = (appId: ContentAppId): IconId => appId as IconId;
 import type {
     BindingConfig,
     BindingSlot,

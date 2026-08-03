@@ -13,21 +13,13 @@ export const BINDING_ACCENTS = {
 
 export const CONTENT_APP_ACCENTS: Record<ContentAppId, string> = {
     chat: "#22A85A",
-    diary: "#2F80ED",
     music: "#8B5CF6",
     reading: "#2563EB",
     forum: "#F97316",
-    cocreate: "#C8B58A",
     story: "#EC4899",
     game: "#3B82F6",
-    xiaohongshu: "#E11D48",
-    dwelling: "#10B981",
-    checkphone: "#6366F1",
-    shopping: "#F59E0B",
     calendar: "#14B8A6",
-    interview_magazine: "#8B1F1F",
     moments: "#06B6D4",
     group_chat: "#22C55E",
-    vn: "#7C3AED",
-    adventure: "#F97316",
+    shopping: "#F59E0B",
 };

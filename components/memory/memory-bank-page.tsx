@@ -222,12 +222,10 @@ export function MemoryBankPage({ view, selectedCharId, onSelectChar, onNotice }:
         const timeline = loadNativeTimeline(charId);
         setShortTermEvents(timeline.filter(e =>
             !(e.sourceApp === "moments" && e.postAuthorType === "user")
-            && !(e.sourceApp === "interview_magazine" && e.sourceDetail === "interview_shared_issue")
         ));
         setSharedEvents(timeline.filter(e =>
             (e.sourceApp === "moments" && e.postAuthorType === "user") ||
-            (e.sourceApp === "chat" && e.sourceDetail === "group") ||
-            (e.sourceApp === "interview_magazine" && e.sourceDetail === "interview_shared_issue")
+            (e.sourceApp === "chat" && e.sourceDetail === "group")
         ));
         setLoading(false);
     }, []);

@@ -3,7 +3,6 @@
 import { Component, memo, useCallback, useEffect, useInsertionEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ErrorInfo, type ReactNode } from "react";
 
 import { updateStatusBarTone } from "@/lib/bg-tone";
-import { startDiaryEntryTimerService, stopDiaryEntryTimerService } from "@/lib/diary-entry-timer-service";
 import { startFollowUpService, stopFollowUpService } from "@/lib/follow-up-service";
 import { startMomentsService, stopMomentsService } from "@/lib/moments-engine";
 import { bgTimerCleanup } from "@/lib/bg-timer";
@@ -17,31 +16,23 @@ import MusicPlayer from "@/components/music/music-player";
 import MusicFloat from "@/components/music/music-float";
 import MiniAppWindow from "@/components/music/mini-app-window";
 import { PhoneCalendarApp } from "@/components/calendar-app";
-import { DiaryApp } from "@/components/diary/diary-app";
 import { XiaohongshuApp } from "@/components/xiaohongshu/xiaohongshu-app";
 import { StoryApp } from "@/components/story/story-app";
-import { VnApp } from "@/components/vn/vn-app";
 import ReadingApp from "@/components/reading/reading-app";
-import MapApp from "@/components/map/map-app";
 import { DwellingApp } from "@/components/dwelling/dwelling-app";
 import { MascotFloat } from "@/components/mascot/mascot-float";
 import { useMusicControlsOptional } from "@/lib/music-context";
 import { PhoneResourcesApp, type ResourceSubPage } from "@/components/phone-resources-app";
-import { CheckPhoneApp } from "@/components/checkphone/checkphone-app";
 import { ShoppingApp } from "@/components/shopping/shopping-app";
 import { GameHubApp } from "@/components/game/game-hub-app";
-import InterviewMagazineApp from "@/components/interview/interview-magazine-app";
-import { CoCreateApp } from "@/components/cocreate/cocreate-app";
 import { AppMarketApp } from "@/components/app-market/app-market-app";
 import { CustomAppRunner } from "@/components/app-market/custom-app-runner";
 import { hydrateKvDb, kvGet, kvSet, kvRemove, kvKeysWithPrefix } from "@/lib/kv-db";
 import { deleteDatabase } from "@/lib/data-management/idb";
 import { hydrateStoryStorage } from "@/lib/story-storage";
 import { hydrateMomentsStorage } from "@/lib/moments-storage";
-import { hydrateVnStorage } from "@/lib/vn-storage";
 import { hydrateSettingsDb } from "@/lib/settings-db";
 import { hydrateDwellingStorage } from "@/lib/dwelling-storage";
-import { hydrateCheckPhoneStorage } from "@/lib/checkphone-storage";
 import {
   DOCK_DEFAULT,
   ICONS,
@@ -377,8 +368,6 @@ function getInstalledCustomIconIds(): Set<string> {
 
 function migrateLegacyDesktopIconId(id: string, customIconIds = getInstalledCustomIconIds()): DesktopIconId | null {
   if (id === "weibo") return "game";
-  if (id === "fortune") return "interview_magazine";
-  if (id === "forum") return "cocreate";
   if (isCustomAppIconId(id) && customIconIds.has(id)) return id;
   return id in ICONS ? id as IconId : null;
 }
@@ -1498,9 +1487,7 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets }: Deskto
           hydrateSettingsDb(),
           hydrateStoryStorage(),
           hydrateMomentsStorage(),
-          hydrateVnStorage(),
           hydrateDwellingStorage(),
-          hydrateCheckPhoneStorage(),
         ]);
       } catch (err) {
         console.warn("[Desktop] storage hydration error:", err);
@@ -1521,7 +1508,6 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets }: Deskto
       if (cancelled) return;
       startFollowUpService();
       startMomentsService();
-      startDiaryEntryTimerService();
       const stopWeixinCloudRealtimeSync = startWeixinCloudRealtimeSync();
       servicesStarted = true;
       cleanupWeixinCloudRealtimeSync = stopWeixinCloudRealtimeSync;
@@ -1533,7 +1519,6 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets }: Deskto
       if (servicesStarted) {
         stopFollowUpService();
         stopMomentsService();
-        stopDiaryEntryTimerService();
       }
       bgTimerCleanup();
     };
@@ -3103,10 +3088,6 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets }: Deskto
       return <PhoneCalendarApp onClose={() => setActiveApp(null)} onNotice={setNotice} />;
     }
 
-    if (activeApp === "diary") {
-      return <DiaryApp onClose={() => setActiveApp(null)} onNotice={setNotice} />;
-    }
-
     if (activeApp === "xiaohongshu") {
       return null;
     }
@@ -3115,25 +3096,13 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets }: Deskto
       return <StoryApp onClose={() => setActiveApp(null)} />;
     }
 
-    if (activeApp === "vnmode") {
-      return <VnApp onClose={() => setActiveApp(null)} />;
-    }
-
     if (activeApp === "reading") {
       return <ReadingApp onClose={() => setActiveApp(null)} />;
-    }
-
-    if (activeApp === "mapmode") {
-      return <MapApp onClose={() => setActiveApp(null)} />;
     }
 
     if (activeApp === "dwelling") {
       // DwellingApp is rendered separately (kept alive) — see below
       return null;
-    }
-
-    if (activeApp === "checkphone") {
-      return <CheckPhoneApp onClose={() => setActiveApp(null)} />;
     }
 
     if (activeApp === "shopping") {
@@ -3160,14 +3129,6 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets }: Deskto
           launchContext={appMarketLaunchContext}
         />
       );
-    }
-
-    if (activeApp === "interview_magazine") {
-      return <InterviewMagazineApp onClose={() => setActiveApp(null)} />;
-    }
-
-    if (activeApp === "cocreate") {
-      return <CoCreateApp onClose={() => setActiveApp(null)} onNotice={setNotice} />;
     }
 
     return activeApp in ICONS

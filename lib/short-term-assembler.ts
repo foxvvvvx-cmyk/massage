@@ -12,17 +12,11 @@ import { loadMemoryConfig } from "./memory-storage";
 import { estimateTokens } from "./token-counter";
 import { loadStoryProjectionEntries } from "./story-storage";
 import { buildTwoLevelMomentThreads } from "./moments-comment-threading";
-import { loadVnProjectionEntries } from "./vn-storage";
-import { loadMapProjectionEntries, loadMapSharedProjectionEntries } from "./map-storage";
 import { loadGameProjectionEntries } from "./game-storage";
-import { loadDiaryEntries } from "./diary-entry-storage";
-import type { DiaryEntry, DiaryEntryBlock } from "./diary-entry-types";
 import { loadNoteWallProjectionEntries } from "./notewall-memory";
 import { loadXiaohongshuProjectionEntries } from "./xiaohongshu-memory";
 import { formatXiaohongshuShareForPrompt } from "./chat-share";
 import { loadBlackMarketTheaterProjectionEntries } from "./black-market-storage";
-import { loadInterviewMagazineProjectionEntries } from "./interview-magazine-memory";
-import { loadCoCreateProjectionEntries } from "./cocreate-memory";
 import { stripStateAndInnerForPrompt } from "./prompt-sanitizer";
 import { renderUserNameMacro } from "./user-macro";
 import { loadChatOfflineProjectionEntries } from "./chat-offline-storage";
@@ -50,8 +44,8 @@ function formatPhotoDirectiveForPrompt(msg: ChatMessage): string {
 
 export type NativeTimelineEntry = {
     id: string;
-    sourceApp: "chat" | "moments" | "story" | "vn" | "map" | "game" | "diary" | "xiaohongshu" | "interview_magazine" | "cocreate" | "checkphone" | "custom_app";
-    sourceDetail?: "direct" | "group" | "system" | "story" | "chat_offline" | "game" | "diary_entry" | "notewall" | "xiaohongshu" | "black_market_theater" | "interview_issue" | "interview_shared_issue" | "cocreate_project" | "checkphone" | "custom_app_event"; // chat sub-type: 1:1 vs group chat vs system note
+    sourceApp: "chat" | "moments" | "story" | "game" | "diary" | "xiaohongshu" | "checkphone" | "custom_app";
+    sourceDetail?: "direct" | "group" | "system" | "story" | "chat_offline" | "game" | "notewall" | "xiaohongshu" | "black_market_theater" | "checkphone" | "custom_app_event"; // chat sub-type: 1:1 vs group chat vs system note
     authorType?: "user" | "character" | "npc"; // who authored this entry
     postAuthorType?: "user" | "character"; // for moments: who owns the parent post
     sessionId?: string;
@@ -121,35 +115,6 @@ function isPromptHiddenChatMessage(
 function renderCharacterMacro(text: string, charName?: string | null): string {
     const resolvedName = charName?.trim() || "角色";
     return String(text ?? "").replace(/\{\{\s*char\s*\}\}/gi, resolvedName);
-}
-
-function clipTimelineText(value: string, maxLength: number): string {
-    const normalized = value.replace(/\s+/g, " ").trim();
-    return normalized.length > maxLength ? `${normalized.slice(0, maxLength)}...` : normalized;
-}
-
-function formatDiaryBlockForTimeline(block: DiaryEntryBlock): string {
-    if (block.type === "paragraph" || block.type === "quote") return block.text;
-    if (block.type === "correction") return block.replacement || block.text;
-    if (block.type === "image") return block.caption || block.description;
-    if (block.type === "todo") return [
-        block.title,
-        block.items.map(item => `${item.done ? "完成" : "待办"}:${item.text}`).join(" / "),
-    ].filter(Boolean).join(" ");
-    return "";
-}
-
-function formatDiaryEntryForTimeline(entry: DiaryEntry, timeAware: boolean, timestampOptions?: PromptTimestampOptions): string {
-    const body = entry.blocks.map(formatDiaryBlockForTimeline).filter(Boolean).join(" ") || entry.body;
-    const markers = Array.from(new Set([
-        entry.mood,
-        entry.weather,
-        ...entry.tags,
-    ].map(item => item.trim()).filter(Boolean))).slice(0, 4);
-    const markerText = markers.length > 0 ? `（${markers.join(" / ")}）` : "";
-    const title = entry.title.trim() || "未命名日记";
-    const text = clipTimelineText(body || title, 900);
-    return `${formatPromptEventLabel("日记", entry.createdAt, timeAware, timestampOptions)} ${entry.characterName}写了一篇日记《${title}》${markerText}：${text}`;
 }
 
 /**
@@ -573,61 +538,6 @@ export function loadNativeTimeline(
         });
     }
 
-    // ── VN projections ──
-    const vnEntries = loadVnProjectionEntries(characterId, {
-        afterTimestamp: options?.afterTimestamp,
-    });
-    for (const vnEntry of vnEntries) {
-        entries.push({
-            id: vnEntry.id,
-            sourceApp: "vn",
-            timestamp: vnEntry.timestamp,
-            content: formatStoredPromptEventContent(vnEntry.content, {
-                label: "事件",
-                timestamp: vnEntry.timestamp,
-                timeAware,
-                timestampOptions,
-            }),
-        });
-    }
-
-    // ── Map adventure projections ──
-    const mapEntries = loadMapProjectionEntries(characterId, {
-        afterTimestamp: options?.afterTimestamp,
-    });
-    for (const mapEntry of mapEntries) {
-        entries.push({
-            id: mapEntry.id,
-            sourceApp: "map",
-            timestamp: mapEntry.timestamp,
-            content: formatStoredPromptEventContent(renderUserNameMacro(mapEntry.content, userName), {
-                label: "跑团游戏",
-                timestamp: mapEntry.timestamp,
-                timeAware,
-                timestampOptions,
-            }),
-        });
-    }
-
-    // Multi-character adventure worlds are shared context, but still part of the
-    // same recent timeline and should not ride a separate shared-memory channel.
-    const sharedMapEntries = loadMapSharedProjectionEntries([characterId], {
-        afterTimestamp: options?.afterTimestamp,
-    });
-    for (const mapEntry of sharedMapEntries) {
-        entries.push({
-            id: mapEntry.id,
-            sourceApp: "map",
-            timestamp: mapEntry.timestamp,
-            content: formatStoredPromptEventContent(renderUserNameMacro(mapEntry.content, userName), {
-                label: "跑团游戏",
-                timestamp: mapEntry.timestamp,
-                timeAware,
-                timestampOptions,
-            }),
-        });
-    }
-
     // ── Game hall projections ──
     const gameEntries = loadGameProjectionEntries(characterId, {
         afterTimestamp: options?.afterTimestamp,
@@ -640,22 +550,6 @@ export function loadNativeTimeline(
             authorType: "character",
             timestamp: gameEntry.timestamp,
             content: `${formatPromptEventLabel("小游戏", gameEntry.timestamp, timeAware, timestampOptions)} ${gameEntry.summary}`,
-        });
-    }
-
-    // ── Diary entries ──
-    const diaryEntries = loadDiaryEntries().filter(entry =>
-        entry.characterId === characterId
-        && (!options?.afterTimestamp || entry.createdAt > options.afterTimestamp)
-    );
-    for (const diaryEntry of diaryEntries) {
-        entries.push({
-            id: diaryEntry.id,
-            sourceApp: "diary",
-            sourceDetail: "diary_entry",
-            authorType: "character",
-            timestamp: diaryEntry.createdAt,
-            content: formatDiaryEntryForTimeline(diaryEntry, timeAware, timestampOptions),
         });
     }
 
@@ -720,47 +614,6 @@ export function loadNativeTimeline(
         });
     }
 
-    // ── Interview magazine projections ──
-    const interviewEntries = loadInterviewMagazineProjectionEntries(characterId, {
-        afterTimestamp: options?.afterTimestamp,
-    });
-    for (const interviewEntry of interviewEntries) {
-        entries.push({
-            id: interviewEntry.id,
-            sourceApp: "interview_magazine",
-            sourceDetail: interviewEntry.shared ? "interview_shared_issue" : "interview_issue",
-            authorType: "character",
-            timestamp: interviewEntry.timestamp,
-            content: formatStoredPromptEventContent(renderUserNameMacro(interviewEntry.content, userName), {
-                label: "访谈",
-                timestamp: interviewEntry.timestamp,
-                timeAware,
-                timestampOptions,
-            }),
-        });
-    }
-
-    // ── Co-create projections ──
-    const cocreateEntries = loadCoCreateProjectionEntries(characterId, {
-        afterTimestamp: options?.afterTimestamp,
-    });
-    for (const cocreateEntry of cocreateEntries) {
-        entries.push({
-            id: cocreateEntry.id,
-            sourceApp: "cocreate",
-            sourceDetail: "cocreate_project",
-            authorType: "character",
-            sessionId: cocreateEntry.sessionId,
-            timestamp: cocreateEntry.timestamp,
-            content: formatStoredPromptEventContent(cocreateEntry.content, {
-                label: "共创",
-                timestamp: cocreateEntry.timestamp,
-                timeAware,
-                timestampOptions,
-            }),
-        });
-    }
-
     // ── Custom app timeline events ──
     const customAppEntries = loadCustomAppTimelineEntries(characterId, {
         afterTimestamp: options?.afterTimestamp,
@@ -791,21 +644,17 @@ export function loadNativeTimeline(
 }
 
 // Fixed order — lower = further from LLM output (appears higher in prompt)
-const FEATURE_ORDER: Record<string, number> = { map: 0, game: 0.5, moments: 1, xiaohongshu: 1.5, checkphone: 1.7, story: 2, vn: 2, theater: 2.2, interview: 2.35, cocreate: 2.4, diary_entry: 2.45, notewall: 2.5, custom_app: 2.6, group_chat: 3, chat: 4 };
+const FEATURE_ORDER: Record<string, number> = { game: 0.5, moments: 1, xiaohongshu: 1.5, checkphone: 1.7, story: 2, theater: 2.2, notewall: 2.5, custom_app: 2.6, group_chat: 3, chat: 4 };
 // Map appId → XML tag name for the "current feature" wrapper
 const FEATURE_TAG: Record<string, string> = {
     chat: "recent_chat",
     group_chat: "recent_group_chat",
     moments: "recent_moments",
     story: "recent_events",
-    vn: "recent_events",
-    adventure: "recent_game",
     game: "recent_game",
     diary: "recent_notewall",
     xiaohongshu: "recent_xiaohongshu",
     checkphone: "recent_checkphone",
-    interview_magazine: "recent_interview",
-    cocreate: "recent_cocreate",
 };
 
 function getFeatureTag(appId: string): string {
@@ -990,7 +839,7 @@ export function prepareShortTermContext(
     const currentTag = getFeatureTag(appId);
     const history = options?.history ?? [];
     const characterName = loadCharacters().find(c => c.id === characterId)?.name ?? "角色";
-    const wrapsCurrentHistory = appId === "chat" || appId === "group_chat" || appId === "story" || appId === "vn" || appId === "adventure";
+    const wrapsCurrentHistory = appId === "chat" || appId === "group_chat" || appId === "story";
     const skipDirectChatEntries = appId === "chat" && !options?.includeDirectChatEntries;
 
     // ── Collect non-history entries per block ──
@@ -1018,29 +867,9 @@ export function prepareShortTermContext(
         raw.push({ tag: "recent_theater", order: FEATURE_ORDER.theater, entries: theaterEntries });
     }
 
-    if (appId !== "vn") {
-        const vnEntries = timeline.filter(e => e.sourceApp === "vn");
-        if (vnEntries.length > 0) {
-            raw.push({ tag: "recent_events", order: FEATURE_ORDER.vn, entries: vnEntries });
-        }
-    }
-
-    // Map adventure projections — skip in adventure mode (already has full journal/stream context)
-    if (appId !== "adventure") {
-        const mapEventEntries = timeline.filter(e => e.sourceApp === "map");
-        if (mapEventEntries.length > 0) {
-            raw.push({ tag: "recent_game", order: FEATURE_ORDER.map, entries: mapEventEntries });
-        }
-    }
-
     const gameEventEntries = timeline.filter(e => e.sourceApp === "game");
     if (gameEventEntries.length > 0) {
         raw.push({ tag: "recent_game", order: FEATURE_ORDER.game, entries: gameEventEntries });
-    }
-
-    const diaryEntries = timeline.filter(e => e.sourceApp === "diary" && e.sourceDetail === "diary_entry");
-    if (diaryEntries.length > 0) {
-        raw.push({ tag: "recent_diary", order: FEATURE_ORDER.diary_entry, entries: diaryEntries });
     }
 
     const noteWallEntries = timeline.filter(e => e.sourceApp === "diary" && e.sourceDetail === "notewall");
@@ -1056,16 +885,6 @@ export function prepareShortTermContext(
     const checkPhoneEntries = timeline.filter(e => e.sourceApp === "checkphone");
     if (checkPhoneEntries.length > 0) {
         raw.push({ tag: "recent_checkphone", order: FEATURE_ORDER.checkphone, entries: checkPhoneEntries });
-    }
-
-    const interviewEntries = timeline.filter(e => e.sourceApp === "interview_magazine");
-    if (interviewEntries.length > 0) {
-        raw.push({ tag: "recent_interview", order: FEATURE_ORDER.interview, entries: interviewEntries });
-    }
-
-    const cocreateEntries = timeline.filter(e => e.sourceApp === "cocreate");
-    if (cocreateEntries.length > 0) {
-        raw.push({ tag: "recent_cocreate", order: FEATURE_ORDER.cocreate, entries: cocreateEntries });
     }
 
     const customAppEntries = timeline.filter(e => e.sourceApp === "custom_app");
@@ -1279,24 +1098,9 @@ export function prepareGroupShortTermContext(
         raw.push({ tag: "recent_theater", order: FEATURE_ORDER.theater, entries: theaterEntries });
     }
 
-    const vnEntries = timeline.filter(e => e.sourceApp === "vn");
-    if (vnEntries.length > 0) {
-        raw.push({ tag: "recent_events", order: FEATURE_ORDER.vn, entries: vnEntries });
-    }
-
-    const mapEntries = timeline.filter(e => e.sourceApp === "map");
-    if (mapEntries.length > 0) {
-        raw.push({ tag: "recent_game", order: FEATURE_ORDER.map, entries: mapEntries });
-    }
-
     const gameEntries = timeline.filter(e => e.sourceApp === "game");
     if (gameEntries.length > 0) {
         raw.push({ tag: "recent_game", order: FEATURE_ORDER.game, entries: gameEntries });
-    }
-
-    const diaryEntries = timeline.filter(e => e.sourceApp === "diary" && e.sourceDetail === "diary_entry");
-    if (diaryEntries.length > 0) {
-        raw.push({ tag: "recent_diary", order: FEATURE_ORDER.diary_entry, entries: diaryEntries });
     }
 
     const noteWallEntries = timeline.filter(e => e.sourceApp === "diary" && e.sourceDetail === "notewall");
@@ -1312,16 +1116,6 @@ export function prepareGroupShortTermContext(
     const checkPhoneEntries = timeline.filter(e => e.sourceApp === "checkphone");
     if (checkPhoneEntries.length > 0) {
         raw.push({ tag: "recent_checkphone", order: FEATURE_ORDER.checkphone, entries: checkPhoneEntries });
-    }
-
-    const interviewEntries = timeline.filter(e => e.sourceApp === "interview_magazine");
-    if (interviewEntries.length > 0) {
-        raw.push({ tag: "recent_interview", order: FEATURE_ORDER.interview, entries: interviewEntries });
-    }
-
-    const cocreateEntries = timeline.filter(e => e.sourceApp === "cocreate");
-    if (cocreateEntries.length > 0) {
-        raw.push({ tag: "recent_cocreate", order: FEATURE_ORDER.cocreate, entries: cocreateEntries });
     }
 
     const customAppEntries = timeline.filter(e => e.sourceApp === "custom_app");
@@ -1416,17 +1210,13 @@ export function prepareGroupShortTermContext(
                 sourceApp: entry.sourceApp,
                 sourceTag: entry.sourceDetail === "group" ? "recent_group_chat" : (
                     entry.sourceApp === "moments" ? "recent_moments" :
-                        entry.sourceApp === "map" ? "recent_game" :
-                            entry.sourceApp === "game" ? "recent_game" :
-                                entry.sourceApp === "xiaohongshu" ? "recent_xiaohongshu" :
-                                    entry.sourceApp === "checkphone" ? "recent_checkphone" :
-                                        entry.sourceApp === "interview_magazine" ? "recent_interview" :
-                                                entry.sourceApp === "cocreate" ? "recent_cocreate" :
-                                                    entry.sourceApp === "custom_app" ? "recent_custom_app" :
-                                                        entry.sourceApp === "story" && entry.sourceDetail === "black_market_theater" ? "recent_theater" :
-                                                            entry.sourceApp === "diary" && entry.sourceDetail === "diary_entry" ? "recent_diary" :
-                                                                entry.sourceApp === "diary" && entry.sourceDetail === "notewall" ? "recent_notewall" :
-                                                                    entry.sourceApp === "chat" ? "recent_chat" : "recent_events"
+                        entry.sourceApp === "game" ? "recent_game" :
+                            entry.sourceApp === "xiaohongshu" ? "recent_xiaohongshu" :
+                                entry.sourceApp === "checkphone" ? "recent_checkphone" :
+                                    entry.sourceApp === "custom_app" ? "recent_custom_app" :
+                                        entry.sourceApp === "story" && entry.sourceDetail === "black_market_theater" ? "recent_theater" :
+                                            entry.sourceApp === "diary" && entry.sourceDetail === "notewall" ? "recent_notewall" :
+                                                entry.sourceApp === "chat" ? "recent_chat" : "recent_events"
                 ),
                 text: entry.content,
             });

@@ -503,7 +503,7 @@ const UPDATE_REGEX_RULE_SCHEMA = {
 const NAVIGATE_SCHEMA = {
     type: "object",
     properties: {
-        page: { type: "string", enum: ["chat", "characters", "story", "vnmode", "moments", "calendar", "music", "resources", "settings"], description: "页面名" },
+        page: { type: "string", enum: ["chat", "characters", "story", "moments", "calendar", "music", "resources", "settings"], description: "页面名" },
         subpage: { type: "string", enum: ["presets", "worldbook", "regex", "api", "voice", "binding", "data", "identity"], description: "子页面（仅 settings 下有效）" },
     },
     required: ["page"],
@@ -634,7 +634,7 @@ export function buildMascotToolsListPrompt(): string {
     // 导航工具不在套件里，schema 直接在这里展开（只一个工具，省得用 [获取指令] 再加载）
     lines.push("【独立工具】导航 — 跳转到指定页面，可直接调用。");
     lines.push("  参数：");
-    lines.push("    · page (必填) — 页面名。可选值：chat / characters / story / vnmode / moments / calendar / music / resources / settings");
+    lines.push("    · page (必填) — 页面名。可选值：chat / characters / story / moments / calendar / music / resources / settings");
     lines.push("    · subpage (可选) — 子页面（仅 page=settings 时有效）。可选值：presets / worldbook / regex / api / voice / binding / data / identity");
     lines.push("  调用：[执行动作:导航({\"page\":\"chat\"})] 或 [执行动作:导航({\"page\":\"settings\",\"subpage\":\"presets\"})]");
     lines.push("");

@@ -6,7 +6,6 @@ import {
 } from "./checkphone-config";
 
 const EXTRA_TAG_LABELS: Record<string, string> = {
-    adventure: "冒险",
     add_friend: "加好友",
     dwelling: "栖所",
     offline: "线下",
@@ -25,7 +24,6 @@ const EXTRA_TAG_LABELS: Record<string, string> = {
     layout: "布局",
     full: "完整",
     items: "物品",
-    entries: "日记生成",
     explore: "探索",
     annotate: "标注",
     discuss: "讨论",
@@ -36,8 +34,6 @@ const EXTRA_TAG_LABELS: Record<string, string> = {
     notes: "笔记",
     notewall: "便签墙",
     notewall_reply: "便签墙回复",
-    interview_magazine: "访谈",
-    cocreate: "共创",
     action: "动作",
     tool: "工具",
     host: "主持人",
@@ -125,7 +121,6 @@ export const CONTENT_SCOPE_TAG_GROUPS: TagGroupProfile[] = [
         tags: ["diary"],
         minors: [
             commonMinor("diary", ["diary"]),
-            profile("diary", "entries", "日记生成", ["diary", "entries"]),
             profile("diary", "notewall", "便签墙生成", ["diary", "notewall"]),
             profile("diary", "notewall_reply", "便签墙回复", ["diary", "notewall_reply"]),
         ],
@@ -143,9 +138,7 @@ export const CONTENT_SCOPE_TAG_GROUPS: TagGroupProfile[] = [
         ],
     },
     { id: "story", label: "剧情", tags: ["story"], minors: [commonMinor("story", ["story"])] },
-    { id: "vn", label: "漫卷", tags: ["vn"], minors: [commonMinor("vn", ["vn"])] },
     { id: "calendar", label: "日历", tags: ["calendar"], minors: [commonMinor("calendar", ["calendar"])] },
-    { id: "adventure", label: "冒险", tags: ["adventure"], minors: [commonMinor("adventure", ["adventure"])] },
     { id: "game", label: "游戏", tags: ["game"], minors: [commonMinor("game", ["game"])] },
     { id: "add_friend", label: "加好友", tags: ["add_friend"], minors: [commonMinor("add_friend", ["add_friend"])] },
     {
@@ -179,27 +172,6 @@ export const CONTENT_SCOPE_TAG_GROUPS: TagGroupProfile[] = [
             profile("reading", "discuss", "讨论", ["reading", "discuss"]),
         ],
     },
-    {
-        id: "interview_magazine",
-        label: "访谈",
-        tags: ["interview_magazine"],
-        minors: [
-            commonMinor("interview_magazine", ["interview_magazine"]),
-            profile("interview_magazine", "answer", "角色回答", ["interview_magazine", "answer"]),
-            profile("interview_magazine", "article", "成刊", ["interview_magazine", "article"]),
-        ],
-    },
-    {
-        id: "cocreate",
-        label: "共创",
-        tags: ["cocreate"],
-        minors: [
-            commonMinor("cocreate", ["cocreate"]),
-            profile("cocreate", "write", "正文创作", ["cocreate", "write"]),
-            profile("cocreate", "discuss", "讨论", ["cocreate", "discuss"]),
-            profile("cocreate", "action", "可执行动作", ["cocreate", "action"]),
-        ],
-    },
 ];
 
 export const CONTENT_SCOPE_TAG_PROFILES: TagProfile[] = [
@@ -216,7 +188,6 @@ const LEGACY_TAG_MIGRATIONS = new Map<string, string[]>([
     [JSON.stringify(["chat", "chat-video"]), ["chat", "video"]],
     [JSON.stringify(["moments_npc"]), ["moments", "npc"]],
     [JSON.stringify(["朋友圈", "NPC回复"]), ["moments", "npc_reply"]],
-    [JSON.stringify(["diary", "entries_generate"]), ["diary", "entries"]],
     [JSON.stringify(["diary", "notewall_generate"]), ["diary", "notewall"]],
     [JSON.stringify(["xiaohongshu", "character_activity"]), ["xiaohongshu", "activity"]],
     [JSON.stringify(["xiaohongshu", "user_post_reaction"]), ["xiaohongshu", "reaction"]],
@@ -224,7 +195,6 @@ const LEGACY_TAG_MIGRATIONS = new Map<string, string[]>([
     [JSON.stringify(["xiaohongshu", "mention_reply"]), ["xiaohongshu", "mention"]],
     [JSON.stringify(["dwelling", "layout_full"]), ["dwelling", "full"]],
     [JSON.stringify(["dwelling", "layout_items"]), ["dwelling", "items"]],
-    [JSON.stringify(["interview_magazine", "character_answer"]), ["interview_magazine", "answer"]],
 ]);
 
 export function normalizePromptScopeTags(tags: unknown): string[] | undefined {

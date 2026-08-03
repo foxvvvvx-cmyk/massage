@@ -31,9 +31,7 @@ export function loadWidgets(): WidgetInstance[] {
     if (!raw) return createDefaultWidgets();
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter(isValidWidget).map((widget) => (
-      widget.type === "fortune" ? { ...widget, type: "interviewMagazine" } : widget
-    ));
+    return parsed.filter(isValidWidget);
   } catch {
     return [];
   }

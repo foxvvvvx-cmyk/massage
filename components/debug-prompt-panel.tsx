@@ -5,48 +5,20 @@ import { getDebugChatState, getDebugPromptSnapshot, subscribeDebugChatState, sub
 import { previewPromptRequestSnapshot, ChatEngineError } from "@/lib/chat-engine";
 import { previewGroupPromptRequestSnapshot } from "@/lib/group-chat-engine";
 import { FileText, X } from "lucide-react";
-import {
-    previewMomentsPostPrompt,
-    previewMomentsCommentPrompt,
-    previewMomentsNPCPrompt,
-    previewMomentsReplyPrompt,
-    type MomentsPreviewResult,
-} from "@/lib/moments-engine";
 import { previewCalendarPromptPayload } from "@/lib/calendar-engine";
 import { CHAT_APP_SETTINGS_UPDATED_EVENT, loadChatAppSettings, loadChatContacts, loadChatMessages, loadChatSessions, type ChatSession } from "@/lib/chat-storage";
 import { loadCharacters } from "@/lib/character-storage";
-import { getAllPosts } from "@/lib/moments-storage";
 import type { LLMMessage } from "@/lib/llm-prompt-assembler";
 import { getWeekStartIso } from "@/lib/calendar-utils";
 import { loadStorySessions, loadStoryMessages } from "@/lib/story-storage";
 import { previewStoryPromptPayload } from "@/lib/story-engine";
-import { loadVnSessions, loadVnMessages } from "@/lib/vn-storage";
-import { previewVnPromptPayload } from "@/lib/vn-engine";
 import { EXTRA_PROMPT_APPS, type ExtraPromptAppId } from "@/components/debug-prompt-registry";
-import { previewCheckPhonePromptPayload } from "@/lib/checkphone-engine";
-import { CHECKPHONE_APP_SPECS, type CheckPhoneAppId } from "@/lib/checkphone-config";
 import { hydrateReadingStorage, loadBooks, loadChapters, loadAnnotations } from "@/lib/reading-storage";
 import { previewReadingAnnotationPrompt, previewReadingDiscussPrompt } from "@/lib/reading-engine";
-import { previewDwellingPromptPayload, type DwellingRefreshMode } from "@/lib/dwelling-engine";
-import { loadDiaryEntries } from "@/lib/diary-entry-storage";
-import { previewDiaryEntryPromptPayload } from "@/lib/diary-entry-engine";
-import { fetchNoteWall, fetchNoteWallComments } from "@/lib/notewall-client";
-import { previewNoteWallPromptPayload, type NoteWallReplyCandidate } from "@/lib/notewall-engine";
-import { loadXiaohongshuState } from "@/lib/xiaohongshu-storage";
-import { previewXiaohongshuPromptPayload } from "@/lib/xiaohongshu-engine";
-import { loadCoCreateSession } from "@/lib/cocreate-storage";
-import { previewCoCreatePromptPayload } from "@/lib/cocreate-engine";
-import { previewShoppingPromptPayload } from "@/lib/shopping-engine";
-import { previewInterviewMagazinePromptPayload } from "@/lib/interview-magazine-engine";
-import { hydrateMapStorage, loadMapWorlds, getLatestSave } from "@/lib/map-storage";
-import { previewAdventureCompanionPromptPayload } from "@/lib/map-rpg-engine";
-import { resolveUserIdentity } from "@/lib/settings-storage";
 import type { BookChapter } from "@/lib/reading-types";
-import type { CoCreateMode } from "@/lib/cocreate-types";
-import type { MapWorld, GameSave } from "@/lib/map-types";
 
 
-type CoreDebugMode = "chat" | "moments" | "calendar" | "story" | "vn";
+type CoreDebugMode = "chat" | "calendar" | "story";
 type DebugMode = CoreDebugMode | ExtraPromptAppId;
 
 type UnifiedMessage = {
@@ -105,12 +77,6 @@ export function DebugPromptPanel() {
     const [selectedChatSessionId, setSelectedChatSessionId] = useState("");
     const [followUpMode, setFollowUpMode] = useState(false);
 
-    // Moments state
-    const [momentsResult, setMomentsResult] = useState<MomentsPreviewResult | null>(null);
-    const [momentsType, setMomentsType] = useState<"post" | "comment" | "npc" | "reply">("post");
-    const [selectedCharId, setSelectedCharId] = useState<string>("");
-    const [selectedPostId, setSelectedPostId] = useState<string>("");
-
     // Calendar state
     const [calendarResult, setCalendarResult] = useState<{
         messages: LLMMessage[];
@@ -130,36 +96,15 @@ export function DebugPromptPanel() {
     } | null>(null);
     const [storyCharacterId, setStoryCharacterId] = useState<string>("");
 
-    // VN state
-    const [vnResult, setVnResult] = useState<{
-        messages: LLMMessage[];
-        characterName: string;
-        model: string;
-        presetName: string;
-    } | null>(null);
-    const [vnCharacterId, setVnCharacterId] = useState<string>("");
-
-    // Extra app state
+    // Extra app state (reading)
     const [extraResult, setExtraResult] = useState<PromptPreviewResult | null>(null);
-    const [extraAppId, setExtraAppId] = useState<ExtraPromptAppId>("checkphone");
+    const [extraAppId, setExtraAppId] = useState<ExtraPromptAppId>("reading");
     const [extraCharacterId, setExtraCharacterId] = useState<string>("");
-    const [checkPhoneAppId, setCheckPhoneAppId] = useState<CheckPhoneAppId | "manifest">("manifest");
     const [readingBookId, setReadingBookId] = useState<string>("");
     const [readingChapterIndex, setReadingChapterIndex] = useState<string>("");
     const [readingChapters, setReadingChapters] = useState<BookChapter[]>([]);
     const [readingStorageVersion, setReadingStorageVersion] = useState(0);
     const [readingMode, setReadingMode] = useState<"annotate" | "discuss">("annotate");
-    const [dwellingMode, setDwellingMode] = useState<DwellingRefreshMode | "explore">("full");
-    const [noteWallMode, setNoteWallMode] = useState<"note" | "reply">("note");
-    const [xiaohongshuMode, setXiaohongshuMode] = useState<"activity" | "reaction" | "comment" | "mention">("activity");
-    const [coCreateMode, setCoCreateMode] = useState<CoCreateMode>("write");
-    const [shoppingMode, setShoppingMode] = useState<"catalog" | "search">("catalog");
-    const [shoppingQuery, setShoppingQuery] = useState("礼物");
-    const [interviewMode, setInterviewMode] = useState<"opening" | "host" | "answer" | "article">("opening");
-    const [interviewTheme, setInterviewTheme] = useState("一次关于在场的采访");
-    const [adventureWorldId, setAdventureWorldId] = useState<string>("");
-    const [adventureStorageVersion, setAdventureStorageVersion] = useState(0);
-    const [adventureInstructionMode, setAdventureInstructionMode] = useState<"turn" | "exit">("turn");
 
     // Shared
     const [error, setError] = useState<string | null>(null);
@@ -206,10 +151,8 @@ export function DebugPromptPanel() {
 
     // Clear on mode/session change
     useEffect(() => {
-        setMomentsResult(null);
         setCalendarResult(null);
         setStoryResult(null);
-        setVnResult(null);
         setExtraResult(null);
         setError(null);
         setExpandedIdx(new Set());
@@ -253,15 +196,6 @@ export function DebugPromptPanel() {
                 marker: m.marker,
             }));
         }
-        if (mode === "moments" && momentsResult) {
-            return momentsResult.messages.map(m => ({
-                role: m.role,
-                content: m.content,
-                marker: m._debugMeta?.marker,
-                depth: m._debugMeta?.depth,
-                order: m._debugMeta?.order,
-            }));
-        }
         if (mode === "calendar" && calendarResult) {
             return calendarResult.messages.map(m => ({
                 role: m.role,
@@ -273,15 +207,6 @@ export function DebugPromptPanel() {
         }
         if (mode === "story" && storyResult) {
             return storyResult.messages.map(m => ({
-                role: m.role,
-                content: m.content,
-                marker: m._debugMeta?.marker,
-                depth: m._debugMeta?.depth,
-                order: m._debugMeta?.order,
-            }));
-        }
-        if (mode === "vn" && vnResult) {
-            return vnResult.messages.map(m => ({
                 role: m.role,
                 content: m.content,
                 marker: m._debugMeta?.marker,
@@ -303,15 +228,11 @@ export function DebugPromptPanel() {
 
     const resultMeta = mode === "chat"
         ? activeChatSnapshot
-        : mode === "moments"
-            ? momentsResult
-            : mode === "calendar"
-                ? calendarResult
-                : mode === "story"
-                    ? storyResult
-                    : mode === "vn"
-                        ? vnResult
-                        : extraResult;
+        : mode === "calendar"
+            ? calendarResult
+            : mode === "story"
+                ? storyResult
+                : extraResult;
 
     // ── Chat Preview ──
     async function handleChatPreview() {
@@ -378,137 +299,31 @@ export function DebugPromptPanel() {
         }
     }
 
-    // ── VN Preview ──
-    async function handleVnPreview() {
-        if (!vnCharacterId) return;
-        setError(null);
-        setLoading(true);
-        try {
-            const session = loadVnSessions().find(s => s.characterId === vnCharacterId);
-            const history = session ? loadVnMessages(session.id) : [];
-            const result = await previewVnPromptPayload(vnCharacterId, history);
-            setVnResult(result);
-            setExpandedIdx(new Set());
-            requestAnimationFrame(() => { scrollRef.current?.scrollTo(0, 0); });
-        } catch (e) {
-            setError(e instanceof Error ? e.message : String(e));
-            setVnResult(null);
-        } finally {
-            setLoading(false);
-        }
-    }
-
-    // ── Moments Preview ──
-    async function handleMomentsPreview() {
-        if (!selectedCharId) return;
-        setError(null);
-        setLoading(true);
-        try {
-            let result: MomentsPreviewResult | null;
-            if (momentsType === "post") {
-                result = await previewMomentsPostPrompt(selectedCharId);
-            } else {
-                if (!selectedPostId) {
-                    setError("请先选择一条帖子");
-                    setLoading(false);
-                    return;
-                }
-                if (momentsType === "comment") {
-                    result = await previewMomentsCommentPrompt(selectedCharId, selectedPostId);
-                } else if (momentsType === "npc") {
-                    result = await previewMomentsNPCPrompt(selectedCharId, selectedPostId);
-                } else {
-                    result = await previewMomentsReplyPrompt(selectedCharId, selectedPostId);
-                }
-            }
-            if (!result) {
-                setError("无法生成预览，请检查角色是否绑定了API和预设");
-                setLoading(false);
-                return;
-            }
-            setMomentsResult(result);
-            setExpandedIdx(new Set());
-            requestAnimationFrame(() => { scrollRef.current?.scrollTo(0, 0); });
-        } catch (e) {
-            setError(String(e));
-            setMomentsResult(null);
-        } finally {
-            setLoading(false);
-        }
-    }
-
     async function handleExtraPreview() {
-        const requiresCharacter = extraAppId !== "shopping";
-        if (requiresCharacter && !extraCharacterId) return;
+        if (!extraCharacterId) return;
         setError(null);
         setLoading(true);
         try {
             let result: PromptPreviewResult;
-            if (extraAppId === "checkphone") {
-                result = await previewCheckPhonePromptPayload(extraCharacterId, checkPhoneAppId);
-            } else if (extraAppId === "reading") {
-                const book = loadBooks().find(item => item.id === readingBookId);
-                const chapter = readingChapters.find(item => String(item.index) === readingChapterIndex);
-                if (!book || !chapter) throw new Error("请先选择书籍与章节");
-                const annotations = await loadAnnotations(book.id, chapter.index);
-                if (readingMode === "discuss") {
-                    const session = chatSessionOptions.find(option => !option.session.isGroup && option.session.contactId === extraCharacterId)?.session;
-                    if (!session) throw new Error("没有找到这个角色的聊天会话，无法预览阅读对话");
-                    result = await previewReadingDiscussPrompt(session, book, {
-                        chapterTitle: chapter.title,
-                        chapterContent: [
-                            "当前阅读中心：整章",
-                            "本次上下文范围：整章",
-                            "",
-                            chapter.paragraphs.map((paragraph, index) => `[${index + 1}] ${paragraph}`).join("\n\n"),
-                        ].join("\n"),
-                        annotations,
-                    }, extraCharacterId);
-                } else {
-                    result = await previewReadingAnnotationPrompt(book, chapter, annotations, extraCharacterId);
-                }
-            } else if (extraAppId === "dwelling") {
-                result = await previewDwellingPromptPayload(extraCharacterId, dwellingMode);
-            } else if (extraAppId === "diary") {
-                const entries = loadDiaryEntries().filter(entry => entry.characterId === extraCharacterId);
-                result = await previewDiaryEntryPromptPayload(extraCharacterId, entries);
-            } else if (extraAppId === "notewall") {
-                const wall = await fetchNoteWall().catch(() => ({ notes: [] }));
-                const candidates: NoteWallReplyCandidate[] = noteWallMode === "reply"
-                    ? await Promise.all(wall.notes.slice(0, 5).map(async note => ({
-                        note,
-                        comments: await fetchNoteWallComments(note.id).catch(() => []),
-                    })))
-                    : [];
-                result = await previewNoteWallPromptPayload(extraCharacterId, noteWallMode, wall.notes, candidates);
-            } else if (extraAppId === "xiaohongshu") {
-                const state = loadXiaohongshuState();
-                result = await previewXiaohongshuPromptPayload(extraCharacterId, xiaohongshuMode, state.notes, state.settings);
-            } else if (extraAppId === "cocreate") {
-                const session = loadCoCreateSession(extraCharacterId);
-                result = await previewCoCreatePromptPayload(session, coCreateMode);
-            } else if (extraAppId === "shopping") {
-                result = await previewShoppingPromptPayload(shoppingMode, { query: shoppingQuery });
-            } else if (extraAppId === "interview") {
-                result = await previewInterviewMagazinePromptPayload({
-                    theme: interviewTheme,
-                    characterIds: [extraCharacterId],
-                    mode: interviewMode,
-                    transcript: [],
-                });
+            const book = loadBooks().find(item => item.id === readingBookId);
+            const chapter = readingChapters.find(item => String(item.index) === readingChapterIndex);
+            if (!book || !chapter) throw new Error("请先选择书籍与章节");
+            const annotations = await loadAnnotations(book.id, chapter.index);
+            if (readingMode === "discuss") {
+                const session = chatSessionOptions.find(option => !option.session.isGroup && option.session.contactId === extraCharacterId)?.session;
+                if (!session) throw new Error("没有找到这个角色的聊天会话，无法预览阅读对话");
+                result = await previewReadingDiscussPrompt(session, book, {
+                    chapterTitle: chapter.title,
+                    chapterContent: [
+                        "当前阅读中心：整章",
+                        "本次上下文范围：整章",
+                        "",
+                        chapter.paragraphs.map((paragraph, index) => `[${index + 1}] ${paragraph}`).join("\n\n"),
+                    ].join("\n"),
+                    annotations,
+                }, extraCharacterId);
             } else {
-                if (!selectedAdventureSave) throw new Error("请先选择一个有存档的冒险世界");
-                const agent = selectedAdventureSave.agents.find(item => item.characterId === extraCharacterId);
-                const sharedUserIdentity = selectedAdventureSave.agents.length > 1 ? resolveUserIdentity(undefined, "adventure") : undefined;
-                result = await previewAdventureCompanionPromptPayload(
-                    extraCharacterId,
-                    selectedAdventureSave.streamLog,
-                    sharedUserIdentity,
-                    agent?.affinity,
-                    adventureInstructionMode === "exit"
-                        ? { instruction: "{{user}}刚才决定离开当前事件，不再继续。请以你的身份回应{{user}}的离开：你会说什么、有什么反应、接下来是否跟随/挽留/沉默旁观。" }
-                        : undefined,
-                );
+                result = await previewReadingAnnotationPrompt(book, chapter, annotations, extraCharacterId);
             }
             setExtraResult(result);
             setExpandedIdx(new Set());
@@ -620,14 +435,12 @@ export function DebugPromptPanel() {
 
     const debugTabs: [DebugMode, string][] = [
         ["chat", activeChatSession?.isGroup ? "群聊" : "聊天"],
-        ["moments", "朋友圈"],
         ["calendar", "日历"],
         ["story", "剧情"],
-        ["vn", "漫卷"],
         ...EXTRA_PROMPT_APPS.map(app => [app.id, app.label] as [DebugMode, string]),
     ];
 
-    // ── Character/Post options for moments (memoized) ──
+    // ── Character options (memoized) ──
     const charOptions = useMemo(() => {
         if (typeof window === "undefined") return [];
         const contacts = loadChatContacts();
@@ -645,27 +458,6 @@ export function DebugPromptPanel() {
         return loadBooks().map(book => ({ id: book.id, title: book.title }));
     }, [enabled, extraAppId, readingStorageVersion]);
 
-    const adventureWorldOptions = useMemo(() => {
-        if (typeof window === "undefined") return [] as MapWorld[];
-        return loadMapWorlds().filter(world => world.status !== "generating");
-    }, [enabled, extraAppId, adventureStorageVersion]);
-    const selectedAdventureWorld = adventureWorldOptions.find(world => world.id === adventureWorldId) ?? null;
-    const selectedAdventureSave: GameSave | null = useMemo(
-        () => selectedAdventureWorld ? getLatestSave(selectedAdventureWorld.id) : null,
-        [selectedAdventureWorld, adventureStorageVersion],
-    );
-
-    const postOptions = useMemo(() => {
-        if (typeof window === "undefined") return [];
-        const posts = getAllPosts();
-        const chars = loadCharacters();
-        return posts.slice(0, 30).map(p => {
-            const authorName = p.authorType === "user" ? "我" : (chars.find(c => c.id === p.authorId)?.name ?? "?");
-            return { id: p.id, label: `${authorName}: ${p.content.slice(0, 30)}...` };
-        });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [momentsType]);
-
     useEffect(() => {
         if (calendarOwnerId || charOptions.length === 0) return;
         setCalendarOwnerId(charOptions[0].id);
@@ -677,7 +469,6 @@ export function DebugPromptPanel() {
     }, [extraCharacterId, charOptions]);
 
     useEffect(() => {
-        if (extraAppId !== "reading") return;
         let cancelled = false;
         hydrateReadingStorage().then(() => {
             if (!cancelled) setReadingStorageVersion(version => version + 1);
@@ -709,20 +500,6 @@ export function DebugPromptPanel() {
         });
         return () => { cancelled = true; };
     }, [readingBookId, readingChapterIndex]);
-
-    useEffect(() => {
-        if (extraAppId !== "adventure") return;
-        let cancelled = false;
-        hydrateMapStorage().then(() => {
-            if (!cancelled) setAdventureStorageVersion(version => version + 1);
-        }).catch(() => undefined);
-        return () => { cancelled = true; };
-    }, [extraAppId]);
-
-    useEffect(() => {
-        if (adventureWorldId || adventureWorldOptions.length === 0) return;
-        setAdventureWorldId(adventureWorldOptions[0].id);
-    }, [adventureWorldId, adventureWorldOptions]);
 
     if (!enabled) return null;
 
@@ -763,24 +540,6 @@ export function DebugPromptPanel() {
         if (extraAppId === "reading") {
             return "实际上下文以阅读实际场景注入，不按章节注入，此处仅为模拟";
         }
-        if (extraAppId === "dwelling" && dwellingMode === "explore") {
-            return "实际上下文以栖所当前点击的房间、家具和物品注入，此处仅用首个物品模拟";
-        }
-        if (extraAppId === "notewall" && noteWallMode === "reply") {
-            return "实际上下文以便签墙真实触发的便签和评论注入，此处仅取候选便签模拟";
-        }
-        if (extraAppId === "xiaohongshu") {
-            return "实际上下文以小红书当前触发的笔记、评论或@注入，此处仅取现有数据模拟";
-        }
-        if (extraAppId === "cocreate") {
-            return "实际上下文以共创当前会话和刚发送内容注入，此处仅基于已保存会话模拟";
-        }
-        if (extraAppId === "interview") {
-            return "实际上下文以在场采访流程和已有转录注入，此处仅用空转录模拟";
-        }
-        if (extraAppId === "adventure") {
-            return "实际上下文以冒险当前事件、队伍状态和本轮行为注入，此处仅基于最近存档模拟";
-        }
         return null;
     };
 
@@ -791,15 +550,7 @@ export function DebugPromptPanel() {
 
     const renderExtraControls = () => (
         <>
-            {extraAppId !== "shopping" && renderCharSelect(extraCharacterId, setExtraCharacterId)}
-            {extraAppId === "checkphone" && (
-                <select value={checkPhoneAppId} onChange={e => setCheckPhoneAppId(e.target.value as CheckPhoneAppId | "manifest")} className="pv-select">
-                    <option value="manifest">桌面清单</option>
-                    {Object.values(CHECKPHONE_APP_SPECS).map(spec => (
-                        <option key={spec.id} value={spec.id}>{spec.label}</option>
-                    ))}
-                </select>
-            )}
+            {renderCharSelect(extraCharacterId, setExtraCharacterId)}
             {extraAppId === "reading" && (
                 <>
                     <select value={readingMode} onChange={e => setReadingMode(e.target.value as "annotate" | "discuss")} className="pv-select">
@@ -818,70 +569,7 @@ export function DebugPromptPanel() {
                     </select>
                 </>
             )}
-            {extraAppId === "dwelling" && (
-                <select value={dwellingMode} onChange={e => setDwellingMode(e.target.value as DwellingRefreshMode | "explore")} className="pv-select">
-                    <option value="full">完整栖所</option>
-                    <option value="items">刷新物品</option>
-                    <option value="explore">探索物品</option>
-                </select>
-            )}
-            {extraAppId === "notewall" && (
-                <select value={noteWallMode} onChange={e => setNoteWallMode(e.target.value as "note" | "reply")} className="pv-select">
-                    <option value="note">生成便签</option>
-                    <option value="reply">回复便签</option>
-                </select>
-            )}
-            {extraAppId === "xiaohongshu" && (
-                <select value={xiaohongshuMode} onChange={e => setXiaohongshuMode(e.target.value as "activity" | "reaction" | "comment" | "mention")} className="pv-select">
-                    <option value="activity">浏览互动</option>
-                    <option value="reaction">回应用户笔记</option>
-                    <option value="comment">回复评论</option>
-                    <option value="mention">回复@</option>
-                </select>
-            )}
-            {extraAppId === "cocreate" && (
-                <select value={coCreateMode} onChange={e => setCoCreateMode(e.target.value as CoCreateMode)} className="pv-select">
-                    <option value="write">写作</option>
-                    <option value="discuss">讨论</option>
-                </select>
-            )}
-            {extraAppId === "shopping" && (
-                <>
-                    <select value={shoppingMode} onChange={e => setShoppingMode(e.target.value as "catalog" | "search")} className="pv-select">
-                        <option value="catalog">首页推荐</option>
-                        <option value="search">搜索结果</option>
-                    </select>
-                    {shoppingMode === "search" && (
-                        <input value={shoppingQuery} onChange={e => setShoppingQuery(e.target.value)} className="pv-select" placeholder="搜索词" />
-                    )}
-                </>
-            )}
-            {extraAppId === "interview" && (
-                <>
-                    <select value={interviewMode} onChange={e => setInterviewMode(e.target.value as "opening" | "host" | "answer" | "article")} className="pv-select">
-                        <option value="opening">开场提问</option>
-                        <option value="host">主持人追问</option>
-                        <option value="answer">嘉宾回答</option>
-                        <option value="article">专栏成稿</option>
-                    </select>
-                    <input value={interviewTheme} onChange={e => setInterviewTheme(e.target.value)} className="pv-select" placeholder="在场主题" />
-                </>
-            )}
-            {extraAppId === "adventure" && (
-                <>
-                    <select value={adventureWorldId} onChange={e => setAdventureWorldId(e.target.value)} className="pv-select">
-                        <option value="">选择冒险世界...</option>
-                        {adventureWorldOptions.map(world => (
-                            <option key={world.id} value={world.id}>{world.skeleton.world.name || "未命名世界"}</option>
-                        ))}
-                    </select>
-                    <select value={adventureInstructionMode} onChange={e => setAdventureInstructionMode(e.target.value as "turn" | "exit")} className="pv-select">
-                        <option value="turn">角色宣言</option>
-                        <option value="exit">离开回应</option>
-                    </select>
-                </>
-            )}
-            {renderPreviewBtn(handleExtraPreview, loading || (extraAppId !== "shopping" && !extraCharacterId))}
+            {renderPreviewBtn(handleExtraPreview, loading || !extraCharacterId)}
             {renderExtraPreviewWarning()}
         </>
     );
@@ -932,24 +620,6 @@ export function DebugPromptPanel() {
                         )}
                     </>
                 )}
-                {mode === "moments" && (
-                    <>
-                        <select value={momentsType} onChange={e => setMomentsType(e.target.value as "post" | "comment" | "npc" | "reply")} className="pv-select">
-                            <option value="post">发帖</option>
-                            <option value="comment">评论</option>
-                            <option value="npc">NPC互动</option>
-                            <option value="reply">回复</option>
-                        </select>
-                        {renderCharSelect(selectedCharId, setSelectedCharId)}
-                        {(momentsType !== "post") && (
-                            <select value={selectedPostId} onChange={e => setSelectedPostId(e.target.value)} className="pv-select">
-                                <option value="">选择帖子...</option>
-                                {postOptions.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
-                            </select>
-                        )}
-                        {renderPreviewBtn(handleMomentsPreview, !selectedCharId || loading)}
-                    </>
-                )}
                 {mode === "calendar" && (
                     <>
                         {renderCharSelect(calendarOwnerId, setCalendarOwnerId)}
@@ -961,12 +631,6 @@ export function DebugPromptPanel() {
                     <>
                         {renderCharSelect(storyCharacterId, setStoryCharacterId)}
                         {renderPreviewBtn(handleStoryPreview, loading || !storyCharacterId)}
-                    </>
-                )}
-                {mode === "vn" && (
-                    <>
-                        {renderCharSelect(vnCharacterId, setVnCharacterId)}
-                        {renderPreviewBtn(handleVnPreview, loading || !vnCharacterId)}
                     </>
                 )}
                 {isExtraPromptMode(mode) && renderExtraControls()}
@@ -1021,9 +685,7 @@ export function DebugPromptPanel() {
                     <div className="pv-empty">
                         {mode === "chat"
                             ? (activeChatSession ? "点击「预览 Prompt」查看下一轮会发送的真实提示词" : "选择聊天对象后点击「预览 Prompt」")
-                            : mode === "moments" ? "选择角色后点击「预览」查看朋友圈 Prompt"
                             : mode === "calendar" ? "选择角色与日期后点击「预览」"
-                            : mode === "vn" ? "选择角色后点击「预览」查看漫卷 Prompt"
                             : mode === "story" ? "选择角色后点击「预览」查看剧情 Prompt"
                             : isExtraPromptMode(mode)
                                 ? EXTRA_PROMPT_APPS.find(app => app.id === mode)?.emptyText ?? "选择 APP 后点击「预览」"
