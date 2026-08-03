@@ -19,9 +19,6 @@ import {
     loadRestToolPackages, saveRestToolPackages, createRestToolPackage,
     loadMcpServers, saveMcpServers, createMcpServer,
 } from "@/lib/tool-storage";
-import { CUSTOM_APPS_UPDATED_EVENT, loadInstalledCustomApps, saveInstalledCustomAppsAsync } from "@/lib/custom-app-storage";
-import { loadCustomAppChatTools, type RegisteredCustomAppExtension } from "@/lib/custom-app-sdk-registry";
-import type { CustomAppToolDefinition } from "@/lib/custom-app-types";
 import { downloadFile } from "@/lib/download-utils";
 import {
     CALENDAR_MANAGEMENT_CAPABILITY_ID,
@@ -54,8 +51,6 @@ type ToolboxExportFile = {
     mcpServers?: McpServerConfig[];
 };
 
-type CustomAppToolEntry = RegisteredCustomAppExtension<CustomAppToolDefinition>;
-
 function createImportedToolId(prefix: string): string {
     return `${prefix}_import_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -86,18 +81,6 @@ function uniqueImportedName(baseName: string, existingNames: Set<string>): strin
     return next;
 }
 
-function customAppToolKey(tool: Pick<CustomAppToolEntry, "appId" | "id">): string {
-    return `${tool.appId}:${tool.id}`;
-}
-
-function customAppToolVisibilityLabel(tool: CustomAppToolEntry): string {
-    return tool.visibility === "shared" ? "共享" : "仅应用内";
-}
-
-function isCustomAppToolEnabled(tool: CustomAppToolEntry): boolean {
-    return tool.enabled !== false;
-}
-
 export function ToolboxSettings() {
     const { setSubpageRightAction } = useContext(SettingsContext);
     const importFileRef = useRef<HTMLInputElement | null>(null);
@@ -107,14 +90,12 @@ export function ToolboxSettings() {
     const [compositeTools, setCompositeTools] = useState<CompositeToolConfig[]>([]);
     const [mcpServers, setMcpServers] = useState<McpServerConfig[]>([]);
     const [internalCapabilities, setInternalCapabilities] = useState<InternalCapabilityConfig[]>([]);
-    const [customAppTools, setCustomAppTools] = useState<CustomAppToolEntry[]>([]);
     const [editRestPackageId, setEditRestPackageId] = useState<string | null>(null);
     const [editRestId, setEditRestId] = useState<string | null>(null);
     const [editCompositePackageId, setEditCompositePackageId] = useState<string | null>(null);
     const [editCompositeId, setEditCompositeId] = useState<string | null>(null);
     const [editMcpId, setEditMcpId] = useState<string | null>(null);
     const [editInternalId, setEditInternalId] = useState<string | null>(null);
-    const [editCustomAppToolKey, setEditCustomAppToolKey] = useState<string | null>(null);
     // Draft for new items (not yet persisted)
     const [draftRestPackage, setDraftRestPackage] = useState<RestToolPackageConfig | null>(null);
     const [draftRest, setDraftRest] = useState<RestToolConfig | null>(null);
@@ -134,10 +115,6 @@ export function ToolboxSettings() {
     const [toolboxImportError, setToolboxImportError] = useState<string | null>(null);
     const [expandedCompositePackageIds, setExpandedCompositePackageIds] = useState<Set<string>>(() => new Set());
 
-    function refreshCustomAppTools() {
-        setCustomAppTools(loadCustomAppChatTools());
-    }
-
     useEffect(() => {
         setRestTools(loadRestTools());
         setRestPackages(loadRestToolPackages());
@@ -145,13 +122,6 @@ export function ToolboxSettings() {
         setCompositePackages(loadCompositeToolPackages());
         setMcpServers(loadMcpServers());
         setInternalCapabilities(loadInternalCapabilities());
-        refreshCustomAppTools();
-    }, []);
-
-    useEffect(() => {
-        const handler = () => refreshCustomAppTools();
-        window.addEventListener(CUSTOM_APPS_UPDATED_EVENT, handler);
-        return () => window.removeEventListener(CUSTOM_APPS_UPDATED_EVENT, handler);
     }, []);
 
     function persistRestPackages(packages: RestToolPackageConfig[]) { setRestPackages(packages); saveRestToolPackages(packages); }
@@ -188,58 +158,6 @@ export function ToolboxSettings() {
     function updateInternalCapability(id: string, updates: Partial<InternalCapabilityConfig>) {
         persistInternal(internalCapabilities.map(item => item.id === id ? { ...item, ...updates, updatedAt: Date.now() } : item));
     }
-    async function updateCustomAppToolEnabled(tool: CustomAppToolEntry, enabled: boolean) {
-        const now = new Date().toISOString();
-        const nextApps = loadInstalledCustomApps().map(app => {
-            if (app.id !== tool.appId) return app;
-            const updateTools = (tools: CustomAppToolDefinition[] | undefined) => (
-                tools?.map(item => item.id === tool.id ? { ...item, enabled: enabled ? undefined : false } : item)
-            );
-            return {
-                ...app,
-                updatedAt: now,
-                manifest: {
-                    ...app.manifest,
-                    extensions: {
-                        ...app.manifest.extensions,
-                        tools: updateTools(app.manifest.extensions?.tools),
-                    },
-                },
-            };
-        });
-        await saveInstalledCustomAppsAsync(nextApps);
-        refreshCustomAppTools();
-    }
-    async function updateCustomAppToolGroupEnabled(group: CustomAppToolEntry[], enabled: boolean) {
-        const toolIdsByApp = new Map<string, Set<string>>();
-        for (const tool of group) {
-            const ids = toolIdsByApp.get(tool.appId) ?? new Set<string>();
-            ids.add(tool.id);
-            toolIdsByApp.set(tool.appId, ids);
-        }
-        const now = new Date().toISOString();
-        const nextApps = loadInstalledCustomApps().map(app => {
-            const ids = toolIdsByApp.get(app.id);
-            if (!ids) return app;
-            const updateTools = (tools: CustomAppToolDefinition[] | undefined) => (
-                tools?.map(item => ids.has(item.id) ? { ...item, enabled: enabled ? undefined : false } : item)
-            );
-            return {
-                ...app,
-                updatedAt: now,
-                manifest: {
-                    ...app.manifest,
-                    extensions: {
-                        ...app.manifest.extensions,
-                        tools: updateTools(app.manifest.extensions?.tools),
-                    },
-                },
-            };
-        });
-        await saveInstalledCustomAppsAsync(nextApps);
-        refreshCustomAppTools();
-    }
-
     function defaultInternalMode(id: string): InternalCapabilityConfig["mode"] {
         return id === MUSIC_CONTROL_CAPABILITY_ID || id === CALENDAR_MANAGEMENT_CAPABILITY_ID || id === LOCAL_DATA_LIBRARY_CAPABILITY_ID || id === TOOLBOX_MANAGEMENT_CAPABILITY_ID ? "auto" : "confirm";
     }
@@ -761,15 +679,6 @@ export function ToolboxSettings() {
     const singleRestTools = restTools.filter(t => !t.packageId || !restPackageIds.has(t.packageId));
     const compositePackageIds = new Set(compositePackages.map(pkg => pkg.id));
     const singleCompositeTools = compositeTools.filter(t => !t.packageId || !compositePackageIds.has(t.packageId));
-    const customAppToolGroups = Array.from(customAppTools.reduce((map, tool) => {
-        const group = map.get(tool.appId) ?? [];
-        group.push(tool);
-        map.set(tool.appId, group);
-        return map;
-    }, new Map<string, CustomAppToolEntry[]>()).values());
-    const editCustomAppTool = editCustomAppToolKey
-        ? customAppTools.find(tool => customAppToolKey(tool) === editCustomAppToolKey) ?? null
-        : null;
     const exportEntries = buildExportEntries();
 
     return (
@@ -1067,90 +976,6 @@ export function ToolboxSettings() {
                     );
                 })}
             </div>
-
-            {/* Custom APP Tools */}
-            <div className="flex justify-between items-center">
-                <p className="settings-menu-section-title">Custom APP Tools</p>
-            </div>
-
-            {customAppTools.length === 0 ? (
-                <div className="ui-empty-compact mt-2">
-                    <span className="menu-desc">暂无共享给聊天和其他 APP 的自定义 APP 工具</span>
-                </div>
-            ) : (
-                <div className="flex flex-col gap-2">
-                    {customAppToolGroups.map(group => {
-                        const first = group[0];
-                        if (group.length === 1) {
-                            return (
-                                <div key={customAppToolKey(first)} className="ui-group-card !flex-row !items-center">
-                                    <button
-                                        type="button"
-                                        onClick={() => setEditCustomAppToolKey(customAppToolKey(first))}
-                                        className="flex-1 min-w-0 bg-none border-none cursor-pointer py-2 px-0 text-left flex items-center gap-2 overflow-hidden"
-                                    >
-                                        {first.appIconDataUrl && <img src={first.appIconDataUrl} alt="" className="w-8 h-8 rounded-[8px] object-cover shrink-0" />}
-                                        <div className="flex-1 flex flex-col gap-1 min-w-0">
-                                            <div className="flex items-center gap-[6px] min-w-0">
-                                                <span className="menu-label truncate min-w-0">{first.name}</span>
-                                                <span className="ui-badge shrink-0">APP</span>
-                                                <span className="ui-badge shrink-0">{first.appName}</span>
-                                            </div>
-                                            <span className="menu-desc !mt-0 truncate">{first.description || "来自自定义 APP 的聊天工具"}</span>
-                                        </div>
-                                    </button>
-                                    <div className="flex items-center gap-3 shrink-0">
-                                        <Toggle checked={isCustomAppToolEnabled(first)} onChange={v => void updateCustomAppToolEnabled(first, v)} />
-                                    </div>
-                                </div>
-                            );
-                        }
-                        const groupEnabled = group.some(isCustomAppToolEnabled);
-                        return (
-                            <div key={first.appId} className="flex flex-col gap-1.5">
-                                <div className="ui-group-card !flex-row !items-center">
-                                    <div className="flex-1 min-w-0 py-2 px-0 flex items-center gap-2 overflow-hidden">
-                                        {first.appIconDataUrl && <img src={first.appIconDataUrl} alt="" className="w-8 h-8 rounded-[8px] object-cover shrink-0" />}
-                                        <div className="flex-1 flex flex-col gap-1 min-w-0">
-                                            <div className="flex items-center gap-[6px] min-w-0">
-                                                <span className="menu-label truncate min-w-0">{first.appName}工具</span>
-                                                <span className="ui-badge shrink-0">APP</span>
-                                                <span className="ui-badge shrink-0">{group.length} 个子工具</span>
-                                            </div>
-                                            <span className="menu-desc !mt-0 truncate">来自「{first.appName}」的自定义 APP 工具套件</span>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-3 shrink-0">
-                                        <Toggle checked={groupEnabled} onChange={v => void updateCustomAppToolGroupEnabled(group, v)} />
-                                    </div>
-                                </div>
-                                <div className="ml-3 flex flex-col gap-1.5 border-l border-[var(--c-border)] pl-3">
-                                    {group.map(tool => (
-                                        <div key={customAppToolKey(tool)} className="ui-group-card !flex-row !items-center py-2">
-                                            <button
-                                                type="button"
-                                                onClick={() => setEditCustomAppToolKey(customAppToolKey(tool))}
-                                                className="flex-1 min-w-0 bg-none border-none cursor-pointer py-1 px-0 text-left flex items-center gap-2 overflow-hidden"
-                                            >
-                                                <div className="flex-1 flex flex-col gap-1 min-w-0">
-                                                    <div className="flex items-center gap-[6px] min-w-0">
-                                                        <span className="menu-label truncate min-w-0">{tool.name}</span>
-                                                        <span className="ui-badge shrink-0">{customAppToolVisibilityLabel(tool)}</span>
-                                                    </div>
-                                                    <span className="menu-desc !mt-0 truncate">{tool.description || "未配置描述"}</span>
-                                                </div>
-                                            </button>
-                                            <div className="flex items-center gap-3 shrink-0">
-                                                <Toggle checked={isCustomAppToolEnabled(tool)} onChange={v => void updateCustomAppToolEnabled(tool, v)} />
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-            )}
 
             {/* MCP Servers */}
             <div className="flex justify-between items-center gap-3">
@@ -1456,48 +1281,6 @@ export function ToolboxSettings() {
                     </ContentDialog>
                 );
             })()}
-
-            {/* ── Custom APP tool details ── */}
-            {editCustomAppTool && (
-                <ContentDialog
-                    title={editCustomAppTool.name}
-                    confirmLabel="完成"
-                    onConfirm={() => setEditCustomAppToolKey(null)}
-                    onCancel={() => setEditCustomAppToolKey(null)}
-                >
-                    <div className="flex flex-col gap-3">
-                        <div className="ui-group-card">
-                            <span className="menu-label">来源应用</span>
-                            <span className="menu-desc !mt-0">{editCustomAppTool.appName}</span>
-                        </div>
-                        <div className="ui-group-card">
-                            <span className="menu-label">使用范围</span>
-                            <span className="menu-desc !mt-0">{customAppToolVisibilityLabel(editCustomAppTool)}给普通聊天和其他 APP</span>
-                        </div>
-                        {editCustomAppTool.description && (
-                            <div className="flex flex-col gap-1">
-                                <label className="menu-desc ml-1">功能描述</label>
-                                <div className="ui-group-card py-2">
-                                    <span className="menu-desc !mt-0 whitespace-pre-wrap">{editCustomAppTool.description}</span>
-                                </div>
-                            </div>
-                        )}
-                        <div className="flex flex-col gap-1">
-                            <label className="menu-desc ml-1">Handler</label>
-                            <div className="ui-group-card py-2">
-                                <span className="menu-label">{editCustomAppTool.handler || editCustomAppTool.id}</span>
-                                <span className="menu-desc !mt-0">由自定义 APP 页面注册并执行，工具箱不直接编辑。</span>
-                            </div>
-                        </div>
-                        <div className="flex flex-col gap-1">
-                            <label className="menu-desc ml-1">AI 参数定义</label>
-                            <pre className="ui-group-card max-h-[220px] overflow-auto whitespace-pre-wrap break-words font-mono text-[11px] leading-relaxed">
-                                {JSON.stringify(editCustomAppTool.parameterSchema || { type: "object", properties: {} }, null, 2)}
-                            </pre>
-                        </div>
-                    </div>
-                </ContentDialog>
-            )}
 
             {/* ── MCP server edit modal ── */}
             {editMcp && (() => {

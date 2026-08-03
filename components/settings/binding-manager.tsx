@@ -20,10 +20,6 @@ import {
 import { SettingsContext } from "../phone-settings-app";
 import { ICONS, type IconId } from "@/lib/desktop-config";
 import { IconGlyph } from "@/components/icon-glyph";
-import { CUSTOM_APPS_UPDATED_EVENT, loadInstalledCustomApps } from "@/lib/custom-app-storage";
-import { toCustomAppIconId } from "@/lib/custom-app-types";
-import type { InstalledCustomApp } from "@/lib/custom-app-types";
-
 const appIconId = (appId: ContentAppId): IconId => appId as IconId;
 import type {
     BindingConfig,
@@ -84,14 +80,8 @@ const bindingAccentStyle = (color: string): CSSProperties => ({
     "--binding-accent": color,
 } as CSSProperties);
 
-const CUSTOM_APP_BINDING_PREFIX = "custom_app:";
-
-const isCustomAppBindingId = (appId: string | null | undefined): boolean => (
-    Boolean(appId?.startsWith(CUSTOM_APP_BINDING_PREFIX))
-);
-
 const canBindRegexInApp = (appId: string | null | undefined): boolean => (
-    Boolean(appId && (REGEX_BINDABLE_APP_IDS.includes(appId as ContentAppId) || isCustomAppBindingId(appId)))
+    Boolean(appId && REGEX_BINDABLE_APP_IDS.includes(appId as ContentAppId))
 );
 
 export function BindingManager() {
@@ -105,7 +95,6 @@ export function BindingManager() {
     const [worldBooks, setWorldBooks] = useState<WorldBookConfig[]>([]);
     const [regexes, setRegexes] = useState<RegexConfig[]>([]);
     const [identities, setIdentities] = useState<UserIdentity[]>([]);
-    const [customApps, setCustomApps] = useState<InstalledCustomApp[]>([]);
 
     const [level, setLevel] = useState<Level>("global");
     const [selectedCharId, setSelectedCharId] = useState<string>("");
@@ -132,28 +121,13 @@ export function BindingManager() {
             if (cancelled) return;
             setConfig(loadBindingConfig());
             setCharacters(loadCharacters());
-            setCustomApps(loadInstalledCustomApps());
             reloadData();
             setIsLoaded(true);
         })();
         return () => { cancelled = true; };
     }, []);
 
-    useEffect(() => {
-        const handler = () => setCustomApps(loadInstalledCustomApps());
-        window.addEventListener(CUSTOM_APPS_UPDATED_EVENT, handler);
-        return () => window.removeEventListener(CUSTOM_APPS_UPDATED_EVENT, handler);
-    }, []);
-
-    const getCustomAppByBindingId = (appId: string | null | undefined): InstalledCustomApp | null => {
-        if (!appId?.startsWith(CUSTOM_APP_BINDING_PREFIX)) return null;
-        const customAppId = appId.slice(CUSTOM_APP_BINDING_PREFIX.length);
-        return customApps.find(app => app.id === customAppId) ?? null;
-    };
-
     const getAppLabel = (appId: string): string => {
-        const customApp = getCustomAppByBindingId(appId);
-        if (customApp) return customApp.name;
         return CONTENT_APP_LABELS[appId as ContentAppId] ?? appId;
     };
 
@@ -252,7 +226,7 @@ export function BindingManager() {
                 setSelectedAppId(null);
             });
         }
-    }, [level, selectedCharId, selectedAppId, characters, customApps, setSubpageTitle, setOverrideBack]);
+    }, [level, selectedCharId, selectedAppId, characters, setSubpageTitle, setOverrideBack]);
 
     const persist = (newConfig: BindingConfig) => {
         setConfig(newConfig);
@@ -390,13 +364,6 @@ export function BindingManager() {
                 iconDataUrl: null as string | null,
                 color: APP_OVERRIDE_COLORS[appId],
             })),
-        ...customApps.map(app => ({
-            id: toCustomAppIconId(app.id) as string,
-            label: app.name,
-            iconId: "appmarket" as IconId,
-            iconDataUrl: app.iconDataUrl ?? null,
-            color: "#14b8a6",
-        })),
     ];
 
     const isMultiBindingField = (field: BindingField): field is MultiBindingField =>

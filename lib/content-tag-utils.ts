@@ -221,6 +221,10 @@ export function getTagsLabel(tags: string[], profiles: TagProfile[] = CONTENT_SC
     return tags.map((tag) => resolveContentTagLabel(tag)).join(" · ");
 }
 
+export function findTagGroupForTags(groups: TagGroupProfile[], tags: string[]): TagGroupProfile | undefined {
+    return groups.find((group) => group.minors.some((minor) => areTagsEqual(minor.tags, tags)));
+}
+
 export function matchesActiveTags(requiredTags: string[] | null | undefined, activeTags: string[]): boolean {
     if (!requiredTags || requiredTags.length === 0) return true;
     return requiredTags.every((tag) => activeTags.includes(tag));

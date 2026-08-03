@@ -1,6 +1,4 @@
 import { ICONS, PAGE_1_DEFAULT, PAGE_2_DEFAULT, type DesktopIconId, type IconId, type IconPosition } from "@/lib/desktop-config";
-import { isCustomAppIconId } from "@/lib/custom-app-types";
-import { loadInstalledCustomApps } from "@/lib/custom-app-storage";
 import { GRID_COLS, GRID_ROWS, WIDGET_SIZE_CELLS, type WidgetInstance } from "@/lib/widget-types";
 import { kvSet, registerKvMigration } from "./kv-db";
 
@@ -41,12 +39,7 @@ export function getDesktopIconLayoutItems(layout: DesktopIconLayout): IconPositi
   return getDesktopPageKeys(layout).flatMap((pageKey) => layout[pageKey] ?? []);
 }
 
-function getInstalledCustomIconIds(): Set<string> {
-  return new Set(loadInstalledCustomApps().map(app => `custom_app:${app.id}`));
-}
-
-function migrateLegacyDesktopIconId(id: string, customIconIds = getInstalledCustomIconIds()): DesktopIconId | null {
-  if (isCustomAppIconId(id) && customIconIds.has(id)) return id;
+function migrateLegacyDesktopIconId(id: string): DesktopIconId | null {
   return id in ICONS ? id as IconId : null;
 }
 
@@ -108,7 +101,6 @@ function normalizePage(raw: unknown): IconPosition[] {
   }
 
   const knownIcons = new Set<string>(Object.keys(ICONS));
-  const customIconIds = getInstalledCustomIconIds();
   const seenIds = new Set<DesktopIconId>();
   const seenCells = new Set<string>();
   const result: IconPosition[] = [];
@@ -122,10 +114,10 @@ function normalizePage(raw: unknown): IconPosition[] {
     if (typeof id !== "string" || typeof row !== "number" || typeof col !== "number") {
       continue;
     }
-    const migratedId = migrateLegacyDesktopIconId(id, customIconIds);
+    const migratedId = migrateLegacyDesktopIconId(id);
     if (
       !migratedId
-      || (!knownIcons.has(migratedId) && !customIconIds.has(migratedId))
+      || !knownIcons.has(migratedId)
       || row < 1
       || row > GRID_ROWS
       || col < 1

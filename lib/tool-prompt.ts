@@ -177,42 +177,6 @@ export function formatToolSchema(tool: EnabledTool, context?: ToolSchemaFormatCo
         ].join("\n"), context);
     }
 
-    if (tool.source === "custom_app_package") {
-        const lines: string[] = [];
-        lines.push(`自定义 APP 工具套件：${tool.name}`);
-        lines.push(`描述：${tool.description}`);
-        if (!tool.customAppTools || tool.customAppTools.length === 0) {
-            lines.push("这个 APP 当前没有可执行的子工具。");
-            return expandToolMacros(`以下是你获取指令的返回结果：\n${lines.join("\n")}`, context);
-        }
-
-        lines.push("可执行的具体动作如下。执行时必须使用具体动作名，不要输出工具套件名称本身。");
-        for (const customAppTool of tool.customAppTools) {
-            lines.push("");
-            lines.push(`动作：${customAppTool.name}`);
-            if (customAppTool.description) lines.push(`描述：${customAppTool.description}`);
-            const schema = customAppTool.parameterSchema as { properties?: Record<string, Record<string, unknown>> } | undefined;
-            const props = schema?.properties || {};
-            const entries = Object.entries(props);
-            if (entries.length > 0) {
-                lines.push("参数：");
-                for (const [key, val] of entries) {
-                    const type = (val.type as string) || "string";
-                    const desc = (val.description as string) || "";
-                    lines.push(`  - ${key} (${type})${desc ? ": " + desc : ""}`);
-                }
-            }
-        }
-
-        return expandToolMacros([
-            "以下是你获取指令的返回结果：",
-            lines.join("\n"),
-            "请根据用户需求选择一个具体动作，并使用格式：",
-            "[执行动作:具体动作名({参数JSON})]",
-            "禁止输出工具套件名称本身。执行动作时只输出动作指令，不要附加闲聊内容。",
-        ].join("\n"), context);
-    }
-
     const lines: string[] = [];
     lines.push(`动作：${tool.name}`);
     lines.push(`描述：${tool.description}`);

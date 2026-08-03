@@ -94,7 +94,6 @@ export type ChatMessage = {
         | "xiaohongshu_note_share"
         | "gift"
         | "contact_card"
-        | "app_card"
         | "tool_notice"
         | "tool_result"
         | "memory_write_request"
@@ -103,7 +102,7 @@ export type ChatMessage = {
         | "system_instruction"
         | "group_admin_notice"
         | "media_file";
-    origin?: "chat" | "reading_discuss" | "custom_app" | "custom_app_background";
+    origin?: "chat" | "reading_discuss";
     mediaUrl?: string;
     mediaData?: {
         amount?: number;          // 红包/转账金额
@@ -204,22 +203,6 @@ export type ChatMessage = {
         readingCardThreadId?: string;
         readingCardNoteCount?: number;
         readingCardKind?: "discuss" | "complete";
-        appId?: string;
-        appName?: string;
-        appCardTitle?: string;
-        appCardBody?: string;
-        appCardSummary?: string;
-        appCardTone?: string;
-        appCardLayout?: Record<string, unknown>;
-        appDirectiveId?: string;
-        appDirectiveLabel?: string;
-        appDirectiveArgs?: string[];
-        appDirectiveRaw?: string;
-        appSceneId?: string;
-        appSceneTag?: string;
-        appTags?: string[];
-        appHistoryText?: string;
-        appHistoryRole?: ChatMessageRole;
     };
     isTyping?: boolean; // temporary flag for UI rendering
     statusPanel?: string; // AI display-only status content from [状态栏] tags
@@ -268,7 +251,6 @@ const MEDIA_PREVIEW_MAP: Record<string, string> = {
     music: "[音乐]",
     music_share: "[音乐分享]",
     xiaohongshu_note_share: "[小红书分享]",
-    app_card: "[应用卡片]",
     tool_notice: "[执行动作]",
     system_instruction: "[系统指令]",
     media_file: "[文件]",
@@ -351,12 +333,6 @@ export function getChatMessagePreview(msg: ChatMessage): string {
         const label = msg.mediaData?.label?.trim();
         return label ? `[图片] ${label}` : "[图片]";
     }
-    if (msg.mediaType === "app_card") {
-        const appName = msg.mediaData?.appName || "APP";
-        const title = msg.mediaData?.appCardTitle || msg.mediaData?.appCardSummary || msg.content;
-        return title ? `[${appName}] ${title}` : `[${appName}]`;
-    }
-
     if (msg.mediaType) return MEDIA_PREVIEW_MAP[msg.mediaType] || `[${msg.mediaType}]`;
 
     // Silent thought/status: empty content + folded panel → "♥"

@@ -1,12 +1,9 @@
-import type { CustomAppIconId } from "@/lib/custom-app-types";
-
 export type IconId =
   | "chat"
   | "music"
   | "reading"
   | "story"
   | "game"
-  | "appmarket"
   | "xiaohongshu"
   | "shopping"
   | "calendar"
@@ -17,7 +14,7 @@ export type IconId =
   | "resources"
   | "characters";
 
-export type DesktopIconId = IconId | CustomAppIconId;
+export type DesktopIconId = IconId;
 
 export type IconPosition = { id: DesktopIconId; row: number; col: number };
 
@@ -33,7 +30,6 @@ export const PAGE_1_DEFAULT: IconId[] = ["chat", "music", "calendar", "shopping"
 
 export const PAGE_2_DEFAULT: IconId[] = [
   "game",
-  "appmarket",
   "xiaohongshu",
   "story"
 ];
@@ -46,7 +42,6 @@ export const ICONS: Record<IconId, IconMeta> = {
   reading: { id: "reading", label: "阅读", tone: "var(--c-icon-amber)", placeholder: false },
   story: { id: "story", label: "剧情", tone: "var(--c-icon-story, #8b6f52)", placeholder: false },
   game: { id: "game", label: "游戏", tone: "var(--c-icon-blue)", placeholder: false },
-  appmarket: { id: "appmarket", label: "应用市场", tone: "var(--c-icon-teal)", placeholder: false },
   xiaohongshu: {
     id: "xiaohongshu",
     label: "小红书",

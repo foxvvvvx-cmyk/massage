@@ -21,7 +21,6 @@ import { renderUserNameMacro } from "./user-macro";
 import { loadChatOfflineProjectionEntries } from "./chat-offline-storage";
 import { loadCheckPhoneProjectionEntries } from "./checkphone-storage";
 import { formatShoppingPaymentRequestHistory } from "./shopping-payment-request";
-import { loadCustomAppTimelineEntries } from "./custom-app-storage";
 import {
     canCharacterSeeMomentPost,
     getVisibleMomentCommentsForCharacter,
@@ -316,12 +315,6 @@ export function loadNativeTimeline(
                     items: msg.mediaData?.paymentRequestItems,
                     itemsText: msg.mediaData?.paymentRequestItemsText,
                 });
-                else if (msg.mediaType === "app_card") {
-                    const appName = msg.mediaData?.appName || "APP";
-                    const title = msg.mediaData?.appCardTitle || msg.mediaData?.label || "应用卡片";
-                    const body = msg.mediaData?.appCardBody || msg.mediaData?.appCardSummary || msg.content;
-                    content = body ? `[${appName}卡片:${title}]${body}` : `[${appName}卡片:${title}]`;
-                }
                 else if (msg.mediaType === "voice_call" || msg.mediaType === "video_call") content = `[我发起了${msg.mediaType === "voice_call" ? "语音" : "视频"}通话]`;
                 else if (msg.mediaType === "location") content = `[位置:${msg.mediaData?.label || ""}]`;
                 else if (msg.mediaType === "music_share") content = `[音乐分享:${msg.mediaData?.musicTitle || ""}]`;
@@ -587,30 +580,6 @@ export function loadNativeTimeline(
             content: formatStoredPromptEventContent(rendered, {
                 label: "查手机",
                 timestamp: checkPhoneEntry.timestamp,
-                timeAware,
-                timestampOptions,
-            }),
-        });
-    }
-
-    // ── Custom app timeline events ──
-    const customAppEntries = loadCustomAppTimelineEntries(characterId, {
-        afterTimestamp: options?.afterTimestamp,
-    });
-    for (const customEntry of customAppEntries) {
-        const label = customEntry.appLabel || customEntry.appName || "APP";
-        entries.push({
-            id: customEntry.id,
-            sourceApp: "custom_app",
-            sourceDetail: "custom_app_event",
-            authorType: "user",
-            timestamp: customEntry.createdAt,
-            customAppId: customEntry.appId,
-            customAppName: customEntry.appName,
-            customAppLabel: label,
-            content: formatStoredPromptEventContent(customEntry.summary, {
-                label,
-                timestamp: customEntry.createdAt,
                 timeAware,
                 timestampOptions,
             }),

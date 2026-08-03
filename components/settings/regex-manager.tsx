@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useContext, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef, useContext, useCallback } from "react";
 import { Plus, Trash2, Download, Database, Play, Upload, ChevronLeft, AlertCircle, Maximize2, X } from "lucide-react";
 import {
     loadRegexes,
@@ -13,9 +13,6 @@ import type { RegexConfig, RegexRule } from "@/lib/settings-types";
 import { testRegexRule } from "@/lib/llm-prompt-assembler";
 import { MacroEngine } from "@/lib/macro-engine";
 import { areTagsEqual, getTagProfileId, getTagsLabel, type TagProfile } from "@/lib/content-tag-utils";
-import { buildCustomAppTagGroups, flattenTagGroups } from "@/lib/custom-app-tag-profiles";
-import { CUSTOM_APPS_UPDATED_EVENT, loadInstalledCustomApps } from "@/lib/custom-app-storage";
-import type { InstalledCustomApp } from "@/lib/custom-app-types";
 import { SettingsContext } from "../phone-settings-app";
 import { ConfirmDialog, TextExpandModal } from "@/components/ui/modal";
 import { notifyMascotPageContext } from "@/lib/mascot-events";
@@ -86,7 +83,6 @@ export function RegexManager({ isActive = true }: { isActive?: boolean } = {}) {
     const [groupTestInput, setGroupTestInput] = useState("");
     const [groupTestExpandStep, setGroupTestExpandStep] = useState<number | null>(null);
     const [importError, setImportError] = useState<string | null>(null);
-    const [customApps, setCustomApps] = useState<InstalledCustomApp[]>([]);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -100,29 +96,22 @@ export function RegexManager({ isActive = true }: { isActive?: boolean } = {}) {
             setActiveGroupId(loaded[0]?.id || "");
             saveRegexes(loaded);
         }
-        setCustomApps(loadInstalledCustomApps());
         setIsLoaded(true);
     }, []);
 
     useEffect(() => {
-        const refreshCustomApps = () => setCustomApps(loadInstalledCustomApps());
         const refreshRegexes = () => {
             const loaded = loadRegexes().map(normalizeGroupScope);
             setGroups(loaded);
             setActiveGroupId(current => current && loaded.some(group => group.id === current) ? current : loaded[0]?.id || "");
         };
-        window.addEventListener(CUSTOM_APPS_UPDATED_EVENT, refreshCustomApps);
         window.addEventListener("settings-regexes-updated", refreshRegexes);
         return () => {
-            window.removeEventListener(CUSTOM_APPS_UPDATED_EVENT, refreshCustomApps);
             window.removeEventListener("settings-regexes-updated", refreshRegexes);
         };
     }, []);
 
-    const regexScopeTagProfiles = useMemo(() => [
-        ...BASE_REGEX_SCOPE_TAG_PROFILES,
-        ...flattenTagGroups(buildCustomAppTagGroups(customApps, { regexes: groups })),
-    ], [customApps, groups]);
+    const regexScopeTagProfiles = BASE_REGEX_SCOPE_TAG_PROFILES;
 
     // Push mascot context only when this tab is active
     useEffect(() => {

@@ -21,7 +21,6 @@ import {
     expandToolNameMacros,
     toolNameMatches,
 } from "./tool-storage";
-import { executeCustomAppToolCall } from "./custom-app-tool-runtime";
 import { CALENDAR_MANAGEMENT_CAPABILITY_ID, LOCAL_DATA_LIBRARY_CAPABILITY_ID, MEMORY_WRITE_CAPABILITY_ID, MUSIC_CONTROL_CAPABILITY_ID, SEND_FILE_CAPABILITY_ID, TIMED_WAKE_CAPABILITY_ID, TOOLBOX_MANAGEMENT_CAPABILITY_ID, getInternalCapability } from "./internal-capability-storage";
 import { loadMemoryEntriesByType, saveMemoryEntry } from "./memory-storage";
 import type { MemoryEntry } from "./memory-types";
@@ -83,7 +82,7 @@ export type ToolExecutionContext = {
     appId?: string;
     sessionId?: string;
     characterId?: string;
-    sourceEngine?: "chat" | "group_chat" | "custom_app";
+    sourceEngine?: "chat" | "group_chat";
     signal?: AbortSignal;
 };
 
@@ -472,8 +471,6 @@ async function executeSingleToolCall(
         if (compositeTool) return executeCompositeTool(compositeTool, call.args, context, hint.depth);
         return null;
     };
-    const tryCustomApp = () => executeCustomAppToolCall(call, context, nameMacroContext);
-
     if (preferredType === "internal") {
         const result = await tryInternal();
         return result || { name: call.name, success: false, error: "动作未找到" };
@@ -494,10 +491,6 @@ async function executeSingleToolCall(
 
     const mcpResult = tryMcp();
     if (mcpResult) return mcpResult;
-
-    const customAppResult = await tryCustomApp();
-    throwIfAborted(context?.signal);
-    if (customAppResult) return customAppResult;
 
     return { name: call.name, success: false, error: "动作未找到" };
 }

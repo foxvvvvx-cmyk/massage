@@ -13,13 +13,6 @@ import type { ChatMessage } from "./chat-storage";
 import type { StateValue } from "./chat-storage";
 import { parseStateValues, mergeStateValues } from "./state-value-parser";
 import { stripActionShells } from "./action-parser";
-import {
-    formatCustomAppDirectiveSummary,
-    getCustomAppDirectiveSyntaxHead,
-    loadCustomAppChatDirectives,
-    splitCustomAppDirectiveArgs,
-    type RegisteredCustomAppChatDirective,
-} from "./custom-app-chat-directives";
 
 // ── Types ──────────────────────────────────────────────
 
@@ -354,131 +347,6 @@ type RichPatternCandidate = {
     build: () => ParsedMessagePart;
 };
 
-function syntaxArgLabels(syntax: string | undefined): string[] {
-    const text = String(syntax ?? "").trim();
-    const body = text.startsWith("[") && text.endsWith("]") ? text.slice(1, -1) : text;
-    const parts = body.split(/[：:]/).map(item => item.trim()).filter(Boolean);
-    return parts.slice(1).map((item, index) => (
-        item
-            .replace(/[<>{}\[\]【】]/g, "")
-            .replace(/^(参数|内容)$/, `参数${index + 1}`)
-            .slice(0, 24)
-            || `参数${index + 1}`
-    ));
-}
-
-type DirectiveCardInterpolationContext = {
-    args: string[];
-    argLabels: string[];
-    raw: string;
-    summary: string;
-    directive: RegisteredCustomAppChatDirective;
-};
-
-function buildDirectiveCardTokenMap(ctx: DirectiveCardInterpolationContext): Map<string, string> {
-    const tokens = new Map<string, string>();
-    tokens.set("raw", ctx.raw);
-    tokens.set("summary", ctx.summary);
-    tokens.set("directive", ctx.directive.label);
-    tokens.set("label", ctx.directive.label);
-    tokens.set("app", ctx.directive.appName);
-    tokens.set("appName", ctx.directive.appName);
-    ctx.args.forEach((arg, index) => {
-        const oneBased = String(index + 1);
-        tokens.set(`arg${oneBased}`, arg);
-        tokens.set(`参数${oneBased}`, arg);
-        tokens.set(oneBased, arg);
-        const label = ctx.argLabels[index];
-        if (label) tokens.set(label, arg);
-    });
-    return tokens;
-}
-
-function interpolateDirectiveCardValue(value: unknown, tokens: Map<string, string>): unknown {
-    if (typeof value === "string") {
-        return value.replace(/\{\{\s*([^{}]+?)\s*\}\}/g, (match, token: string) => {
-            const key = token.trim();
-            return tokens.has(key) ? tokens.get(key)! : match;
-        });
-    }
-    if (Array.isArray(value)) {
-        return value.map(item => interpolateDirectiveCardValue(item, tokens));
-    }
-    if (value && typeof value === "object") {
-        const result: Record<string, unknown> = {};
-        for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
-            result[key] = interpolateDirectiveCardValue(item, tokens);
-        }
-        return result;
-    }
-    return value;
-}
-
-function interpolateDirectiveCardLayout(
-    card: unknown,
-    ctx: DirectiveCardInterpolationContext,
-): Record<string, unknown> | null {
-    if (!card || typeof card !== "object" || Array.isArray(card)) return null;
-    return interpolateDirectiveCardValue(card, buildDirectiveCardTokenMap(ctx)) as Record<string, unknown>;
-}
-
-function buildCustomAppDirectivePart(
-    directive: RegisteredCustomAppChatDirective,
-    args: string[],
-    raw: string,
-): ParsedMessagePart {
-    const summary = formatCustomAppDirectiveSummary(directive, args);
-    const title = directive.title || directive.label;
-    const argLabels = syntaxArgLabels(directive.syntax);
-    const defaultLayout = {
-        appLabel: directive.appLabel || directive.appName,
-        title,
-        subtitle: "",
-        body: "",
-        status: directive.status || "待确认",
-        accentColor: directive.accentColor || "",
-        sections: args.length > 0 ? [{
-            rows: args.map((arg, index) => ({
-                label: argLabels[index] || `参数${index + 1}`,
-                value: arg,
-            })),
-        }] : [],
-        actions: directive.actions && directive.actions.length > 0
-            ? directive.actions
-            : [{ label: "查看", style: "default" }],
-    };
-    const customLayout = interpolateDirectiveCardLayout(directive.card, {
-        args,
-        argLabels,
-        raw,
-        summary,
-        directive,
-    });
-    return {
-        content: summary,
-        mediaType: "app_card",
-        mediaData: {
-            appId: directive.appId,
-            appName: directive.appName,
-            appCardTitle: title,
-            appCardBody: "",
-            appCardSummary: summary,
-            appCardTone: directive.tone,
-            appDirectiveId: directive.id,
-            appDirectiveLabel: directive.label,
-            appDirectiveArgs: args,
-            appDirectiveRaw: raw,
-            appSceneId: directive.sceneId,
-            appSceneTag: directive.sceneTag,
-            appTags: directive.tags,
-            appHistoryText: summary,
-            appCardLayout: customLayout
-                ? { ...defaultLayout, ...customLayout }
-                : defaultLayout,
-        },
-    };
-}
-
 function findBuiltInRichCandidate(segment: string): RichPatternCandidate | null {
     let best: { index: number; m: RegExpMatchArray; build: (m: RegExpMatchArray) => ParsedMessagePart } | null = null;
     for (const { regex, build } of RICH_PATTERNS) {
@@ -494,26 +362,6 @@ function findBuiltInRichCandidate(segment: string): RichPatternCandidate | null 
         matchText: best.m[0],
         build: () => candidate.build(candidate.m),
     };
-}
-
-function findCustomAppRichCandidate(segment: string): RichPatternCandidate | null {
-    const directives = loadCustomAppChatDirectives();
-    if (directives.length === 0) return null;
-    const bySyntaxHead = new Map(directives.map(item => [getCustomAppDirectiveSyntaxHead(item.syntax), item]));
-    const bracketPattern = /\[([^\]\n：:]{1,24})([：:][^\]\n]*)?\]/g;
-    let match: RegExpExecArray | null;
-    while ((match = bracketPattern.exec(segment)) !== null) {
-        const directive = bySyntaxHead.get(match[1].trim());
-        if (!directive) continue;
-        const args = splitCustomAppDirectiveArgs(match[2] || "");
-        const raw = match[0];
-        return {
-            index: match.index,
-            matchText: raw,
-            build: () => buildCustomAppDirectivePart(directive, args, raw),
-        };
-    }
-    return null;
 }
 
 // ── Structured hidden block extraction ───────────────────
@@ -549,9 +397,7 @@ function parseSegment(segment: string, parts: ParsedMessagePart[]) {
     // (e.g. [表情包:x]) belongs to a pattern listed after a later-in-text marker
     // (e.g. [...拍了拍...]), the earlier marker lands in the un-parsed `before`
     // chunk and leaks as literal text. Ties keep list order (priority).
-    const builtIn = findBuiltInRichCandidate(segment);
-    const customApp = findCustomAppRichCandidate(segment);
-    const best = customApp && (!builtIn || customApp.index < builtIn.index) ? customApp : builtIn;
+    const best = findBuiltInRichCandidate(segment);
 
     if (best) {
         const before = segment.slice(0, best.index).trim();

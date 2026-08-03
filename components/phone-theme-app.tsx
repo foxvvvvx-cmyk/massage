@@ -20,8 +20,6 @@ import { normalizeThemeProfile, resolveActiveIconSkins, DEFAULT_THEME_PROFILE, t
 import type { DesktopIconId, IconId } from "@/lib/desktop-config";
 import { DOCK_DEFAULT, PAGE_1_DEFAULT, PAGE_2_DEFAULT, ICONS } from "@/lib/desktop-config";
 import type { DesktopIconLayout } from "@/lib/desktop-layout-storage";
-import { CUSTOM_APPS_UPDATED_EVENT, loadInstalledCustomApps } from "@/lib/custom-app-storage";
-import { toCustomAppIconId, type InstalledCustomApp } from "@/lib/custom-app-types";
 import { PageShell } from "@/components/ui/page-shell";
 import {
   GRID_COLS,
@@ -953,8 +951,7 @@ const BUILTIN_ICON_SKIN_IDS: IconId[] = [...PAGE_1_DEFAULT, ...PAGE_2_DEFAULT, .
 type IconSkinItem = {
   id: DesktopIconId;
   label: string;
-  builtinId: IconId | null;
-  iconDataUrl?: string;
+  builtinId: IconId;
 };
 
 function updateIconSkin(draft: ThemeProfile, iconId: DesktopIconId, assetId: string | null): ThemeProfile {
@@ -988,9 +985,6 @@ function IconSkinPage({
   const [uploadTarget, setUploadTarget] = useState<DesktopIconId | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<{ iconId: DesktopIconId; assetId: string } | null>(null);
   const [confirmDeleteDock, setConfirmDeleteDock] = useState(false);
-  const [customApps, setCustomApps] = useState<InstalledCustomApp[]>(() => (
-    typeof window === "undefined" ? [] : loadInstalledCustomApps()
-  ));
 
   const activeSkins = resolveActiveIconSkins(draft);
   const allAssetIds = Object.values(activeSkins).filter(Boolean) as string[];
@@ -1000,20 +994,7 @@ function IconSkinPage({
       label: ICONS[id].label,
       builtinId: id,
     })),
-    ...customApps.map((app) => ({
-      id: toCustomAppIconId(app.id),
-      label: app.name,
-      builtinId: null,
-      iconDataUrl: app.iconDataUrl,
-    })),
-  ], [customApps]);
-
-  useEffect(() => {
-    const refreshCustomApps = () => setCustomApps(loadInstalledCustomApps());
-    refreshCustomApps();
-    window.addEventListener(CUSTOM_APPS_UPDATED_EVENT, refreshCustomApps);
-    return () => window.removeEventListener(CUSTOM_APPS_UPDATED_EVENT, refreshCustomApps);
-  }, []);
+  ], []);
 
   useEffect(() => {
     const idsToLoad = [...allAssetIds];
@@ -1140,16 +1121,14 @@ function IconSkinPage({
         {iconSkinItems.map(item => {
           const skinAssetId = activeSkins[item.id];
           const skinUrl = skinAssetId ? thumbs[skinAssetId] : null;
-          const previewUrl = skinUrl ?? item.iconDataUrl ?? null;
+          const previewUrl = skinUrl ?? null;
           return (
             <div key={item.id} className="is-cell" onClick={() => triggerUpload(item.id)}>
               <div className="is-frame" {...(previewUrl ? { "data-skinned": "" } : {})}>
                 {previewUrl ? (
                   <img className="is-frame-img" src={previewUrl} alt="" />
-                ) : item.builtinId ? (
-                  <IconGlyph id={item.builtinId} className="is-frame-glyph" />
                 ) : (
-                  <IconGlyph id="appmarket" className="is-frame-glyph" />
+                  <IconGlyph id={item.builtinId} className="is-frame-glyph" />
                 )}
                 {skinAssetId && (
                   <button className="ui-card-delete" onClick={e => handleDeleteClick(item.id, skinAssetId, e)}>×</button>

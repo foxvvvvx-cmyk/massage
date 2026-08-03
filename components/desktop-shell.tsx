@@ -24,8 +24,6 @@ import { useMusicControlsOptional } from "@/lib/music-context";
 import { PhoneResourcesApp, type ResourceSubPage } from "@/components/phone-resources-app";
 import { ShoppingApp } from "@/components/shopping/shopping-app";
 import { GameHubApp } from "@/components/game/game-hub-app";
-import { AppMarketApp } from "@/components/app-market/app-market-app";
-import { CustomAppRunner } from "@/components/app-market/custom-app-runner";
 import { hydrateKvDb, kvGet, kvSet, kvRemove, kvKeysWithPrefix } from "@/lib/kv-db";
 import { deleteDatabase } from "@/lib/data-management/idb";
 import { hydrateStoryStorage } from "@/lib/story-storage";
@@ -40,28 +38,7 @@ import {
   type IconId,
   type IconPosition
 } from "@/lib/desktop-config";
-import { customAppIdFromIconId, isCustomAppIconId, toCustomAppIconId } from "@/lib/custom-app-types";
-import type { InstalledCustomApp } from "@/lib/custom-app-types";
-import {
-  registerCustomAppBackgroundToolExecutor,
-  type CustomAppToolExecutorPayload,
-} from "@/lib/custom-app-tool-runtime";
-import {
-  CUSTOM_APPS_UPDATED_EVENT,
-  loadInstalledCustomApps,
-} from "@/lib/custom-app-storage";
-import {
-  isCustomAppMarketItemNewerThanInstalled,
-  resolveCustomAppMarketItemForInstalled,
-  updateInstalledCustomAppFromMarket,
-} from "@/lib/custom-app-market-update";
-import type { CustomAppMarketItem } from "@/lib/custom-app-market-types";
-import {
-  CUSTOM_APP_HOST_STATE_UPDATED_EVENT,
-  loadCustomAppBadges,
-  runDueCustomAppTasks,
-} from "@/lib/custom-app-host-api";
-import { CustomAppGlyph, IconGlyph } from "@/components/icon-glyph";
+import { IconGlyph } from "@/components/icon-glyph";
 import { DesktopCustomizer } from "@/components/desktop-customizer";
 import {
   collectThemeAssetIds,
@@ -91,12 +68,12 @@ import { WidgetRenderer } from "@/components/widgets/widget-renderer";
 import type { DIYWidgetTemplate } from "@/lib/widget-types";
 import { DebugPromptPanel } from "@/components/debug-prompt-panel";
 import { QuickActionFloat } from "@/components/quick-action-float";
-import { CHAT_MESSAGE_PUSHED_EVENT, CHAT_REQUEST_REPLY_EVENT, hydrateChatStorage, loadChatSessions, loadChatMessages, pushChatMessage, type ChatMessage, type ChatSession } from "@/lib/chat-storage";
+import { hydrateChatStorage, loadChatSessions, loadChatMessages, pushChatMessage, type ChatMessage, type ChatSession } from "@/lib/chat-storage";
 import { resolveUserIdentity } from "@/lib/settings-storage";
 import { loadCharacters } from "@/lib/character-storage";
 import { generateChatCompletion, flattenCompletionResult } from "@/lib/chat-engine";
 import { parseAIResponse } from "@/lib/rich-message-parser";
-import { requestBackgroundChatReply, scheduleFollowUp } from "@/lib/follow-up-service";
+import { scheduleFollowUp } from "@/lib/follow-up-service";
 import { CHAT_MESSAGE_NOTICE_EVENT, CHAT_OPEN_SESSION_EVENT, type ChatMessageNoticeDetail } from "@/lib/chat-notification-events";
 import { setMascotContext } from "@/lib/mascot-context";
 import { useWeixinBridge } from "@/lib/use-weixin-bridge";
@@ -170,146 +147,6 @@ type DesktopShellProps = {
   initialThemeAssets?: Record<string, string>;
 };
 
-type CustomAppReturnTarget = {
-  appId: "chat";
-  sessionId?: string;
-};
-
-type CustomAppLaunchState = {
-  appId: string;
-  context: Record<string, unknown>;
-  returnTo?: CustomAppReturnTarget | null;
-};
-
-type CustomAppBackgroundEventRun = {
-  id: string;
-  app: InstalledCustomApp;
-  eventName: string;
-  payload: Record<string, unknown>;
-  launchContext: Record<string, unknown>;
-  timeoutMs?: number;
-};
-
-type CustomAppBackgroundToolRun = {
-  id: string;
-  app: InstalledCustomApp;
-  payload: CustomAppToolExecutorPayload;
-  launchContext: Record<string, unknown>;
-  timeoutMs?: number;
-};
-
-type PendingCustomAppBackgroundTool = {
-  resolve: (value: unknown) => void;
-  reject: (error: Error) => void;
-  timeoutId: number;
-};
-
-type PendingCustomAppUpdatePrompt = {
-  app: InstalledCustomApp;
-  item: CustomAppMarketItem;
-  launchContext: Record<string, unknown>;
-};
-
-const CHAT_CUSTOM_APP_RETURN_SOURCES = new Set(["chat_plus_action", "chat_card", "chat_directive"]);
-const CUSTOM_APP_BACKGROUND_RUNNER_TIMEOUT_MS = 5 * 60_000;
-
-type CustomAppEventRecord = {
-  event?: unknown;
-  entry?: unknown;
-  background?: unknown;
-  timeoutMs?: unknown;
-};
-
-type CustomAppBackgroundRunnerBoundaryProps = {
-  runId: string;
-  kind: "event" | "tool";
-  children: ReactNode;
-  onEventError?: (runId: string, result: { ok: boolean; reason: string; errors?: string[] }) => void;
-  onToolError?: (runId: string, result: { ok: boolean; reason: string; result?: unknown; error?: string }) => void;
-};
-
-type CustomAppBackgroundRunnerBoundaryState = {
-  failed: boolean;
-};
-
-class CustomAppBackgroundRunnerBoundary extends Component<CustomAppBackgroundRunnerBoundaryProps, CustomAppBackgroundRunnerBoundaryState> {
-  state: CustomAppBackgroundRunnerBoundaryState = { failed: false };
-
-  static getDerivedStateFromError(): CustomAppBackgroundRunnerBoundaryState {
-    return { failed: true };
-  }
-
-  componentDidCatch(error: unknown, info: ErrorInfo): void {
-    const message = error instanceof Error ? error.message : String(error);
-    console.warn(`[CustomAppBackground] ${this.props.runId} runner crashed: ${message}`, info.componentStack);
-    if (this.props.kind === "event") {
-      this.props.onEventError?.(this.props.runId, {
-        ok: false,
-        reason: "runner_crashed",
-        errors: [message],
-      });
-      return;
-    }
-    this.props.onToolError?.(this.props.runId, {
-      ok: false,
-      reason: "runner_crashed",
-      error: message,
-    });
-  }
-
-  render(): ReactNode {
-    if (this.state.failed) return null;
-    return this.props.children;
-  }
-}
-
-function customAppReturnTargetFromLaunchContext(context: Record<string, unknown>): CustomAppReturnTarget | null {
-  const source = String(context.source ?? "");
-  if (!CHAT_CUSTOM_APP_RETURN_SOURCES.has(source)) return null;
-  const sessionId = typeof context.sessionId === "string" && context.sessionId.trim() ? context.sessionId.trim() : undefined;
-  return { appId: "chat", sessionId };
-}
-
-function isCustomAppEventRecord(value: unknown): value is CustomAppEventRecord {
-  return Boolean(value && typeof value === "object" && !Array.isArray(value));
-}
-
-function customAppBackgroundTimeoutMs(value: unknown): number {
-  const timeoutMs = Number(value);
-  return Number.isFinite(timeoutMs) && timeoutMs > 0
-    ? Math.min(timeoutMs, 30 * 60_000)
-    : CUSTOM_APP_BACKGROUND_RUNNER_TIMEOUT_MS;
-}
-
-function customAppEventSubscriptions(app: InstalledCustomApp): CustomAppEventRecord[] {
-  const canonical = Array.isArray(app.manifest.extensions?.events) ? app.manifest.extensions.events : [];
-  const legacy = Array.isArray(app.manifest.events) ? app.manifest.events : [];
-  return (canonical.length > 0 ? canonical : legacy).filter(isCustomAppEventRecord);
-}
-
-function getBackgroundChatMessageSubscription(app: InstalledCustomApp) {
-  return customAppEventSubscriptions(app).find(event => (
-    event.background === true
-    && (event.event === "chat.message.created" || event.event === "*")
-  ));
-}
-
-function serializeCustomAppBackgroundMessage(message: ChatMessage): Record<string, unknown> {
-  return {
-    id: message.id,
-    sessionId: message.sessionId,
-    role: message.role,
-    content: String(message.content ?? ""),
-    createdAt: message.createdAt,
-    status: message.status,
-    senderName: message.senderName,
-    mediaType: message.mediaType,
-    mediaData: message.mediaData && typeof message.mediaData === "object" ? message.mediaData : undefined,
-    isRetracted: message.isRetracted === true,
-    origin: message.origin,
-  };
-}
-
 /** Convert an IconId array into absolute positions (flow left-to-right, top-to-bottom) */
 function flowIconsToPositions(icons: IconId[]): IconPosition[] {
   const result: IconPosition[] = [];
@@ -360,13 +197,8 @@ function trimEmptyTrailingPages(layout: DesktopLayout, widgets: WidgetInstance[]
   return next;
 }
 
-function getInstalledCustomIconIds(): Set<string> {
-  return new Set(loadInstalledCustomApps().map(app => toCustomAppIconId(app.id)));
-}
-
-function migrateLegacyDesktopIconId(id: string, customIconIds = getInstalledCustomIconIds()): DesktopIconId | null {
+function migrateLegacyDesktopIconId(id: string): DesktopIconId | null {
   if (id === "weibo") return "game";
-  if (isCustomAppIconId(id) && customIconIds.has(id)) return id;
   return id in ICONS ? id as IconId : null;
 }
 
@@ -375,7 +207,6 @@ function normalizePageV2(raw: unknown, pageWidgets: WidgetInstance[]): IconPosit
   if (!Array.isArray(raw)) return [];
 
   const allKnown = new Set<string>(Object.keys(ICONS));
-  const customIconIds = getInstalledCustomIconIds();
   const seenIds = new Set<DesktopIconId>();
   const seenCells = new Set<string>();
   const widgetOcc = buildWidgetOccupancy(pageWidgets);
@@ -385,8 +216,8 @@ function normalizePageV2(raw: unknown, pageWidgets: WidgetInstance[]): IconPosit
     if (!item || typeof item !== "object") continue;
     const { id, row, col } = item as { id: string; row: number; col: number };
     if (typeof id !== "string" || typeof row !== "number" || typeof col !== "number") continue;
-    const iconId = migrateLegacyDesktopIconId(id, customIconIds);
-    if (!iconId || (!allKnown.has(iconId) && !customIconIds.has(iconId))) continue;
+    const iconId = migrateLegacyDesktopIconId(id);
+    if (!iconId || !allKnown.has(iconId)) continue;
     if (seenIds.has(iconId)) continue;
     if (row < 1 || row > GRID_ROWS || col < 1 || col > GRID_COLS) continue;
     const cellKey = `${row},${col}`;
@@ -917,16 +748,6 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets }: Deskto
   const [glassPaintPass, setGlassPaintPass] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);
   const [activeApp, setActiveApp] = useState<DesktopIconId | null>(null);
-  const [customApps, setCustomApps] = useState<InstalledCustomApp[]>([]);
-  const [customAppUpdatePrompt, setCustomAppUpdatePrompt] = useState<PendingCustomAppUpdatePrompt | null>(null);
-  const [customAppUpdateBusy, setCustomAppUpdateBusy] = useState(false);
-  const customAppUpdateCheckingRef = useRef<Set<string>>(new Set());
-  const activeAppRef = useRef<DesktopIconId | null>(null);
-  const [customAppBadges, setCustomAppBadges] = useState<Record<string, number>>({});
-  const [customAppBackgroundRuns, setCustomAppBackgroundRuns] = useState<CustomAppBackgroundEventRun[]>([]);
-  const [customAppBackgroundToolRuns, setCustomAppBackgroundToolRuns] = useState<CustomAppBackgroundToolRun[]>([]);
-  const backgroundRunSeqRef = useRef(0);
-  const pendingCustomAppBackgroundToolsRef = useRef<Map<string, PendingCustomAppBackgroundTool>>(new Map());
   const [resourcesInitialPage, setResourcesInitialPage] = useState<ResourceSubPage>("main");
   const [xiaohongshuMounted, setXiaohongshuMounted] = useState(false);
   const [xiaohongshuBusy, setXiaohongshuBusy] = useState(false);
@@ -954,9 +775,6 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets }: Deskto
   );
   const [savedTheme, setSavedTheme] = useState<ThemeProfile>(() => initialThemeProfile ?? readInitialThemeProfile());
   const [draftTheme, setDraftTheme] = useState<ThemeProfile>(() => initialThemeProfile ?? readInitialThemeProfile());
-  useEffect(() => {
-    activeAppRef.current = activeApp;
-  }, [activeApp]);
   // Listen for theme CSS updates from 小卷
   useEffect(() => {
     const onThemeUpdate = () => {
@@ -1288,7 +1106,6 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets }: Deskto
       const stored = readThemeProfile();
       setSavedTheme(stored);
       setDraftTheme(stored);
-      setCustomApps(loadInstalledCustomApps());
 
       // Reload widgets + layout after hydration
       const hydratedWidgets = loadWidgets();
@@ -1315,148 +1132,6 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets }: Deskto
       setLayout(createDefaultDesktopIconLayout(hydratedWidgets));
       setDesktopReady(true);
     });
-  }, []);
-
-  useEffect(() => {
-    const refreshCustomApps = () => {
-      const installed = loadInstalledCustomApps();
-      setCustomApps(installed);
-      setLayout(prev => {
-        const next = normalizeLayout(prev, widgetsRef.current);
-        kvSet(ICON_LAYOUT_STORAGE_KEY, JSON.stringify(next));
-        return next;
-      });
-      setActiveApp(prev => {
-        const appId = prev ? customAppIdFromIconId(prev) : null;
-        return appId && !installed.some(app => app.id === appId) ? null : prev;
-      });
-    };
-    window.addEventListener(CUSTOM_APPS_UPDATED_EVENT, refreshCustomApps);
-    return () => window.removeEventListener(CUSTOM_APPS_UPDATED_EVENT, refreshCustomApps);
-  }, []);
-
-  useEffect(() => {
-    const refreshHostState = () => setCustomAppBadges(loadCustomAppBadges());
-    refreshHostState();
-    window.addEventListener(CUSTOM_APP_HOST_STATE_UPDATED_EVENT, refreshHostState);
-    return () => window.removeEventListener(CUSTOM_APP_HOST_STATE_UPDATED_EVENT, refreshHostState);
-  }, []);
-
-  useEffect(() => {
-    const unregister = registerCustomAppBackgroundToolExecutor(payload => (
-      new Promise<unknown>((resolve, reject) => {
-        const id = `bg_tool_${Date.now()}_${++backgroundRunSeqRef.current}_${payload.app.id}`;
-        const timeoutMs = customAppBackgroundTimeoutMs(payload.tool.timeoutMs);
-        const timeoutId = window.setTimeout(() => {
-          pendingCustomAppBackgroundToolsRef.current.delete(id);
-          setCustomAppBackgroundToolRuns(prev => prev.filter(run => run.id !== id));
-          reject(new Error(`APP handler 执行超时：${payload.tool.name}`));
-        }, timeoutMs + 5000);
-        pendingCustomAppBackgroundToolsRef.current.set(id, { resolve, reject, timeoutId });
-        setCustomAppBackgroundToolRuns(prev => [
-          ...prev,
-          {
-            id,
-            app: payload.app,
-            payload,
-            timeoutMs,
-            launchContext: {
-              source: "background_tool",
-              background: true,
-              runId: id,
-              origin: "custom_app_background",
-              toolId: payload.tool.id,
-              toolName: payload.tool.name,
-              handler: payload.tool.handler ?? payload.tool.entry ?? payload.tool.id,
-              sessionId: payload.context?.sessionId,
-              characterId: payload.context?.characterId,
-              sourceEngine: payload.context?.sourceEngine,
-            },
-          },
-        ]);
-      })
-    ));
-    return () => {
-      unregister();
-      for (const [id, pending] of pendingCustomAppBackgroundToolsRef.current.entries()) {
-        window.clearTimeout(pending.timeoutId);
-        pending.reject(new Error(`APP handler 已取消：${id}`));
-      }
-      pendingCustomAppBackgroundToolsRef.current.clear();
-      setCustomAppBackgroundToolRuns([]);
-    };
-  }, []);
-
-  useEffect(() => {
-    const handleCustomAppBackgroundChatEvent = (event: Event) => {
-      try {
-        const message = (event as CustomEvent<{ message?: ChatMessage }>).detail?.message;
-        if (!message || message.origin === "custom_app_background" || !message.sessionId) return;
-        const session = loadChatSessions().find(item => item.id === message.sessionId);
-        const payload = {
-          sessionId: message.sessionId,
-          characterId: session?.contactId ?? "",
-          isGroup: session?.isGroup === true,
-          message: serializeCustomAppBackgroundMessage(message),
-        };
-        const nextRuns = customApps
-          .map(app => ({ app, subscription: getBackgroundChatMessageSubscription(app) }))
-          .filter((item): item is { app: InstalledCustomApp; subscription: CustomAppEventRecord } => Boolean(item.subscription))
-          .filter(({ app }) => (
-            Array.isArray(app.permissions)
-            && (app.permissions.includes("chat.read.background" as never) || app.permissions.includes("chat.read" as never))
-          ))
-          .filter(({ app }) => activeApp !== toCustomAppIconId(app.id))
-          .map(({ app, subscription }) => {
-            const id = `bg_${Date.now()}_${++backgroundRunSeqRef.current}_${app.id}`;
-            const entry = typeof subscription.entry === "string" ? subscription.entry : undefined;
-            const timeoutMs = customAppBackgroundTimeoutMs(subscription.timeoutMs);
-            return {
-              id,
-              app,
-              eventName: "chat.message.created",
-              payload,
-              timeoutMs,
-              launchContext: {
-                source: "background_event",
-                background: true,
-                eventName: "chat.message.created",
-                entry,
-                runId: id,
-                origin: "custom_app_background",
-                ...payload,
-              },
-            } satisfies CustomAppBackgroundEventRun;
-          });
-        if (nextRuns.length > 0) {
-          setCustomAppBackgroundRuns(prev => [...prev, ...nextRuns].slice(-12));
-        }
-      } catch (err) {
-        console.warn("[CustomAppBackground] failed to queue chat.message.created event", err);
-      }
-    };
-    window.addEventListener(CHAT_MESSAGE_PUSHED_EVENT, handleCustomAppBackgroundChatEvent);
-    return () => window.removeEventListener(CHAT_MESSAGE_PUSHED_EVENT, handleCustomAppBackgroundChatEvent);
-  }, [activeApp, customApps]);
-
-  useEffect(() => {
-    let canceled = false;
-    const runTasks = () => {
-      if (canceled) return;
-      void runDueCustomAppTasks(setNotice).then(count => {
-        if (count > 0) setCustomAppBadges(loadCustomAppBadges());
-      }).catch(error => {
-        console.warn("[CustomAppTasks] failed", error);
-      });
-    };
-    runTasks();
-    const timer = window.setInterval(runTasks, 30_000);
-    window.addEventListener("focus", runTasks);
-    return () => {
-      canceled = true;
-      window.clearInterval(timer);
-      window.removeEventListener("focus", runTasks);
-    };
   }, []);
 
   // Listen for music custom CSS changes from music app
@@ -1783,166 +1458,29 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets }: Deskto
     [currentIcons, currentPageWidgets]
   );
 
-  const customAppMap = useMemo(() => {
-    const map = new Map<string, InstalledCustomApp>();
-    for (const app of customApps) map.set(app.id, app);
-    return map;
-  }, [customApps]);
-
-  const getCustomAppForIcon = useCallback((iconId: DesktopIconId): InstalledCustomApp | null => {
-    const appId = customAppIdFromIconId(iconId);
-    return appId ? customAppMap.get(appId) ?? null : null;
-  }, [customAppMap]);
-
   const getDesktopIconMeta = useCallback((iconId: DesktopIconId) => {
-    const customApp = getCustomAppForIcon(iconId);
-    if (customApp) {
-      return {
-        id: iconId,
-        label: customApp.name,
-        tone: "var(--c-icon-teal)",
-        placeholder: false,
-        iconDataUrl: customApp.iconDataUrl,
-        customApp,
-      };
-    }
-    return iconId in ICONS ? { ...ICONS[iconId as IconId], customApp: null as InstalledCustomApp | null } : null;
-  }, [getCustomAppForIcon]);
+    return iconId in ICONS ? ICONS[iconId as IconId] : null;
+  }, []);
 
   const activeIcon = activeApp ? getDesktopIconMeta(activeApp) : null;
 
-  function getFreshInstalledCustomApp(appId: string): InstalledCustomApp | null {
-    const installed = loadInstalledCustomApps();
-    if (installed.length !== customApps.length || installed.some((app, index) => app.id !== customApps[index]?.id || app.version !== customApps[index]?.version)) {
-      setCustomApps(installed);
-    }
-    return installed.find(app => app.id === appId) ?? customAppMap.get(appId) ?? null;
-  }
-
-  function activateCustomApp(appId: string, launchContext: Record<string, unknown> = {}): void {
-    const iconId = toCustomAppIconId(appId);
-    activeAppRef.current = iconId;
-    setCustomAppLaunchContext({
-      appId,
-      context: launchContext,
-      returnTo: customAppReturnTargetFromLaunchContext(launchContext),
-    });
-    setActiveApp(iconId);
-  }
-
-  function checkCustomAppUpdateInBackground(app: InstalledCustomApp, launchContext: Record<string, unknown>): void {
-    if (customAppUpdateCheckingRef.current.has(app.id)) return;
-    customAppUpdateCheckingRef.current.add(app.id);
-    void (async () => {
-      try {
-        const item = await resolveCustomAppMarketItemForInstalled(app.id);
-        const activeCustomAppId = activeAppRef.current ? customAppIdFromIconId(activeAppRef.current) : null;
-        if (activeCustomAppId !== app.id || !item) return;
-        const freshApp = getFreshInstalledCustomApp(app.id) ?? app;
-        if (isCustomAppMarketItemNewerThanInstalled(freshApp, item)) {
-          setCustomAppUpdatePrompt(current => current?.app.id === freshApp.id ? current : {
-            app: freshApp,
-            item,
-            launchContext,
-          });
-        }
-      } catch {
-        // 本地导入、离线或市场不可用时不打扰用户。
-      } finally {
-        customAppUpdateCheckingRef.current.delete(app.id);
-      }
-    })();
-  }
-
-  function openCustomAppWithBackgroundUpdateCheck(
-    iconId: DesktopIconId,
-    launchContext: Record<string, unknown> = {},
-  ): void {
-    const appId = customAppIdFromIconId(iconId);
-    if (!appId) return;
-    const app = getFreshInstalledCustomApp(appId);
-    if (!app) {
-      setNotice("这个 APP 已被卸载或不存在。");
-      return;
-    }
-    activateCustomApp(app.id, launchContext);
-    checkCustomAppUpdateInBackground(app, launchContext);
-  }
-
   function openApp(iconId: DesktopIconId): void {
-    if (customAppIdFromIconId(iconId)) {
-      openCustomAppWithBackgroundUpdateCheck(iconId);
-      return;
-    }
     const builtinIconId = iconId as IconId;
     if (builtinIconId === "resources") setResourcesInitialPage("main");
     if (builtinIconId === "chat") setChatInitSessionId(null);
     setActiveApp(builtinIconId);
   }
 
-  const handleInstallCustomAppToDesktop = useCallback((app: InstalledCustomApp) => {
-    const iconId = toCustomAppIconId(app.id);
-    setCustomApps(loadInstalledCustomApps());
-    let placedPageNumber: number | null = null;
-    setLayout(prev => {
-      const widgets = widgetsRef.current;
-      const next = cloneDesktopLayout(prev, widgets);
-      if (getDesktopIconLayoutItems(next).some(icon => icon.id === iconId)) {
-        return next;
-      }
-      const pageNumbers = getDesktopPageKeysForState(next, widgets).map(getDesktopPageNumber);
-      const maxPage = Math.max(2, ...pageNumbers);
-      for (let page = 1; page <= maxPage + 1; page += 1) {
-        const pageKey = getDesktopPageKey(page);
-        ensureDesktopPage(next, pageKey);
-        const widgetOcc = buildWidgetOccupancy(widgets.filter(w => w.page === page));
-        const usedCells = new Set(next[pageKey].map(icon => `${icon.row},${icon.col}`));
-        const free = findNearestFreeCell(1, 1, widgetOcc, usedCells);
-        if (!free) continue;
-        next[pageKey] = [...next[pageKey], { id: iconId, row: free.row, col: free.col }];
-        placedPageNumber = page;
-        break;
-      }
-      const trimmed = trimEmptyTrailingPages(next, widgets);
-      kvSet(ICON_LAYOUT_STORAGE_KEY, JSON.stringify(trimmed));
-      return trimmed;
-    });
-    if (placedPageNumber) {
-      window.setTimeout(() => setCurrentPageIndex(Math.max(0, (placedPageNumber ?? 1) - 1)), 0);
-    }
-  }, []);
-
   // Allow other components to switch apps via custom event
   const [chatInitSessionId, setChatInitSessionId] = useState<string | null>(null);
   const [activeChatSession, setActiveChatSession] = useState<ChatSession | null>(null);
-  const [customAppLaunchContext, setCustomAppLaunchContext] = useState<CustomAppLaunchState | null>(null);
-  const [appMarketLaunchContext, setAppMarketLaunchContext] = useState<Record<string, unknown> | null>(null);
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       if (detail?.appId) {
         const nextAppId = String(detail.appId);
-        const customAppId = customAppIdFromIconId(nextAppId);
-        const rawLaunchContext = detail.launchContext;
-        const launchContextRecord = rawLaunchContext && typeof rawLaunchContext === "object" && !Array.isArray(rawLaunchContext)
-          ? rawLaunchContext as Record<string, unknown>
-          : {};
-        if (customAppId) {
-          openCustomAppWithBackgroundUpdateCheck(toCustomAppIconId(customAppId), launchContextRecord);
-          if (detail.sessionId) setChatInitSessionId(detail.sessionId);
-          else setChatInitSessionId(null);
-          return;
-        }
-        setCustomAppLaunchContext(customAppId
-          ? {
-            appId: customAppId,
-            context: launchContextRecord,
-            returnTo: customAppReturnTargetFromLaunchContext(launchContextRecord),
-          }
-          : null);
-        setAppMarketLaunchContext(nextAppId === "appmarket" ? launchContextRecord : null);
         if (detail.appId === "resources") {
-          setResourcesInitialPage(detail.resourcePage === "vn_assets" || detail.resourcePage === "memory" ? detail.resourcePage : "main");
+          setResourcesInitialPage(detail.resourcePage === "memory" ? detail.resourcePage : "main");
         }
         setActiveApp(nextAppId as DesktopIconId);
         if (detail.sessionId) setChatInitSessionId(detail.sessionId);
@@ -1992,33 +1530,6 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets }: Deskto
     window.setTimeout(() => {
       window.dispatchEvent(new CustomEvent(CHAT_OPEN_SESSION_EVENT, { detail: { sessionId } }));
     }, 0);
-  }, []);
-
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const detail = (e as CustomEvent<{
-        sessionId?: string;
-        characterId?: string;
-        handled?: boolean;
-        replayed?: boolean;
-      }>).detail;
-      if (!detail || detail.replayed) return;
-
-      const sessions = loadChatSessions();
-      const sessionId = detail.sessionId
-        || sessions.find(session => !session.isGroup && session.contactId === detail.characterId)?.id
-        || "";
-      if (!sessionId) return;
-
-      window.setTimeout(() => {
-        if (detail.handled) return;
-        detail.handled = true;
-        void requestBackgroundChatReply(sessionId);
-      }, 0);
-    };
-
-    window.addEventListener(CHAT_REQUEST_REPLY_EVENT, handler);
-    return () => window.removeEventListener(CHAT_REQUEST_REPLY_EVENT, handler);
   }, []);
 
   // Swipe up to dismiss the message notice; tap still opens the chat. Auto-dismiss
@@ -2933,85 +2444,9 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets }: Deskto
     setShoppingMounted(false);
   }, [shoppingBusy]);
 
-  function closeCustomAppRunner(app: InstalledCustomApp): void {
-    const launchState = customAppLaunchContext?.appId === app.id ? customAppLaunchContext : null;
-    setCustomAppLaunchContext(null);
-    if (launchState?.returnTo?.appId === "chat") {
-      const sessionId = launchState.returnTo.sessionId;
-      setActiveApp("chat" as IconId);
-      setChatInitSessionId(sessionId ?? null);
-      if (sessionId) {
-        window.setTimeout(() => {
-          window.dispatchEvent(new CustomEvent(CHAT_OPEN_SESSION_EVENT, { detail: { sessionId } }));
-        }, 0);
-      }
-      return;
-    }
-    setActiveApp(null);
-  }
-
-  function dismissPendingCustomAppUpdate(): void {
-    if (customAppUpdateBusy || !customAppUpdatePrompt) return;
-    setCustomAppUpdatePrompt(null);
-  }
-
-  async function confirmPendingCustomAppUpdate(): Promise<void> {
-    if (customAppUpdateBusy || !customAppUpdatePrompt) return;
-    const pending = customAppUpdatePrompt;
-    setCustomAppUpdateBusy(true);
-    try {
-      const result = await updateInstalledCustomAppFromMarket(pending.app, {
-        resolveMarketItem: async () => pending.item,
-      });
-      setCustomApps(loadInstalledCustomApps());
-      setCustomAppUpdatePrompt(null);
-      setNotice(result.previousVersion === result.installed.version
-        ? `已同步「${result.installed.name}」`
-        : `已更新「${result.installed.name}」到 v${result.installed.version}`);
-      activateCustomApp(result.installed.id, pending.launchContext);
-    } catch (err) {
-      setNotice(`更新失败：${err instanceof Error ? err.message : String(err)}`);
-    } finally {
-      setCustomAppUpdateBusy(false);
-    }
-  }
-
-  const handleCustomAppBackgroundComplete = useCallback((runId: string, result: { ok: boolean; reason: string; errors?: string[] }) => {
-    setCustomAppBackgroundRuns(prev => prev.filter(run => run.id !== runId));
-    if (!result.ok && result.reason !== "not_subscribed") {
-      const message = result.errors?.[0] || result.reason;
-      console.warn(`[CustomAppBackground] ${runId} failed: ${message}`);
-    }
-  }, []);
-
-  const handleCustomAppBackgroundToolComplete = useCallback((runId: string, result: { ok: boolean; reason: string; result?: unknown; error?: string }) => {
-    setCustomAppBackgroundToolRuns(prev => prev.filter(run => run.id !== runId));
-    const pending = pendingCustomAppBackgroundToolsRef.current.get(runId);
-    if (!pending) return;
-    pendingCustomAppBackgroundToolsRef.current.delete(runId);
-    window.clearTimeout(pending.timeoutId);
-    if (result.ok) {
-      pending.resolve(result.result);
-    } else {
-      pending.reject(new Error(result.error || result.reason));
-    }
-  }, []);
-
   function renderAppBody() {
     if (!activeApp || !activeIcon) {
       return null;
-    }
-
-    const customApp = getCustomAppForIcon(activeApp);
-    if (customApp) {
-      return (
-        <CustomAppRunner
-          app={customApp}
-          launchContext={customAppLaunchContext?.appId === customApp.id ? customAppLaunchContext.context : null}
-          onClose={() => closeCustomAppRunner(customApp)}
-          onNotice={setNotice}
-        />
-      );
     }
 
     if (activeApp === "chat") {
@@ -3102,24 +2537,6 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets }: Deskto
       return <GameHubApp onClose={() => setActiveApp(null)} />;
     }
 
-    if (activeApp === "appmarket") {
-      return (
-        <AppMarketApp
-          onClose={() => {
-            setAppMarketLaunchContext(null);
-            setActiveApp(null);
-          }}
-          onOpenCustomApp={(appId) => {
-            setAppMarketLaunchContext(null);
-            openCustomAppWithBackgroundUpdateCheck(toCustomAppIconId(appId));
-          }}
-          onInstallToDesktop={handleInstallCustomAppToDesktop}
-          onNotice={setNotice}
-          launchContext={appMarketLaunchContext}
-        />
-      );
-    }
-
     return activeApp in ICONS
       ? <PhonePlaceholderApp icon={ICONS[activeApp as IconId]} onClose={() => setActiveApp(null)} />
       : null;
@@ -3188,126 +2605,6 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets }: Deskto
                 <aside className="phone-shell-notice" role="status" aria-live="polite">
                   {notice}
                 </aside>
-              ) : null}
-
-              {customAppUpdatePrompt ? (
-                <div
-                  className="modal-overlay"
-                  data-ui="modal"
-                  role="presentation"
-                  onClick={dismissPendingCustomAppUpdate}
-                >
-                  <div
-                    className="modal-dialog"
-                    data-ui="modal-dialog"
-                    role="dialog"
-                    aria-modal="true"
-                    aria-label="APP 更新"
-                    onClick={event => event.stopPropagation()}
-                  >
-                    <div className="modal-header" data-ui="modal-header">
-                      <div className="ui-icon-circle" data-variant="action">
-                        {customAppUpdateBusy ? <LoaderCircle className="am-spin" size={20} /> : <RefreshCw size={20} />}
-                      </div>
-                      <h3 className="modal-title">发现新版本</h3>
-                    </div>
-                    <div className="modal-body" data-ui="modal-body">
-                      <p>
-                        「{customAppUpdatePrompt.app.name}」当前为 v{customAppUpdatePrompt.app.version}，
-                        市场版本为 v{customAppUpdatePrompt.item.version}。是否立即更新？
-                      </p>
-                      {customAppUpdatePrompt.item.changelog?.trim() ? (
-                        <p style={{ marginTop: 8, whiteSpace: "pre-wrap" }}>
-                          更新日志：{customAppUpdatePrompt.item.changelog.trim()}
-                        </p>
-                      ) : null}
-                    </div>
-                    <div className="modal-footer" data-ui="modal-footer">
-                      <button
-                        type="button"
-                        className="ui-btn ui-btn-ghost"
-                        onClick={dismissPendingCustomAppUpdate}
-                        disabled={customAppUpdateBusy}
-                      >
-                        稍后
-                      </button>
-                      <button
-                        type="button"
-                        className="ui-btn ui-btn-primary"
-                        onClick={() => void confirmPendingCustomAppUpdate()}
-                        disabled={customAppUpdateBusy}
-                      >
-                        {customAppUpdateBusy ? "更新中" : "立即更新"}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-
-              {customAppBackgroundRuns.length > 0 || customAppBackgroundToolRuns.length > 0 ? (
-                <div
-                  aria-hidden
-                  style={{
-                    position: "fixed",
-                    left: "-10000px",
-                    top: 0,
-                    width: 1,
-                    height: 1,
-                    overflow: "hidden",
-                    opacity: 0,
-                    pointerEvents: "none",
-                  }}
-                >
-                  {customAppBackgroundRuns.map(run => (
-                    <CustomAppBackgroundRunnerBoundary
-                      key={run.id}
-                      runId={run.id}
-                      kind="event"
-                      onEventError={handleCustomAppBackgroundComplete}
-                    >
-                      <CustomAppRunner
-                        app={run.app}
-                        launchContext={run.launchContext}
-                        embedded
-                        backgroundEvent={{
-                          runId: run.id,
-                          eventName: run.eventName,
-                          payload: run.payload,
-                          timeoutMs: run.timeoutMs,
-                        }}
-                        onClose={() => handleCustomAppBackgroundComplete(run.id, { ok: true, reason: "closed" })}
-                        onNotice={setNotice}
-                        onBackgroundEventComplete={handleCustomAppBackgroundComplete}
-                      />
-                    </CustomAppBackgroundRunnerBoundary>
-                  ))}
-                  {customAppBackgroundToolRuns.map(run => (
-                    <CustomAppBackgroundRunnerBoundary
-                      key={run.id}
-                      runId={run.id}
-                      kind="tool"
-                      onToolError={handleCustomAppBackgroundToolComplete}
-                    >
-                      <CustomAppRunner
-                        app={run.app}
-                        launchContext={run.launchContext}
-                        embedded
-                        backgroundTool={{
-                          runId: run.id,
-                          payload: run.payload,
-                          timeoutMs: run.timeoutMs,
-                        }}
-                        onClose={() => handleCustomAppBackgroundToolComplete(run.id, {
-                          ok: false,
-                          reason: "closed",
-                          error: "APP handler 在工具执行完成前关闭。",
-                        })}
-                        onNotice={setNotice}
-                        onBackgroundToolComplete={handleCustomAppBackgroundToolComplete}
-                      />
-                    </CustomAppBackgroundRunnerBoundary>
-                  ))}
-                </div>
               ) : null}
 
               {/* Incoming call bar — global overlay */}
@@ -3580,15 +2877,12 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets }: Deskto
                               const icon = getDesktopIconMeta(iconId);
                               const pos = pageIconPositions.get(iconId);
                               if (!pos || !icon) return null;
-                              const customApp = icon.customApp;
-                              const builtinIconId = customApp ? null : icon.id as IconId;
+                              const builtinIconId = icon.id as IconId;
                               const iconSkinId = activeIconSkins[iconId];
                               const iconSkinUrl = iconSkinId ? themeAssets[iconSkinId] ?? null : null;
-                              const customIconUrl = customApp?.iconDataUrl ?? null;
-                              const iconImageUrl = iconSkinUrl || customIconUrl;
+                              const iconImageUrl = iconSkinUrl;
                               const hasImageIcon = Boolean(iconImageUrl);
                               const isDragging = dragItem?.type === "icon" && dragItem.id === iconId;
-                              const badgeCount = customApp ? customAppBadges[customApp.id] ?? 0 : 0;
                               return (
                                 <button
                                   key={iconId}
@@ -3609,27 +2903,18 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets }: Deskto
                                         style={{ backgroundImage: `url("${iconImageUrl}")` }}
                                       />
                                     ) : null}
-                                    {builtinIconId ? (
-                                      <IconGlyph
-                                        id={builtinIconId}
-                                        className={
-                                          builtinIconId === "music"
-                                            ? iconSkinUrl
-                                              ? "icon-glyph icon-glyph-music icon-glyph-hidden"
-                                              : "icon-glyph icon-glyph-music"
-                                            : iconSkinUrl
-                                              ? "icon-glyph icon-glyph-hidden"
-                                              : "icon-glyph"
-                                        }
-                                      />
-                                    ) : customIconUrl ? null : (
-                                      <CustomAppGlyph seed={customApp?.name || icon.label} className="icon-glyph" />
-                                    )}
-                                    {badgeCount > 0 ? (
-                                      <span className="desktop-icon-badge" aria-label={`${badgeCount} 条未读`}>
-                                        {badgeCount > 99 ? "99+" : badgeCount}
-                                      </span>
-                                    ) : null}
+                                    <IconGlyph
+                                      id={builtinIconId}
+                                      className={
+                                        builtinIconId === "music"
+                                          ? iconSkinUrl
+                                            ? "icon-glyph icon-glyph-music icon-glyph-hidden"
+                                            : "icon-glyph icon-glyph-music"
+                                          : iconSkinUrl
+                                            ? "icon-glyph icon-glyph-hidden"
+                                            : "icon-glyph"
+                                      }
+                                    />
                                   </span>
                                   <span className="icon-label">{icon.label}</span>
                                 </button>

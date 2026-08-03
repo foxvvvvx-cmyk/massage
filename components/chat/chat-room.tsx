@@ -1,7 +1,7 @@
 "use client";
 
 import { forwardRef, Fragment, memo, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ChatSession, ChatMessage, CHAT_APP_SETTINGS_UPDATED_EVENT, CHAT_INITIAL_VISIBLE_MESSAGE_COUNT, CHAT_LOAD_MORE_MESSAGE_COUNT, CHAT_REQUEST_REPLY_EVENT, loadChatAppSettings, loadChatMessages, loadChatContacts, loadChatSessions, saveChatSessions, pushChatMessage, deleteChatMessage, deleteChatMessagesFrom, deleteChatMessagesByIds, retractChatMessage, editChatMessage, updateMessageMediaData, replaceResponseBatchWithParts, replaceGroupResponseRound, isReadingDiscussMessage, isSystemInstructionMessage, createResponseBatchId, createResponseRoundId, getLatestStateValues, getLatestCharacterStateValues, compareChatMessages } from "@/lib/chat-storage";
+import { ChatSession, ChatMessage, CHAT_APP_SETTINGS_UPDATED_EVENT, CHAT_INITIAL_VISIBLE_MESSAGE_COUNT, CHAT_LOAD_MORE_MESSAGE_COUNT, loadChatAppSettings, loadChatMessages, loadChatContacts, loadChatSessions, saveChatSessions, pushChatMessage, deleteChatMessage, deleteChatMessagesFrom, deleteChatMessagesByIds, retractChatMessage, editChatMessage, updateMessageMediaData, replaceResponseBatchWithParts, replaceGroupResponseRound, isReadingDiscussMessage, isSystemInstructionMessage, createResponseBatchId, createResponseRoundId, getLatestStateValues, getLatestCharacterStateValues, compareChatMessages } from "@/lib/chat-storage";
 import type { StateValue } from "@/lib/chat-storage";
 import { parseStateValues, mergeStateValues } from "@/lib/state-value-parser";
 import { parseAIResponse, type ParsedMessagePart } from "@/lib/rich-message-parser";
@@ -21,10 +21,6 @@ import { createPortal } from "react-dom";
 
 import { loadCharacters } from "@/lib/character-storage";
 import { Character } from "@/lib/character-types";
-import { loadCustomAppChatPlusActions, type RegisteredCustomAppChatPlusAction } from "@/lib/custom-app-chat-directives";
-import { CUSTOM_APPS_UPDATED_EVENT, getInstalledCustomApp } from "@/lib/custom-app-storage";
-import { toCustomAppIconId, type InstalledCustomApp } from "@/lib/custom-app-types";
-import { CustomAppRunner } from "@/components/app-market/custom-app-runner";
 
 import { ChatSettingsPanel } from "./chat-settings-panel";
 import { VoiceCallScreen } from "./voice-call-screen";
@@ -519,31 +515,6 @@ function SystemInstructionCard({ content }: { content: string }) {
     );
 }
 
-type CustomChatPlusPresentation = "panel" | "modal" | "fullscreen" | "none";
-
-type ActiveCustomChatPlus = {
-    app: InstalledCustomApp;
-    action: RegisteredCustomAppChatPlusAction;
-    presentation: Exclude<CustomChatPlusPresentation, "fullscreen">;
-    launchContext: Record<string, unknown>;
-};
-
-function getCustomChatPlusPresentation(action: RegisteredCustomAppChatPlusAction): CustomChatPlusPresentation {
-    if (action.presentation === "fullscreen" || action.presentation === "app") return "fullscreen";
-    if (action.presentation === "modal") return "modal";
-    if (action.presentation === "none") return "none";
-    return "panel";
-}
-
-function normalizeCustomPanelHeight(value: unknown): string | undefined {
-    const text = String(value ?? "").trim();
-    if (!text) return undefined;
-    if (/^\d{2,3}$/.test(text)) return `${Math.max(220, Math.min(680, Number(text)))}px`;
-    if (/^\d{2,3}px$/.test(text)) return text;
-    if (/^\d{2,3}vh$/.test(text)) return text;
-    if (/^calc\([^)]+\)$/.test(text)) return text;
-    return undefined;
-}
 
 const ChatTextInputBar = memo(forwardRef<ChatTextInputHandle, {
     characterName: string;
@@ -559,7 +530,6 @@ const ChatTextInputBar = memo(forwardRef<ChatTextInputHandle, {
     showEmojiPanel: boolean;
     showStickerPanel: boolean;
     showPlusMenu: boolean;
-    customPlusActions: RegisteredCustomAppChatPlusAction[];
     onClearQuote: () => void;
     onToggleOfflineMode: () => void;
     onClosePanels: () => void;
@@ -569,7 +539,6 @@ const ChatTextInputBar = memo(forwardRef<ChatTextInputHandle, {
     onToggleTheaterMode: () => void;
     onCloseTheaterMode: () => void;
     onOpenRichModal: (modal: RichModalKind) => void;
-    onOpenCustomPlusAction: (action: RegisteredCustomAppChatPlusAction) => void;
     onStartVideoCall: () => void;
     onStartVoiceCall: () => void;
     onSendText: (text: string) => boolean;
@@ -590,7 +559,6 @@ const ChatTextInputBar = memo(forwardRef<ChatTextInputHandle, {
     showEmojiPanel,
     showStickerPanel,
     showPlusMenu,
-    customPlusActions,
     onClearQuote,
     onToggleOfflineMode,
     onClosePanels,
@@ -600,7 +568,6 @@ const ChatTextInputBar = memo(forwardRef<ChatTextInputHandle, {
     onToggleTheaterMode,
     onCloseTheaterMode,
     onOpenRichModal,
-    onOpenCustomPlusAction,
     onStartVideoCall,
     onStartVoiceCall,
     onSendText,
@@ -670,13 +637,6 @@ const ChatTextInputBar = memo(forwardRef<ChatTextInputHandle, {
         { icon: <Gift size={22} strokeWidth={1.5} color="var(--c-text)" />, label: "礼物", onClick: () => onOpenRichModal("gift") },
         { icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--c-text)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>, label: "位置", onClick: () => onOpenRichModal("location") },
         { icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--c-text)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" /><path d="M19 10v2a7 7 0 0 1-14 0v-2" /><line x1="12" y1="19" x2="12" y2="22" /><line x1="8" y1="22" x2="16" y2="22" /></svg>, label: "语音条", onClick: () => onOpenRichModal("voice_msg") },
-        ...customPlusActions.map(action => ({
-            icon: action.appIconDataUrl
-                ? <span className="chat-plus-custom-app-icon" style={{ backgroundImage: `url(${action.appIconDataUrl})` }} aria-hidden="true" />
-                : <Blocks size={22} strokeWidth={1.5} color="var(--c-text)" />,
-            label: action.label,
-            onClick: () => onOpenCustomPlusAction(action),
-        })),
     ];
 
     return (
@@ -999,8 +959,6 @@ export function ChatRoom({ session, onBack }: ChatRoomProps) {
     const chatToastTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
     const [cloudDeletePending, setCloudDeletePending] = useState<{ count: number } | null>(null);
     const [showPlusMenu, setShowPlusMenu] = useState(false);
-    const [customPlusActions, setCustomPlusActions] = useState<RegisteredCustomAppChatPlusAction[]>(() => loadCustomAppChatPlusActions());
-    const [activeCustomChatPlus, setActiveCustomChatPlus] = useState<ActiveCustomChatPlus | null>(null);
     const [showSettings, setShowSettings] = useState(false);
     const [showVoiceCall, setShowVoiceCall] = useState(false);
     const [showVideoCall, setShowVideoCall] = useState(false);
@@ -1032,11 +990,6 @@ export function ChatRoom({ session, onBack }: ChatRoomProps) {
         return () => window.removeEventListener(CHAT_APP_SETTINGS_UPDATED_EVENT, syncEnterToSend);
     }, []);
 
-    useEffect(() => {
-        const syncCustomPlusActions = () => setCustomPlusActions(loadCustomAppChatPlusActions());
-        window.addEventListener(CUSTOM_APPS_UPDATED_EVENT, syncCustomPlusActions);
-        return () => window.removeEventListener(CUSTOM_APPS_UPDATED_EVENT, syncCustomPlusActions);
-    }, []);
 
     useEffect(() => {
         setTheaterMode(kvGet(CHAT_THEATER_MODE_PREFIX + session.id) === "1");
@@ -2604,7 +2557,6 @@ export function ChatRoom({ session, onBack }: ChatRoomProps) {
             if (m.mediaType === "audio") return `发了一条语音: ${m.mediaData?.label || ""}`.trim();
             if (m.mediaType === "music_share") return `分享了音乐: ${m.mediaData?.musicTitle || ""}`.trim();
             if (m.mediaType === "xiaohongshu_note_share") return `分享了一条小红书帖子: ${m.mediaData?.xiaohongshuTitle || ""}`.trim();
-            if (m.mediaType === "app_card") return `分享了${m.mediaData?.appName || "APP"}卡片: ${m.mediaData?.appCardTitle || m.mediaData?.appCardSummary || ""}`.trim();
             if (m.mediaType === "quote") return `引用回复: ${m.mediaData?.quotePreview || ""}`.trim();
             if (m.mediaType === "payment_request") return `发起了代付请求: ${m.mediaData?.paymentRequestAmountLabel || m.mediaData?.amount || ""}`.trim();
             return mediaLabels[m.mediaType] || "";
@@ -3046,57 +2998,6 @@ export function ChatRoom({ session, onBack }: ChatRoomProps) {
         return true;
     };
 
-    const handleOpenCustomPlusAction = useCallback((action: RegisteredCustomAppChatPlusAction) => {
-        setShowPlusMenu(false);
-        setShowEmojiPanel(false);
-        setShowStickerPanel(false);
-        setRichModal(null);
-        const app = getInstalledCustomApp(action.appId);
-        if (!app) {
-            showChatToast("这个自定义 APP 已不存在");
-            setCustomPlusActions(loadCustomAppChatPlusActions());
-            return;
-        }
-        const presentation = getCustomChatPlusPresentation(action);
-        const launchContext = {
-            source: "chat_plus_action",
-            sessionId: session.id,
-            characterId: session.contactId,
-            characterName: character?.name,
-            isGroup: Boolean(session.isGroup),
-            groupName: session.groupName,
-            participantIds: session.participantIds ?? [],
-            participants: groupCharacters.map(item => ({ id: item.id, name: item.name })),
-            actionId: action.id,
-            actionLabel: action.label,
-            entry: action.entry,
-            directiveId: action.directiveId,
-            sceneId: action.sceneId,
-            sceneTag: action.sceneTag,
-            appTags: action.tags,
-            data: action.data,
-            presentation,
-            panelHeight: action.panelHeight,
-            appId: action.appId,
-            appName: action.appName,
-        };
-        if (presentation === "fullscreen") {
-            window.dispatchEvent(new CustomEvent("open-app", {
-                detail: {
-                    appId: toCustomAppIconId(action.appId),
-                    launchContext,
-                },
-            }));
-            return;
-        }
-        setActiveCustomChatPlus({
-            app,
-            action,
-            presentation,
-            launchContext,
-        });
-    }, [character?.name, groupCharacters, session.contactId, session.groupName, session.id, session.isGroup, session.participantIds]);
-
     const sendShoppingGiftMessage = (gift: ShoppingGiftCandidate, recipient?: Character): boolean => {
         if (session.isGroup && !recipient) {
             showChatToast("请选择收礼对象");
@@ -3365,29 +3266,6 @@ export function ChatRoom({ session, onBack }: ChatRoomProps) {
         }
         if (shouldRunDeclineReply) await triggerReply();
     };
-
-    useEffect(() => {
-        const handleCustomAppReplyRequest = (event: Event) => {
-            const detail = (event as CustomEvent<{
-                sessionId?: string;
-                characterId?: string;
-                handled?: boolean;
-            }>).detail;
-            const requestSessionId = typeof detail?.sessionId === "string" ? detail.sessionId : "";
-            const requestCharacterId = typeof detail?.characterId === "string" ? detail.characterId : "";
-            const matches = requestSessionId
-                ? requestSessionId === session.id
-                : Boolean(requestCharacterId && !session.isGroup && requestCharacterId === session.contactId);
-            if (!matches) return;
-
-            if (detail) detail.handled = true;
-            syncMessagesFromStorage();
-            void triggerAIResponse();
-        };
-
-        window.addEventListener(CHAT_REQUEST_REPLY_EVENT, handleCustomAppReplyRequest);
-        return () => window.removeEventListener(CHAT_REQUEST_REPLY_EVENT, handleCustomAppReplyRequest);
-    }, [session.contactId, session.id, session.isGroup, syncMessagesFromStorage, triggerAIResponse]);
 
     // 围观群/被禁言时用户不能发言
     const ensureGroupSpeakPermission = (): boolean => {
@@ -5419,7 +5297,6 @@ export function ChatRoom({ session, onBack }: ChatRoomProps) {
                 showEmojiPanel={showEmojiPanel}
                 showStickerPanel={showStickerPanel}
                 showPlusMenu={showPlusMenu}
-                customPlusActions={customPlusActions}
                 onClearQuote={() => setQuotingMessage(null)}
                 onToggleOfflineMode={toggleOfflineMode}
                 onClosePanels={() => { setShowEmojiPanel(false); setShowStickerPanel(false); setShowPlusMenu(false); }}
@@ -5429,7 +5306,6 @@ export function ChatRoom({ session, onBack }: ChatRoomProps) {
 	                onToggleTheaterMode={toggleTheaterMode}
 	                onCloseTheaterMode={closeTheaterMode}
 	                onOpenRichModal={(modal) => { setShowPlusMenu(false); setRichModal(modal); }}
-                onOpenCustomPlusAction={handleOpenCustomPlusAction}
                 onStartVideoCall={() => { cancelFollowUp(session.id); setShowPlusMenu(false); setCallInitiator("user"); setShowVideoCall(true); }}
                 onStartVoiceCall={() => { cancelFollowUp(session.id); setShowPlusMenu(false); setCallInitiator("user"); setShowVoiceCall(true); }}
                 onSendText={handleSendText}
@@ -5487,63 +5363,6 @@ export function ChatRoom({ session, onBack }: ChatRoomProps) {
                     />
                 </div>,
                 wrapperRef.current.parentElement
-            )}
-
-            {activeCustomChatPlus && activeCustomChatPlus.presentation === "none" && (
-                <div className="chat-custom-app-headless" aria-hidden="true">
-                    <CustomAppRunner
-                        app={activeCustomChatPlus.app}
-                        launchContext={activeCustomChatPlus.launchContext}
-                        embedded
-                        onClose={() => setActiveCustomChatPlus(null)}
-                        onNotice={showChatToast}
-                    />
-                </div>
-            )}
-
-            {activeCustomChatPlus && activeCustomChatPlus.presentation !== "none" && (
-                <div
-                    className={`chat-custom-app-layer is-${activeCustomChatPlus.presentation}`}
-                    role="presentation"
-                    onClick={() => setActiveCustomChatPlus(null)}
-                >
-                    <div
-                        className="chat-custom-app-shell"
-                        role="dialog"
-                        aria-modal="true"
-                        aria-label={activeCustomChatPlus.action.label}
-                        style={{
-                            "--chat-custom-app-panel-height": normalizeCustomPanelHeight(activeCustomChatPlus.action.panelHeight) ?? undefined,
-                        } as React.CSSProperties}
-                        onClick={event => event.stopPropagation()}
-                    >
-                        <div className="chat-custom-app-head">
-                            <div className="chat-custom-app-title">
-                                <span className="chat-custom-app-icon" aria-hidden="true">
-                                    {activeCustomChatPlus.app.iconDataUrl ? <img src={activeCustomChatPlus.app.iconDataUrl} alt="" /> : <Blocks size={18} />}
-                                </span>
-                                <span>{activeCustomChatPlus.action.label}</span>
-                            </div>
-                            <button
-                                type="button"
-                                className="chat-custom-app-close"
-                                onClick={() => setActiveCustomChatPlus(null)}
-                                aria-label="关闭"
-                            >
-                                <X size={18} strokeWidth={2} />
-                            </button>
-                        </div>
-                        <div className="chat-custom-app-body">
-                            <CustomAppRunner
-                                app={activeCustomChatPlus.app}
-                                launchContext={activeCustomChatPlus.launchContext}
-                                embedded
-                                onClose={() => setActiveCustomChatPlus(null)}
-                                onNotice={showChatToast}
-                            />
-                        </div>
-                    </div>
-                </div>
             )}
 
             {/* Rich Media Input Modals */}

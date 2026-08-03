@@ -13,7 +13,6 @@ import {
     normalizeVisionImagePromptLimit,
 } from "./chat-storage";
 import type { ApiConfig, PresetConfig, Prompt, PromptOrderEntry, RegexConfig } from "./settings-types";
-import type { CustomAppPromptProfile } from "./custom-app-types";
 import {
     resolveBinding,
     loadBindingConfig,
@@ -67,7 +66,6 @@ import {
 } from "./game-tool-definitions";
 import { executeGameToolCall } from "./game-tool-executor";
 import { getCustomStickerNames, getCustomStickerExample } from "./custom-sticker-storage";
-import { formatCustomAppChatDirectivesForPrompt } from "./custom-app-chat-directives";
 import { loadAllTracks } from "./music-storage";
 import { getActiveAppTags } from "./content-tag-utils";
 import { isNeteaseConfigured, getUserPlaylists, getPlaylistTracks, checkLoginStatus, loadMusicApiConfig } from "./music-service";
@@ -450,7 +448,6 @@ type ChatPromptBuildOptions = {
     appTags?: string[];
     attachedImages?: string[];
     excludeOfflineSessionId?: string;
-    promptProfile?: CustomAppPromptProfile;
     extraWorldBookIds?: string[];
     worldBookActivationContext?: string;
     activateAllWorldBooks?: boolean;
@@ -458,45 +455,13 @@ type ChatPromptBuildOptions = {
     forceEnableTools?: boolean;
 };
 
-function matchesPromptProfileRef(prompt: { identifier: string; name?: string }, refs: Set<string>): boolean {
-    return refs.has(prompt.identifier) || Boolean(prompt.name && refs.has(prompt.name));
-}
-
-export function applyCustomPromptProfileToPreset(preset: PresetConfig, profile: CustomAppPromptProfile): PresetConfig {
-    const include = new Set((profile.include ?? []).map(item => item.trim()).filter(Boolean));
-    const exclude = new Set((profile.exclude ?? []).map(item => item.trim()).filter(Boolean));
-    const includeEnabled = include.size > 0;
-    const allowedPrompts = preset.prompts.filter(prompt => {
-        if (prompt.forbid_overrides) return true;
-        if (exclude.size > 0 && matchesPromptProfileRef(prompt, exclude)) return false;
-        if (includeEnabled && !matchesPromptProfileRef(prompt, include)) return false;
-        return true;
-    });
-    const allowedIdentifiers = new Set(allowedPrompts.map(prompt => prompt.identifier));
-    const promptOrder = preset.prompt_order
-        ?.filter(entry => {
-            if (exclude.has(entry.identifier)) return false;
-            if (includeEnabled) return include.has(entry.identifier) || allowedIdentifiers.has(entry.identifier);
-            return allowedIdentifiers.has(entry.identifier) || !preset.prompts.some(prompt => prompt.identifier === entry.identifier);
-        })
-        .map(entry => ({ ...entry }));
-    return {
-        ...preset,
-        prompts: allowedPrompts.map(prompt => ({ ...prompt })),
-        prompt_order: promptOrder,
-    };
-}
-
 function mergeAppTags(base: string[] | undefined, extra: string[] | undefined, fallbackAppId: string): string[] | undefined {
     const baseTags = (base ?? []).map(tag => tag.trim()).filter(Boolean);
     const extraTags = (extra ?? []).map(tag => tag.trim()).filter(Boolean);
-    const hasExplicitBase = Array.isArray(base);
-    const isCustomApp = fallbackAppId.startsWith("custom_app:");
     if (baseTags.length === 0 && extraTags.length === 0) {
-        if (hasExplicitBase && isCustomApp) return [];
         return undefined;
     }
-    const tags = new Set<string>(baseTags.length > 0 ? baseTags : (isCustomApp ? [] : [fallbackAppId]));
+    const tags = new Set<string>(baseTags.length > 0 ? baseTags : [fallbackAppId]);
     for (const tag of extraTags) {
         const trimmed = tag.trim();
         if (trimmed) tags.add(trimmed);
@@ -1523,7 +1488,6 @@ export function nativeToolSourceKey(tool: EnabledTool): string {
 export function isNativeSingleTool(tool: EnabledTool): boolean {
     if (tool.source === "rest") return true;
     if (tool.source === "composite") return true;
-    if (tool.source === "custom_app") return true;
     if (tool.source === "internal") {
         const capability = getInternalCapability(tool.sourceId);
         const subTools = capability ? getInternalCapabilitySubToolDefinitions(capability) : [];
@@ -1701,19 +1665,6 @@ export function buildNativeChatTools(enabledTools: EnabledTool[], expandedSource
             continue;
         }
 
-        if (tool.source === "custom_app_package") {
-            for (const customAppTool of tool.customAppTools || []) {
-                registerTool(
-                    customAppTool.name,
-                    customAppTool.description || `来自「${customAppTool.appName}」的自定义 APP 工具`,
-                    JSON.stringify(customAppTool.parameterSchema || { type: "object", properties: {} }),
-                    sourceKey,
-                    customAppTool.usageGuide,
-                );
-            }
-            continue;
-        }
-
         if (tool.source === "internal") {
             const capability = getInternalCapability(tool.sourceId);
             const subTools = capability ? getInternalCapabilitySubToolDefinitions(capability) : [];
@@ -1788,22 +1739,14 @@ export async function buildChatPromptMessages(
     const presets = loadPresets();
     let preset = activeSlot.presetId ? presets.find(p => p.id === activeSlot.presetId) || null : null;
     if (!preset) preset = presets.find(p => p.builtIn) ?? null;
-    const promptProfile = options?.promptProfile;
-    if (preset && promptProfile) {
-        preset = applyCustomPromptProfileToPreset(preset, promptProfile);
-    }
 
     const allWorldBooks = loadWorldBooks();
     const extraWorldBookIds = options?.extraWorldBookIds ?? [];
     const worldBookIds = [...new Set([...(activeSlot.worldBookIds || []), ...extraWorldBookIds])];
-    const worldBooks = promptProfile?.enableWorldBooks === false
-        ? []
-        : worldBookIds.map(id => allWorldBooks.find(w => w.id === id)).filter(Boolean) as typeof allWorldBooks;
+    const worldBooks = worldBookIds.map(id => allWorldBooks.find(w => w.id === id)).filter(Boolean) as typeof allWorldBooks;
 
     const allRegexes = loadRegexes();
-    const regexes = promptProfile?.enableRegexes === false
-        ? []
-        : (activeSlot.regexIds || []).map(id => allRegexes.find(r => r.id === id)).filter(Boolean) as typeof allRegexes;
+    const regexes = (activeSlot.regexIds || []).map(id => allRegexes.find(r => r.id === id)).filter(Boolean) as typeof allRegexes;
 
     const userIdentity = resolveUserIdentity(character.id, resolvedAppId);
     const attachedImages = config.enableImageRecognition === true ? options?.attachedImages : undefined;
@@ -1829,7 +1772,7 @@ export async function buildChatPromptMessages(
     const promptTimestampOptions = getPromptTimestampOptionsForTimeContext(promptTimeContext);
     const memConfig = loadMemoryConfig();
     const isOfflineMode = options?.appTags?.includes("offline") === true;
-    const effectiveAppTags = mergeAppTags(options?.appTags, promptProfile?.appTags, resolvedAppId);
+    const effectiveAppTags = mergeAppTags(options?.appTags, undefined, resolvedAppId);
     const toolsAllowed = options?.toolsAllowed !== false && !isOfflineMode;
     const enabledTools = toolsAllowed ? getEnabledTools(resolvedAppId) : [];
     const toolsEnabled = enabledTools.length > 0
@@ -1865,7 +1808,6 @@ export async function buildChatPromptMessages(
     const scheduleSummary = buildCalendarScheduleMarker("character", character.id, getWeekStartIso(now));
     const currentSchedule = getCurrentCalendarScheduleForPrompt("character", character.id, now);
     const musicOnlineHint = isNeteaseConfigured() ? "- 你可以推荐任何歌曲，系统会在线搜索并播放。不局限于用户本地音乐库。\n" : "\n";
-    const customAppRichMediaDirectives = formatCustomAppChatDirectivesForPrompt();
     const toolsPrompt = toolsEnabled && !usesNativeActions ? formatToolsForPrompt(enabledTools) : "";
     const chatBilingualInstruction = !session.isGroup
         ? buildChatBilingualInstruction(session.bilingualTranslationEnabled !== false, "single", session.bilingualTranslationPrompt)
@@ -1911,23 +1853,11 @@ export async function buildChatPromptMessages(
         enableVision: config.enableImageRecognition,
         timeAware: loadChatAppSettings().timeAware,
         tools: toolsPrompt,
-        customAppRichMediaDirectives,
         chatBilingualInstruction,
         offlineBilingualInstruction,
         offlineSummaryTag: preset?.story_summary_tag?.trim() || "summary",
         nativeToolHistory: usesNativeActions,
     });
-    if (promptProfile?.output === "plain_text") {
-        llmMessages.push({
-            role: "system",
-            content: "本次自定义 APP AI 任务只输出纯文本结果。不要输出聊天富媒体指令、状态面板、内心想法、XML 包裹或 Markdown 代码块。",
-        });
-    } else if (promptProfile?.output === "json") {
-        llmMessages.push({
-            role: "system",
-            content: "本次自定义 APP AI 任务只输出严格 JSON。不要输出 Markdown 代码块、解释文字或聊天富媒体指令。",
-        });
-    }
     appendEmptyGenerateGuardMessage(llmMessages, config, historyForPrompt);
 
     return { llmMessages, character, config, preset, regexes, userIdentity, toolsEnabled };
@@ -2014,7 +1944,7 @@ async function generateNativeChatCompletion(
     // enableNativeActionTools=false（纯联网搜索路径）时不注入角色动作工具，
     // 避免预设未启用工具宏却意外带上动作定义。
     const enabledTools = enableNativeActionTools ? getEnabledTools(options?.appId ?? "chat") : [];
-    const requestAppTags = mergeAppTags(options?.appTags, options?.promptProfile?.appTags, options?.appId ?? "chat");
+    const requestAppTags = mergeAppTags(options?.appTags, undefined, options?.appId ?? "chat");
     const persistedSession = loadChatSessions().find(item => item.id === session.id);
     let expandedSourceIds = normalizeNativeExpandedToolSourceIds(
         persistedSession?.nativeExpandedToolSourceIds || session.nativeExpandedToolSourceIds,
@@ -2323,7 +2253,7 @@ export async function generateChatCompletion(
     callbacks?: ChatCompletionCallbacks,
 ): Promise<ChatCompletionResult> {
     const { llmMessages, character, config, preset, regexes, userIdentity, toolsEnabled } = await buildChatPromptMessages(session, history, options);
-    const requestAppTags = mergeAppTags(options?.appTags, options?.promptProfile?.appTags, options?.appId ?? "chat");
+    const requestAppTags = mergeAppTags(options?.appTags, undefined, options?.appId ?? "chat");
 
     const nativeProtocolAvailable = Boolean(nativeToolProtocolForConfig(config));
     const enableNativeActionTools = toolsEnabled && nativeProtocolAvailable && getEnabledTools(options?.appId ?? "chat").length > 0;

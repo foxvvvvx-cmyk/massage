@@ -7,7 +7,7 @@
 - 仿真聊天：私聊 / 群聊 / 朋友圈 / 语音消息 / 转账红包卡片，AI 角色有作息、记忆和长期关系
 - 创作系统：角色卡、世界书、预设、正则，附带桌面 AI 助手「小卷」帮你写这些内容
 - 剧情玩法：剧情模式、视觉小说、查手机、访谈、地图冒险、日记、便签墙
-- 扩展生态：应用市场（用 SDK 写自定义 APP）、游戏大厅、内置小游戏
+- 扩展生态：游戏大厅、内置小游戏
 - 多媒体：AI 生图、Minimax 语音合成、网易云在线音乐（需自配 API）、3D 世界搭建（Tripo）
 - 桌面美化：主题、壁纸、贴纸小组件、自定义 CSS，支持 PWA 安装到手机桌面
 
@@ -70,7 +70,6 @@ NEXT_PUBLIC_SELF_HOSTED_MODE=true
 | `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` | 你自己的 Supabase 项目，启用云端功能时必填（服务端专用，勿放进 NEXT_PUBLIC） |
 | `ACCOUNT_GATE_SECRET` | 账号门禁签名密钥，启用账号系统时设为随机长字符串 |
 | `VERIFY_ADMIN_KEY` | 成年审核/激活码管理后台密钥 |
-| `APP_MARKET_ADMIN_KEY` | 应用市场审核后台密钥（不填回退用 `VERIFY_ADMIN_KEY`） |
 | `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` / `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | 便签墙实时刷新用（anon key 本身可公开） |
 | `NEXT_PUBLIC_IMAGE_GEN_PROXY_URL` | 通用生图代理地址，需自己部署代理服务 |
 | `NEXT_PUBLIC_DEFAULT_NETEASE_API_BASE` | 网易云音乐 API 默认地址（NeteaseCloudMusicApi 兼容实例，请自行部署）。留空时在线音乐隐藏，用户也可在音乐 APP 设置里自填 |
@@ -81,13 +80,11 @@ NEXT_PUBLIC_SELF_HOSTED_MODE=true
 
 ## 启用自己的 Supabase（可选云端功能）
 
-账号、激活码、成年审核、便签墙、游戏大厅、应用市场、黑市等云端功能需要你自己的 Supabase 项目。在 Supabase SQL Editor 按需执行 `docs/` 下的建表脚本：
+账号、激活码、成年审核、游戏大厅、黑市等云端功能需要你自己的 Supabase 项目。在 Supabase SQL Editor 按需执行 `docs/` 下的建表脚本：
 
 - `docs/account-supabase.sql`：账号、会话、激活码
 - `docs/verify-supabase.sql`：成年审核与审核图片桶（部署说明见 `docs/verify-setup.md`）
-- `docs/notewall-supabase.sql`：便签墙
 - `docs/game-hall-supabase.sql`：游戏大厅
-- `docs/custom-app-market-supabase.sql`：应用市场
 - `docs/black-market-supabase.sql`：黑市
 
 然后关闭单机模式并填入服务端密钥：

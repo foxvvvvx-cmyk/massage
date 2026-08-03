@@ -84,7 +84,6 @@ export interface AssemblerInput {
     cocreateWriteActions?: string;           // full co-create action set for {{cocreateWriteActions}} macro (write mode)
     cocreateReadActions?: string;            // read-only co-create action set for {{cocreateReadActions}} macro (discuss mode)
     groupTools?: string;                     // formatted tool definitions for {{groupTools}} macro (group chat)
-    customAppRichMediaDirectives?: string;   // formatted custom app rich-media directives
     chatBilingualInstruction?: string;       // session-specific bilingual output rule for {{chatBilingualInstruction}}
     offlineBilingualInstruction?: string;    // offline-mode bilingual output rule for {{offlineBilingualInstruction}}
     offlineSummaryTag?: string;              // XML tag used for offline-mode summary output
@@ -140,10 +139,6 @@ type PromptBlock = {
 };
 
 function resolveHistoryPromptRole(msg: ChatMessage): Exclude<LLMMessageRole, "tool"> {
-    const appHistoryRole = msg.mediaType === "app_card" ? msg.mediaData?.appHistoryRole : undefined;
-    if (appHistoryRole === "system" || appHistoryRole === "assistant" || appHistoryRole === "user") {
-        return appHistoryRole;
-    }
     if (msg.role === "system" || msg.role === "assistant" || msg.role === "user") return msg.role;
     return "user";
 }
@@ -675,7 +670,6 @@ export function assemblePromptPayload(input: AssemblerInput): LLMMessage[] {
         engine.cocreateWriteActions = input.cocreateWriteActions ?? "";
         engine.cocreateReadActions = input.cocreateReadActions ?? "";
         engine.groupTools = input.groupTools ?? "";
-        engine.customAppRichMediaDirectives = input.customAppRichMediaDirectives ?? "";
         engine.chatBilingualInstruction = input.chatBilingualInstruction ?? "";
         engine.offlineBilingualInstruction = input.offlineBilingualInstruction ?? "";
         engine.offlineSummaryTag = input.offlineSummaryTag ?? "summary";
@@ -977,7 +971,6 @@ export function assemblePromptPayload(input: AssemblerInput): LLMMessage[] {
         engine.cocreateWriteActions = input.cocreateWriteActions ?? "";
         engine.cocreateReadActions = input.cocreateReadActions ?? "";
         engine.groupTools = input.groupTools ?? "";
-        engine.customAppRichMediaDirectives = input.customAppRichMediaDirectives ?? "";
         engine.chatBilingualInstruction = input.chatBilingualInstruction ?? "";
         engine.offlineBilingualInstruction = input.offlineBilingualInstruction ?? "";
         engine.offlineSummaryTag = input.offlineSummaryTag ?? "summary";
@@ -1380,14 +1373,6 @@ export function formatRichMediaForHistory(msg: ChatMessage, userName: string, ch
             });
         case "contact_card":
             return `[名片:${d?.contactCardName || d?.label || "联系人"}]`;
-        case "app_card": {
-            const historyText = d?.appHistoryText?.trim();
-            if (historyText) return historyText;
-            const appName = d?.appName || "APP";
-            const title = d?.appCardTitle || d?.label || "应用卡片";
-            const body = d?.appCardBody || d?.appCardSummary || msg.content;
-            return body ? `[${appName}卡片:${title}]${body}` : `[${appName}卡片:${title}]`;
-        }
         case "image":
             return formatPhotoDirective(msg);
         case "media_file":
@@ -1809,7 +1794,6 @@ export interface GroupAssemblerInput {
     cocreateReadActions?: string;
     groupTools?: string;
     groupRoster?: string;
-    customAppRichMediaDirectives?: string;
     chatBilingualInstruction?: string;
     offlineBilingualInstruction?: string;
     offlineSummaryTag?: string;
@@ -2246,7 +2230,6 @@ export function assembleGroupPromptPayload(input: GroupAssemblerInput): LLMMessa
         groupEngine.cocreateReadActions = input.cocreateReadActions ?? "";
         groupEngine.groupTools = input.groupTools ?? "";
         groupEngine.groupRoster = input.groupRoster ?? "";
-        groupEngine.customAppRichMediaDirectives = input.customAppRichMediaDirectives ?? "";
         groupEngine.chatBilingualInstruction = input.chatBilingualInstruction ?? "";
         groupEngine.offlineBilingualInstruction = input.offlineBilingualInstruction ?? "";
         groupEngine.offlineSummaryTag = input.offlineSummaryTag ?? "summary";

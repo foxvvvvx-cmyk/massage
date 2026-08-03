@@ -49,7 +49,6 @@ export class MacroEngine {
     cocreateReadActions: string = "";
     groupTools: string = "";
     groupRoster: string = "";
-    customAppRichMediaDirectives: string = "";
     chatBilingualInstruction: string = "";
     offlineBilingualInstruction: string = "";
     offlineSummaryTag: string = "summary";
@@ -171,7 +170,7 @@ export class MacroEngine {
         if (body === "cocreateReadActions") return this.cocreateReadActions || "\x00TRIM\x00";
         if (body === "groupTools") return this.groupTools || "\x00TRIM\x00";
         if (body === "groupRoster") return this.groupRoster || "\x00TRIM\x00";
-        if (body === "customAppRichMediaDirectives" || body === "customAppChatCapabilities") return this.customAppRichMediaDirectives || "\x00TRIM\x00";
+        if (body === "customAppRichMediaDirectives" || body === "customAppChatCapabilities") return "\x00TRIM\x00";
         if (body === "chatBilingualInstruction") return this.chatBilingualInstruction || "\x00TRIM\x00";
         if (body === "offlineBilingualInstruction") return this.offlineBilingualInstruction || "\x00TRIM\x00";
         if (body === "offlineSummaryTag") return this.offlineSummaryTag || "summary";

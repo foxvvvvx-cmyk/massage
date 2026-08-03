@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useContext, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef, useContext, useCallback } from "react";
 import { Plus, Upload, Download, Trash2, RotateCcw, ChevronLeft, ChevronDown, GripVertical, MessageSquare, AlertCircle, Maximize2, Copy } from "lucide-react";
 import {
     loadPresets,
@@ -14,13 +14,12 @@ import type { PresetConfig, Prompt, PromptOrderEntry } from "@/lib/settings-type
 import {
     areTagsEqual,
     CONTENT_SCOPE_TAG_GROUPS,
+    CONTENT_SCOPE_TAG_PROFILES,
+    findTagGroupForTags,
     getPromptTags as getScopedPromptTags,
     getTagsLabel,
     resolveContentTagLabel,
 } from "@/lib/content-tag-utils";
-import { buildCustomAppTagGroups, findTagGroupForTags, flattenTagGroups } from "@/lib/custom-app-tag-profiles";
-import { CUSTOM_APPS_UPDATED_EVENT, loadInstalledCustomApps } from "@/lib/custom-app-storage";
-import type { InstalledCustomApp } from "@/lib/custom-app-types";
 import { SettingsContext } from "../phone-settings-app";
 import { ConfirmDialog, TextExpandModal } from "@/components/ui/modal";
 import { notifyMascotPageContext } from "@/lib/mascot-events";
@@ -41,7 +40,7 @@ function getPromptTagMinor(p: Prompt, group = getPromptTagGroup(p)) {
     return group.minors.find(minor => areTagsEqual(minor.tags, tags)) ?? group.minors[0];
 }
 
-function getPromptTagsLabel(p: Prompt, tagProfiles = flattenTagGroups(CONTENT_SCOPE_TAG_GROUPS)): string {
+function getPromptTagsLabel(p: Prompt, tagProfiles = CONTENT_SCOPE_TAG_PROFILES): string {
     return getTagsLabel(getPromptTags(p), tagProfiles);
 }
 
@@ -103,7 +102,6 @@ export function PresetManager({ isActive = true }: { isActive?: boolean } = {}) 
     const [paramsOpen, setParamsOpen] = useState(false);
     const [expandTarget, setExpandTarget] = useState<{ identifier: string; field: string } | null>(null);
     const [importError, setImportError] = useState<string | null>(null);
-    const [customApps, setCustomApps] = useState<InstalledCustomApp[]>([]);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -115,29 +113,19 @@ export function PresetManager({ isActive = true }: { isActive?: boolean } = {}) 
         if (loaded.length > 0) {
             setPresets(loaded);
         }
-        setCustomApps(loadInstalledCustomApps());
         setIsLoaded(true);
     }, []);
 
     useEffect(() => {
-        const refreshCustomApps = () => setCustomApps(loadInstalledCustomApps());
         const refreshPresets = () => setPresets(loadPresets());
-        window.addEventListener(CUSTOM_APPS_UPDATED_EVENT, refreshCustomApps);
         window.addEventListener("settings-presets-updated", refreshPresets);
         return () => {
-            window.removeEventListener(CUSTOM_APPS_UPDATED_EVENT, refreshCustomApps);
             window.removeEventListener("settings-presets-updated", refreshPresets);
         };
     }, []);
 
-    const tagGroups = useMemo(() => [
-        ...CONTENT_SCOPE_TAG_GROUPS,
-        ...buildCustomAppTagGroups(customApps, {
-            prompts: presets.flatMap(preset => preset.prompts ?? []),
-        }),
-    ], [customApps, presets]);
-
-    const tagProfiles = useMemo(() => flattenTagGroups(tagGroups), [tagGroups]);
+    const tagGroups = CONTENT_SCOPE_TAG_GROUPS;
+    const tagProfiles = CONTENT_SCOPE_TAG_PROFILES;
 
     const containerRef = useRef<HTMLDivElement>(null);
     useEffect(() => {

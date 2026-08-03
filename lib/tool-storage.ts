@@ -11,8 +11,6 @@ import {
     getEnabledInternalCapabilities,
     getInternalCapabilityToolDefinition,
 } from "./internal-capability-storage";
-import { loadCustomAppToolsForContext, type RegisteredCustomAppExtension } from "./custom-app-sdk-registry";
-import type { CustomAppToolDefinition } from "./custom-app-types";
 import {
     BUILTIN_PHONE_WORKFLOW_PACKAGE,
     BUILTIN_PHONE_WORKFLOW_PACKAGE_ID,
@@ -349,12 +347,8 @@ export type EnabledTool = {
     description: string;
     parameterSchema: string;
     usageGuide?: string;
-    source: "rest" | "rest_package" | "composite" | "composite_package" | "mcp" | "mcp_server" | "internal" | "custom_app" | "custom_app_package";
+    source: "rest" | "rest_package" | "composite" | "composite_package" | "mcp" | "mcp_server" | "internal";
     sourceId: string;       // RestToolConfig.id or McpServerConfig.id
-    customAppId?: string;
-    customAppName?: string;
-    customToolId?: string;
-    customAppTools?: Array<RegisteredCustomAppExtension<CustomAppToolDefinition>>;
     restTools?: RestToolConfig[];
     compositeTools?: CompositeToolConfig[];
     mcpTools?: McpDiscoveredTool[];
@@ -448,41 +442,6 @@ export function getEnabledTools(appId?: string): EnabledTool[] {
         });
     }
 
-    const customAppToolGroups = new Map<string, Array<RegisteredCustomAppExtension<CustomAppToolDefinition>>>();
-    for (const tool of loadCustomAppToolsForContext(appId)) {
-        const group = customAppToolGroups.get(tool.appId) ?? [];
-        group.push(tool);
-        customAppToolGroups.set(tool.appId, group);
-    }
-    for (const group of customAppToolGroups.values()) {
-        if (group.length === 1) {
-            const tool = group[0];
-            tools.push({
-                name: tool.name,
-                description: tool.description || `来自「${tool.appName}」的自定义 APP 工具`,
-                parameterSchema: JSON.stringify(tool.parameterSchema || { type: "object", properties: {} }),
-                usageGuide: tool.usageGuide,
-                source: "custom_app",
-                sourceId: `${tool.appId}:${tool.id}`,
-                customAppId: tool.appId,
-                customAppName: tool.appName,
-                customToolId: tool.id,
-            });
-            continue;
-        }
-        const first = group[0];
-        tools.push({
-            name: `${first.appName}工具`,
-            description: `来自「${first.appName}」的 ${group.length} 个自定义 APP 工具`,
-            parameterSchema: "{}",
-            source: "custom_app_package",
-            sourceId: first.appId,
-            customAppId: first.appId,
-            customAppName: first.appName,
-            customAppTools: group,
-        });
-    }
-
     return tools;
 }
 
@@ -543,20 +502,6 @@ export function findEnabledToolForSchema(name: string, appId?: string, macroCont
         };
     }
 
-    for (const tool of loadCustomAppToolsForContext(appId)) {
-        if (!toolNameMatches(tool.name, name, macroContext)) continue;
-        return {
-            name: tool.name,
-            description: tool.description || `来自「${tool.appName}」的自定义 APP 工具`,
-            parameterSchema: JSON.stringify(tool.parameterSchema || { type: "object", properties: {} }),
-            usageGuide: tool.usageGuide,
-            source: "custom_app",
-            sourceId: `${tool.appId}:${tool.id}`,
-            customAppId: tool.appId,
-            customAppName: tool.appName,
-            customToolId: tool.id,
-        };
-    }
     return undefined;
 }
 

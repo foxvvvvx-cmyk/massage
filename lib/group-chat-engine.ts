@@ -26,11 +26,9 @@ import {
     publishDebugPromptSnapshot,
     touchNativeExpandedToolSource,
     appendEmptyGenerateGuardMessage,
-    applyCustomPromptProfileToPreset,
     type ChatCompletionCallbacks,
     type NativeChatToolBundle,
 } from "./chat-engine";
-import type { CustomAppPromptProfile } from "./custom-app-types";
 import { isNeteaseConfigured } from "./music-service";
 import { buildCalendarScheduleMarker, getCurrentCalendarScheduleForPrompt } from "./calendar-storage";
 import { getWeekStartIso } from "./calendar-utils";
@@ -56,7 +54,6 @@ import { maybeRunSummarization } from "./memory-summarizer";
 import { prepareShortTermContext, prepareGroupShortTermContext } from "./short-term-assembler";
 import { parseActionTags, dispatchActions } from "./action-parser";
 import { getCustomStickerExample, loadCustomStickers } from "./custom-sticker-storage";
-import { formatCustomAppChatDirectivesForPrompt } from "./custom-app-chat-directives";
 import { findEnabledToolForSchema, getEnabledTools } from "./tool-storage";
 import { formatToolsForPrompt, formatGroupToolsForPrompt, formatToolSchema } from "./tool-prompt";
 import { parseToolCalls, parseToolFetches, executeToolCalls, formatToolResults, type ToolCall } from "./tool-executor";
@@ -269,7 +266,6 @@ export type GroupChatPromptBuildOptions = {
     appTags?: string[];
     excludeOfflineSessionId?: string;
     disableTools?: boolean;
-    promptProfile?: CustomAppPromptProfile | null;
     apiConfigId?: string;
 };
 
@@ -294,15 +290,9 @@ async function buildGroupChatPromptMessages(
     const presets = loadPresets();
     let preset = activeSlot.presetId ? presets.find(p => p.id === activeSlot.presetId) || null : null;
     if (!preset) preset = presets.find(p => p.builtIn) ?? null;
-    const promptProfile = options?.promptProfile ?? undefined;
-    if (preset && promptProfile) {
-        preset = applyCustomPromptProfileToPreset(preset, promptProfile);
-    }
 
     const allRegexes = loadRegexes();
-    const regexes = promptProfile?.enableRegexes === false
-        ? []
-        : (activeSlot.regexIds || []).map(id => allRegexes.find(r => r.id === id)).filter(Boolean) as typeof allRegexes;
+    const regexes = (activeSlot.regexIds || []).map(id => allRegexes.find(r => r.id === id)).filter(Boolean) as typeof allRegexes;
 
     const userIdentity = resolveUserIdentity(undefined, "group_chat");
     const userName = userIdentity?.name ?? "用户";
@@ -327,9 +317,7 @@ async function buildGroupChatPromptMessages(
         const scheduleSummary = buildCalendarScheduleMarker("character", charId, getWeekStartIso(now));
         const currentSchedule = getCurrentCalendarScheduleForPrompt("character", charId, now);
         const charSlot = resolveBinding(bindings, charId, "group_chat");
-        const worldBooks = promptProfile?.enableWorldBooks === false
-            ? []
-            : (charSlot.worldBookIds || []).map(id => allWorldBooks.find(w => w.id === id)).filter(Boolean) as typeof allWorldBooks;
+        const worldBooks = (charSlot.worldBookIds || []).map(id => allWorldBooks.find(w => w.id === id)).filter(Boolean) as typeof allWorldBooks;
         const { wbActivationContext } = prepareShortTermContext(charId, "group_chat", {
             userName,
             excludeGroupSessionId: isOfflineMode ? undefined : session.id,
@@ -410,7 +398,6 @@ async function buildGroupChatPromptMessages(
         ? activeMemberSchedules.map(item => `${item.name}：${item.schedule}`).join("；")
         : "无";
     const musicOnlineHint = isNeteaseConfigured() ? "- 你可以推荐任何歌曲，系统会在线搜索并播放。不局限于用户本地音乐库。\n" : "\n";
-    const customAppRichMediaDirectives = formatCustomAppChatDirectivesForPrompt({ group: true });
     const toolsPrompt = usesNativeActions
         ? "需要动作时使用可用动作接口。"
         : formatToolsForPrompt(enabledTools);
@@ -459,23 +446,11 @@ async function buildGroupChatPromptMessages(
         tools: toolsPrompt,
         groupTools: groupToolsPrompt,
         groupRoster,
-        customAppRichMediaDirectives,
         chatBilingualInstruction,
         offlineBilingualInstruction,
         offlineSummaryTag: preset?.story_summary_tag?.trim() || "summary",
         nativeToolHistory: usesNativeActions,
     });
-    if (promptProfile?.output === "plain_text") {
-        llmMessages.push({
-            role: "system",
-            content: "本次自定义 APP AI 任务只输出纯文本结果。每个角色的发言以 [角色名]: 开头，除此之外不要输出聊天富媒体指令、状态面板、内心想法、XML 包裹或 Markdown 代码块。",
-        });
-    } else if (promptProfile?.output === "json") {
-        llmMessages.push({
-            role: "system",
-            content: "本次自定义 APP AI 任务只输出严格 JSON。不要输出 Markdown 代码块、解释文字或聊天富媒体指令。",
-        });
-    }
     appendEmptyGenerateGuardMessage(llmMessages, config, history);
 
     return { llmMessages, config, preset, regexes, nameToId, memberNames, enabledTools, userName, appTags: activeAppTags };
@@ -741,7 +716,6 @@ export async function generateGroupChatCompletion(
     const { llmMessages, config, preset, regexes, nameToId, memberNames, enabledTools, userName, appTags } = await buildGroupChatPromptMessages(session, history, {
         appTags: options?.appTags,
         disableTools: options?.disableTools,
-        promptProfile: options?.promptProfile,
         apiConfigId: options?.apiConfigId,
     });
     const chars = loadCharacters();
@@ -974,8 +948,7 @@ export async function generateGroupRawCompletion(
         {
             appTags: options?.appTags ?? [],
             disableTools: true,
-            promptProfile: options?.promptProfile,
-            apiConfigId: options?.apiConfigId,
+                apiConfigId: options?.apiConfigId,
         },
     );
     const rawOutput = await sendLLMRequest(config, preset, llmMessages, regexes, {

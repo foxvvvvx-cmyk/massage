@@ -21,7 +21,6 @@ import { retryChatGeneratedImage } from "@/lib/generated-image-retry";
 import { ScanPayCard } from "@/components/chat/scan-pay-card";
 import { payWithWalletBalance } from "@/lib/wallet-storage";
 import { formatShoppingPaymentRequestHistory } from "@/lib/shopping-payment-request";
-import { toCustomAppIconId } from "@/lib/custom-app-types";
 
 interface MessageBubbleProps {
     msg: ChatMessage;
@@ -54,8 +53,6 @@ export const MessageBubble = memo(function MessageBubble({ msg, onUpdate, charNa
             return <ContactCardBubble msg={msg} characterId={characterId} />;
         case "payment_request":
             return <PaymentRequestBubble msg={msg} charName={charName} userName={userName} onShowDetail={onShowDetail} />;
-        case "app_card":
-            return <AppCardBubble msg={msg} characterId={characterId} characterName={msg.senderName || charName} />;
         case "image":
             return <ImageBubble msg={msg} onUpdate={onUpdate} characterId={characterId} />;
         case "location":
@@ -90,10 +87,6 @@ export const MessageBubble = memo(function MessageBubble({ msg, onUpdate, charNa
         if (prev.msg.mediaData?.status !== next.msg.mediaData?.status) return false;
         if (prev.msg.mediaData?.label !== next.msg.mediaData?.label) return false;
         if (prev.msg.mediaData?.claimedBy?.length !== next.msg.mediaData?.claimedBy?.length) return false;
-        if (prev.msg.mediaData?.appName !== next.msg.mediaData?.appName) return false;
-        if (prev.msg.mediaData?.appCardTitle !== next.msg.mediaData?.appCardTitle) return false;
-        if (prev.msg.mediaData?.appCardBody !== next.msg.mediaData?.appCardBody) return false;
-        if (prev.msg.mediaData?.appCardLayout !== next.msg.mediaData?.appCardLayout) return false;
         if (prev.msg.mediaData?.imageGenerationPrompt !== next.msg.mediaData?.imageGenerationPrompt) return false;
         if (prev.msg.mediaData?.imageGenerationStatus !== next.msg.mediaData?.imageGenerationStatus) return false;
         if (prev.msg.mediaData?.imageGenerationError !== next.msg.mediaData?.imageGenerationError) return false;
@@ -724,237 +717,6 @@ function ReadingDiscussCardBubble({ msg }: { msg: ChatMessage }) {
             </div>
         </div>
     );
-}
-
-// ── Custom App Card ─────────────────────────────
-
-function AppCardBubble({ msg, characterId, characterName }: { msg: ChatMessage; characterId?: string; characterName?: string }) {
-    const d = msg.mediaData;
-    const appName = d?.appName || "APP";
-    const layout = normalizeAppCardLayout(d?.appCardLayout);
-    const title = layout.title || d?.appCardTitle || d?.label || appName;
-    const subtitle = layout.subtitle;
-    const body = d?.appDirectiveId
-        ? (layout.body || d?.appCardBody || "")
-        : (layout.body || d?.appCardBody || d?.appCardSummary || msg.content);
-    const toneClass = d?.appCardTone ? ` tone-${String(d.appCardTone).replace(/[^a-z0-9_-]/gi, "")}` : "";
-    const cardOpenDisabled = layout.openDisabled || (layout.actions.length > 0 && layout.actions.every(action => action.disabled));
-    const style = {
-        ...(layout.accentColor ? { "--chat-app-card-accent": layout.accentColor } : {}),
-        ...(layout.background ? { "--chat-app-card-bg": layout.background } : {}),
-    } as React.CSSProperties;
-    const openApp = () => {
-        if (cardOpenDisabled) return;
-        if (!d?.appId || typeof window === "undefined") return;
-        window.dispatchEvent(new CustomEvent("open-app", {
-            detail: {
-                appId: toCustomAppIconId(d.appId),
-                launchContext: {
-                    source: d.appDirectiveId ? "chat_directive" : "chat_card",
-                    messageId: msg.id,
-                    sessionId: msg.sessionId,
-                    characterId,
-                    characterName,
-                    appId: d.appId,
-                    appName: d.appName,
-                    directiveId: d.appDirectiveId,
-                    directiveLabel: d.appDirectiveLabel,
-                    directiveArgs: d.appDirectiveArgs,
-                    directiveRaw: d.appDirectiveRaw,
-                    sceneId: d.appSceneId,
-                    sceneTag: d.appSceneTag,
-                    appTags: d.appTags,
-                    historyText: d.appHistoryText || msg.content,
-                    historyRole: d.appHistoryRole,
-                    summary: d.appCardSummary || msg.content,
-                },
-            },
-        }));
-    };
-
-    if (layout.html) {
-        return (
-            <div className={`chat-app-custom-card${toneClass}`} data-disabled={cardOpenDisabled || undefined} style={style} onClick={openApp}>
-                <iframe
-                    title={title}
-                    className="chat-app-custom-card-frame"
-                    sandbox=""
-                    style={{ height: layout.height }}
-                    srcDoc={buildAppCardSrcDoc(layout.html)}
-                />
-            </div>
-        );
-    }
-
-    return (
-        <div className={`chat-app-card${toneClass}`} data-disabled={cardOpenDisabled || undefined} style={style} onClick={openApp}>
-            <div className="chat-app-card-head">
-                <span className="chat-app-card-icon" aria-hidden>
-                    <Blocks size={18} strokeWidth={2} />
-                </span>
-                <span className="chat-app-card-name">{layout.appLabel || appName}</span>
-                {layout.status ? <span className="chat-app-card-status">{layout.status}</span> : null}
-            </div>
-            {layout.image ? <img className="chat-app-card-image" src={layout.image} alt="" /> : null}
-            <div className="chat-app-card-title">{title}</div>
-            {subtitle ? <div className="chat-app-card-subtitle">{subtitle}</div> : null}
-            {body ? <div className="chat-app-card-body">{body}</div> : null}
-            {layout.sections.length > 0 ? (
-                <div className="chat-app-card-sections">
-                    {layout.sections.map((section, index) => (
-                        <div className="chat-app-card-section" key={`${section.title || "section"}-${index}`}>
-                            {section.title ? <div className="chat-app-card-section-title">{section.title}</div> : null}
-                            {section.text ? <div className="chat-app-card-section-text">{section.text}</div> : null}
-                            {section.rows.length > 0 ? (
-                                <div className="chat-app-card-rows">
-                                    {section.rows.map((row, rowIndex) => (
-                                        <div className="chat-app-card-row" key={`${row.label}-${rowIndex}`}>
-                                            <span>{row.label}</span>
-                                            <strong>{row.value}</strong>
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : null}
-                            {section.chips.length > 0 ? (
-                                <div className="chat-app-card-chips">
-                                    {section.chips.map((chip, chipIndex) => <span key={`${chip}-${chipIndex}`}>{chip}</span>)}
-                                </div>
-                            ) : null}
-                        </div>
-                    ))}
-                </div>
-            ) : null}
-            {layout.actions.length > 0 ? (
-                <div className="chat-app-card-actions">
-                    {layout.actions.map((action, index) => (
-                        <button
-                            type="button"
-                            key={`${action.label}-${index}`}
-                            data-style={action.style || "default"}
-                            disabled={action.disabled}
-                            onClick={(event) => {
-                                event.stopPropagation();
-                                if (action.disabled) return;
-                                openApp();
-                            }}
-                        >
-                            {action.label}
-                        </button>
-                    ))}
-                </div>
-            ) : null}
-        </div>
-    );
-}
-
-type NormalizedAppCardLayout = {
-    appLabel: string;
-    title: string;
-    subtitle: string;
-    body: string;
-    html: string;
-    height: number;
-    status: string;
-    image: string;
-    accentColor: string;
-    background: string;
-    openDisabled: boolean;
-    sections: Array<{
-        title: string;
-        text: string;
-        rows: Array<{ label: string; value: string }>;
-        chips: string[];
-    }>;
-    actions: Array<{ label: string; style: string; disabled: boolean }>;
-};
-
-function cardRecord(value: unknown): Record<string, unknown> {
-    return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
-}
-
-function cardText(value: unknown, max = 240): string {
-    return String(value ?? "").replace(/\u0000/g, "").trim().slice(0, max);
-}
-
-function cardTextArray(value: unknown, maxItems = 6): string[] {
-    if (!Array.isArray(value)) return [];
-    return value.map(item => cardText(item, 80)).filter(Boolean).slice(0, maxItems);
-}
-
-function cardNumber(value: unknown, fallback: number, min: number, max: number): number {
-    const parsed = Number(value);
-    if (!Number.isFinite(parsed)) return fallback;
-    return Math.max(min, Math.min(max, Math.round(parsed)));
-}
-
-function stripAppCardExecutableHtml(html: string): string {
-    return html
-        .replace(/<script\b[\s\S]*?<\/script>/gi, "")
-        .replace(/\s+on[a-z]+\s*=\s*"[^"]*"/gi, "")
-        .replace(/\s+on[a-z]+\s*=\s*'[^']*'/gi, "")
-        .replace(/\s+on[a-z]+\s*=\s*[^\s>]+/gi, "");
-}
-
-function buildAppCardSrcDoc(html: string): string {
-    const safeHtml = stripAppCardExecutableHtml(html);
-    if (/<html[\s>]/i.test(safeHtml)) return safeHtml;
-    return `<!doctype html>
-<html lang="zh-CN">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <style>
-    html,body{margin:0;padding:0;background:transparent;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;}
-    *{box-sizing:border-box;}
-  </style>
-</head>
-<body>${safeHtml}</body>
-</html>`;
-}
-
-function normalizeAppCardLayout(value: unknown): NormalizedAppCardLayout {
-    const record = cardRecord(value);
-    const sections = Array.isArray(record.sections) ? record.sections : [];
-    const rows = Array.isArray(record.rows) ? [{ title: record.rowsTitle, rows: record.rows }] : [];
-    const normalizedSections = [...sections, ...rows].map(item => {
-        const section = cardRecord(item);
-        const sectionRows = Array.isArray(section.rows) ? section.rows : [];
-        return {
-            title: cardText(section.title, 80),
-            text: cardText(section.text ?? section.body, 500),
-            rows: sectionRows.map(row => {
-                const rowRecord = cardRecord(row);
-                return {
-                    label: cardText(rowRecord.label ?? rowRecord.name, 80),
-                    value: cardText(rowRecord.value ?? rowRecord.text, 160),
-                };
-            }).filter(row => row.label || row.value).slice(0, 8),
-            chips: cardTextArray(section.chips ?? section.tags),
-        };
-    }).filter(section => section.title || section.text || section.rows.length || section.chips.length).slice(0, 6);
-    const actions = Array.isArray(record.actions) ? record.actions : [];
-    return {
-        appLabel: cardText(record.appLabel, 60),
-        title: cardText(record.title, 100),
-        subtitle: cardText(record.subtitle, 160),
-        body: cardText(record.body ?? record.text, 1000),
-        html: cardText(record.html, 20000),
-        height: cardNumber(record.height ?? record.cardHeight, 220, 96, 520),
-        status: cardText(record.status, 60),
-        image: cardText(record.image ?? record.imageUrl, 2000),
-        accentColor: cardText(record.accentColor, 40),
-        background: cardText(record.background, 120),
-        openDisabled: record.openDisabled === true || record.clickDisabled === true || record.disabled === true || record.clickable === false,
-        sections: normalizedSections,
-        actions: actions.map(item => {
-            const action = cardRecord(item);
-            return {
-                label: cardText(action.label ?? action.text, 40),
-                style: cardText(action.style, 30),
-                disabled: action.disabled === true || action.enabled === false,
-            };
-        }).filter(action => action.label).slice(0, 3),
-    };
 }
 
 // ── Contact card（推荐联系人名片） ─────────────────────────────

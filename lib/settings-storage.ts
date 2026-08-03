@@ -11,7 +11,6 @@ import type {
     BindingSlot,
     CharacterBinding,
     Prompt,
-    PromptOrderEntry,
 } from "./settings-types";
 import type { UserIdentity } from "@/components/settings/user-identity";
 import { createBuiltinPreset, BUILTIN_PRESET_VERSION } from "./builtin-preset";
@@ -89,76 +88,6 @@ function getNow() {
     return Date.now();
 }
 
-const CUSTOM_APP_PROMPT_IDENTIFIER_PREFIX = "custom_app_";
-const CUSTOM_APP_PROMPT_IDENTIFIER_SEGMENT = "_prompt_";
-
-function isCustomAppPromptIdentifier(identifier: unknown): identifier is string {
-    return typeof identifier === "string"
-        && identifier.startsWith(CUSTOM_APP_PROMPT_IDENTIFIER_PREFIX)
-        && identifier.includes(CUSTOM_APP_PROMPT_IDENTIFIER_SEGMENT);
-}
-
-function collectCustomAppPresetPrompts(preset: PresetConfig | null | undefined): Prompt[] {
-    if (!preset) return [];
-    const seen = new Set<string>();
-    const prompts: Prompt[] = [];
-    for (const prompt of preset.prompts ?? []) {
-        if (!isCustomAppPromptIdentifier(prompt.identifier) || seen.has(prompt.identifier)) continue;
-        seen.add(prompt.identifier);
-        prompts.push(prompt);
-    }
-    return prompts;
-}
-
-function collectCustomAppPromptOrder(
-    preset: PresetConfig,
-    customPromptIds: Set<string>,
-    customPrompts: Prompt[],
-): PromptOrderEntry[] {
-    const seen = new Set<string>();
-    const entries: PromptOrderEntry[] = [];
-    for (const entry of preset.prompt_order ?? []) {
-        if (!customPromptIds.has(entry.identifier) || seen.has(entry.identifier)) continue;
-        seen.add(entry.identifier);
-        entries.push({ identifier: entry.identifier, enabled: entry.enabled !== false });
-    }
-    for (const prompt of customPrompts) {
-        if (seen.has(prompt.identifier)) continue;
-        seen.add(prompt.identifier);
-        entries.push({ identifier: prompt.identifier, enabled: prompt.enabled !== false });
-    }
-    return entries;
-}
-
-function preserveCustomAppPresetPrompts(fresh: PresetConfig, previous: PresetConfig | null | undefined): PresetConfig {
-    const customPrompts = collectCustomAppPresetPrompts(previous);
-    if (!previous || customPrompts.length === 0) return fresh;
-
-    const customPromptIds = new Set(customPrompts.map(prompt => prompt.identifier));
-    const customOrder = collectCustomAppPromptOrder(previous, customPromptIds, customPrompts);
-    const basePrompts = (fresh.prompts ?? []).filter(prompt => (
-        !customPromptIds.has(prompt.identifier) && !isCustomAppPromptIdentifier(prompt.identifier)
-    ));
-    const baseOrder = (fresh.prompt_order ?? []).filter(entry => (
-        !customPromptIds.has(entry.identifier) && !isCustomAppPromptIdentifier(entry.identifier)
-    ));
-    const dividerIndex = baseOrder.findIndex(entry => entry.identifier === "shortTermMemory" || entry.identifier === "chatHistory");
-    const promptOrder = dividerIndex >= 0
-        ? [
-            ...baseOrder.slice(0, dividerIndex + 1),
-            ...customOrder,
-            ...baseOrder.slice(dividerIndex + 1),
-        ]
-        : [...baseOrder, ...customOrder];
-
-    return {
-        ...fresh,
-        prompts: [...basePrompts, ...customPrompts],
-        prompt_order: promptOrder,
-    };
-}
-
-
 // --- Presets ──────────────────────────────────────────
 
 export function loadPresets(): PresetConfig[] {
@@ -176,7 +105,7 @@ export function loadPresets(): PresetConfig[] {
             savePresets(presets);
             shouldPersistCleanup = false;
         } else if ((existingBuiltin.builtInVersion ?? 0) < BUILTIN_PRESET_VERSION) {
-            const fresh = preserveCustomAppPresetPrompts(createBuiltinPreset(), existingBuiltin);
+            const fresh = createBuiltinPreset();
             fresh.id = existingBuiltin.id;
             const idx = presets.indexOf(existingBuiltin);
             presets[idx] = fresh;
@@ -196,8 +125,7 @@ export function loadPresets(): PresetConfig[] {
 export function resetBuiltinPreset(): void {
     const presets = loadPresets();
     const idx = presets.findIndex(p => p.builtIn);
-    const previous = idx >= 0 ? presets[idx] : null;
-    const fresh = preserveCustomAppPresetPrompts(createBuiltinPreset(), previous);
+    const fresh = createBuiltinPreset();
     if (idx >= 0) {
         fresh.id = presets[idx].id; // preserve ID to avoid binding breakage
         presets[idx] = fresh;
