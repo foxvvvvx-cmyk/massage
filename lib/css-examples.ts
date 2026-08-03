@@ -494,38 +494,6 @@ export const CHAT_SESSION_CSS_EXAMPLE = `/* ═══ 单独聊天室 CSS 示例
   object-fit: contain;
 }
 
-/* 小红书分享卡片 */
-.chat-xhs-share-card {
-  background: #ffffff;
-  border: none;
-  border-radius: 8px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.02);
-}
-
-.chat-xhs-share-title {
-  color: var(--c-text-title);
-}
-
-.chat-xhs-share-head,
-.chat-xhs-share-author,
-.chat-xhs-share-desc {
-  color: var(--c-text);
-}
-
-.chat-xhs-share-mark {
-  background: #ff2442;
-  color: #ffffff;
-}
-
-.chat-xhs-share-cover {
-  border-radius: 6px;
-}
-
-.chat-xhs-share-tags span {
-  color: #ff2442;
-  background: #fff0f3;
-}
-
 /* 支付卡片（微信扫码付 / 支付宝等） */
 .scan-pay-card {
   background: var(--c-card);
@@ -909,38 +877,6 @@ export const CHAT_APP_CSS_EXAMPLE = `/* ═══ 聊天应用 CSS 示例 ══
 
 .chat-photo-card--image .chat-photo-card-image {
   object-fit: contain;
-}
-
-/* 小红书分享卡片 */
-.chat-xhs-share-card {
-  background: #ffffff;
-  border: none;
-  border-radius: 8px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.02);
-}
-
-.chat-xhs-share-title {
-  color: var(--c-text-title);
-}
-
-.chat-xhs-share-head,
-.chat-xhs-share-author,
-.chat-xhs-share-desc {
-  color: var(--c-text);
-}
-
-.chat-xhs-share-mark {
-  background: #ff2442;
-  color: #ffffff;
-}
-
-.chat-xhs-share-cover {
-  border-radius: 6px;
-}
-
-.chat-xhs-share-tags span {
-  color: #ff2442;
-  background: #fff0f3;
 }
 
 /* 支付卡片（微信扫码付 / 支付宝等） */

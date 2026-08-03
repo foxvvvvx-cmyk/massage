@@ -39,7 +39,7 @@ type ParsedProjection = {
     type: "projection";
     id: string;
     timestamp: string;
-    source: "story" | "game" | "xiaohongshu" | "checkphone" | "custom_app" | "chat_offline";
+    source: "story" | "game" | "checkphone" | "custom_app" | "chat_offline";
     label: string;
     message: string;
 };
@@ -134,7 +134,7 @@ function parseEntry(evt: NativeTimelineEntry, userName: string): ParsedEntry | n
         };
     }
 
-    // Story/VN/map/game/diary/note wall/Xiaohongshu/check phone/interview/co-create/black-market theater projection.
+    // Story/VN/map/game/diary/note wall/check phone/interview/co-create/black-market theater projection.
     if (evt.sourceApp === "story" && evt.sourceDetail === "black_market_theater") {
         const stripped = content.replace(/^\[小剧场(?: [^\]]+)?\]\s*/, "");
         return {
@@ -147,9 +147,9 @@ function parseEntry(evt: NativeTimelineEntry, userName: string): ParsedEntry | n
         };
     }
 
-    if (evt.sourceApp === "story" || evt.sourceApp === "game" || evt.sourceApp === "xiaohongshu" || evt.sourceApp === "checkphone") {
-        const source = evt.sourceApp as "story" | "game" | "xiaohongshu" | "checkphone";
-        const label = source === "story" ? "剧情" : source === "game" ? "小游戏" : source === "xiaohongshu" ? "小红书" : "查手机";
+    if (evt.sourceApp === "story" || evt.sourceApp === "game" || evt.sourceApp === "checkphone") {
+        const source = evt.sourceApp as "story" | "game" | "checkphone";
+        const label = source === "story" ? "剧情" : source === "game" ? "小游戏" : "查手机";
         const stripped = content.replace(/^\[(?:事件|剧情|漫卷|梦境|跑团游戏|小游戏|日记|便签墙|小红书|查手机|访谈|共创)(?: [^\]]+)?\]\s*/, "");
         return {
             type: "projection",

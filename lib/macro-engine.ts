@@ -53,7 +53,6 @@ export class MacroEngine {
     offlineBilingualInstruction: string = "";
     offlineSummaryTag: string = "summary";
     checkPhoneBilingualInstruction: string = "";
-    xiaohongshuBilingualInstruction: string = "";
     phoneAppId: string = "";
     phoneAppLabel: string = "";
     phoneSnapshotSummary: string = "";
@@ -63,10 +62,6 @@ export class MacroEngine {
     chapterContent: string = "";
     annotationHistory: string = "";
     readingQuote: string = "";
-    xiaohongshuFeedContext: string = "";
-    xiaohongshuUserPostContext: string = "";
-    xiaohongshuCommentContext: string = "";
-    xiaohongshuMentionContext: string = "";
     interviewTheme: string = "";
     interviewHostName: string = "";
     interviewGuests: string = "";
@@ -175,7 +170,6 @@ export class MacroEngine {
         if (body === "offlineBilingualInstruction") return this.offlineBilingualInstruction || "\x00TRIM\x00";
         if (body === "offlineSummaryTag") return this.offlineSummaryTag || "summary";
         if (body === "checkPhoneBilingualInstruction") return this.checkPhoneBilingualInstruction || "\x00TRIM\x00";
-        if (body === "xiaohongshuBilingualInstruction") return this.xiaohongshuBilingualInstruction || "\x00TRIM\x00";
         if (body === "phoneAppId") return this.phoneAppId || "\x00TRIM\x00";
         if (body === "phoneAppLabel") return this.phoneAppLabel || "\x00TRIM\x00";
         if (body === "phoneSnapshotSummary") return this.phoneSnapshotSummary || "\x00TRIM\x00";
@@ -186,10 +180,6 @@ export class MacroEngine {
         if (body === "chapterContent") return this.chapterContent || "\x00TRIM\x00";
         if (body === "annotationHistory") return this.annotationHistory || "\x00TRIM\x00";
         if (body === "readingQuote") return this.readingQuote || "\x00TRIM\x00";
-        if (body === "xiaohongshuFeedContext") return this.xiaohongshuFeedContext || "暂无小红书笔记";
-        if (body === "xiaohongshuUserPostContext") return this.xiaohongshuUserPostContext || "暂无用户小红书笔记";
-        if (body === "xiaohongshuCommentContext") return this.xiaohongshuCommentContext || "暂无小红书评论上下文";
-        if (body === "xiaohongshuMentionContext") return this.xiaohongshuMentionContext || "暂无小红书@上下文";
         if (body === "interviewTheme") return this.interviewTheme || "\x00TRIM\x00";
         if (body === "interviewHostName") return this.interviewHostName || "主持人";
         if (body === "interviewGuests") return this.interviewGuests || this.charName || "\x00TRIM\x00";

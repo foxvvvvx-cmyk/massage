@@ -20,7 +20,6 @@ const STATIC_ROUTE_PREFIXES = [
   "/images/",
   "/models/",
   "/widgets/",
-  "/xiaohongshu/",
 ];
 
 const STATIC_FILE_RE = /\.(?:avif|bin|css|gif|glb|gltf|hdr|ico|jpeg|jpg|js|json|map|mjs|mp3|ogg|otf|png|svg|ttf|txt|wasm|wav|webmanifest|webp|woff|woff2)$/i;

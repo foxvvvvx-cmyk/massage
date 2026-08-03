@@ -6,7 +6,7 @@
 
 ## 1. 项目定位
 
-**AI Virtual Phone** 是一个"AI 角色扮演桌面系统"——模拟手机主屏幕，每个 App 图标对应一个内容模块（聊天、游戏、日记、朋友圈、小红书等）。用户创建 AI 角色（Character），在不同 App 中与角色互动。角色拥有统一的人设、记忆、情感状态，跨 App 共享上下文。
+**AI Virtual Phone** 是一个"AI 角色扮演桌面系统"——模拟手机主屏幕，每个 App 图标对应一个内容模块（聊天、游戏等）。用户创建 AI 角色（Character），在不同 App 中与角色互动。角色拥有统一的人设、记忆、情感状态，跨 App 共享上下文。
 
 仓库：[github.com/xiaolongbao0709/ai-virtual-phone](https://github.com/xiaolongbao0709/ai-virtual-phone)
 
@@ -228,7 +228,6 @@ Character {
 | **阅读** | `reading-engine.ts`, `reading-parser.ts` | EPUB/文本阅读器 |
 | **剧情/VN** | `vn-engine.ts`, `vn-storage.ts` | 视觉小说引擎 |
 | **共创** | `cocreate-engine.ts`, `cocreate-memory.ts` | 协作创作 |
-| **小红书** | `xiaohongshu-engine.ts`, `xiaohongshu-memory.ts` | 角色自动生成小红书风格内容 |
 | **购物** | `shopping-engine.ts`, `shopping-storage.ts` | 角色购物车/支付系统 |
 | **Dwelling** | `dwelling-engine.ts` | 角色居住环境上下文 |
 | **Checkphone** | `checkphone-engine.ts` | Steam 游戏《Checkphone》集成 |
@@ -405,7 +404,6 @@ reading（阅读）
 cocreate（共创）
 story（剧情）
 game（游戏）
-xiaohongshu（小红书）
 dwelling（居住）
 checkphone（Checkphone）
 shopping（购物）

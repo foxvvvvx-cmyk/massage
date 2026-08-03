@@ -9,7 +9,6 @@ const PROMPT_EVENT_LABEL_PATTERN = [
   "事件",
   "跑团游戏",
   "小游戏",
-  "小红书",
   "小剧场",
   "查手机",
   "共读",

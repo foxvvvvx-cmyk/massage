@@ -67,8 +67,6 @@ export const MessageBubble = memo(function MessageBubble({ msg, onUpdate, charNa
             return <MusicShareBubble msg={msg} onPlay={onMusicPlay} />;
         case "media_file":
             return <MediaFileBubble msg={msg} onUpdate={onUpdate} characterId={characterId} />;
-        case "xiaohongshu_note_share":
-            return <XiaohongshuShareBubble msg={msg} />;
         case "reading_discuss_card":
             return <ReadingDiscussCardBubble msg={msg} />;
         case "audio":
@@ -1782,62 +1780,6 @@ function MusicShareBubble({ msg, onPlay }: { msg: ChatMessage; onPlay?: (title: 
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>
                 <span>音乐</span>
             </div>
-        </div>
-    );
-}
-
-// ── Xiaohongshu Share Bubble ──────────────────────────
-
-function XiaohongshuShareBubble({ msg }: { msg: ChatMessage }) {
-    const data = msg.mediaData;
-    const title = data?.xiaohongshuTitle || "小红书帖子";
-    const author = data?.xiaohongshuAuthor || "小红书用户";
-    const body = data?.xiaohongshuBody || "";
-    const description = data?.xiaohongshuDescription || "";
-    const tags = data?.xiaohongshuTags || [];
-    const coverIcon = data?.xiaohongshuCoverIcon || (data?.xiaohongshuNoteType === "video" ? "▶" : "小");
-    const [imageUrl, setImageUrl] = useState<string>("");
-
-    useEffect(() => {
-        let cancelled = false;
-        const assetId = data?.xiaohongshuImageAssetId;
-        if (!assetId) {
-            setImageUrl("");
-            return;
-        }
-        getChatImageFromIndexedDB(assetId)
-            .then((url) => {
-                if (!cancelled) setImageUrl(url || "");
-            })
-            .catch(() => {
-                if (!cancelled) setImageUrl("");
-            });
-        return () => {
-            cancelled = true;
-        };
-    }, [data?.xiaohongshuImageAssetId]);
-
-    return (
-        <div className="chat-xhs-share-card">
-            <div className="chat-xhs-share-head">
-                <span className="chat-xhs-share-mark">RED</span>
-                <span>{data?.xiaohongshuNoteType === "video" ? "视频帖子" : "小红书帖子"}</span>
-            </div>
-            <div className="chat-xhs-share-body">
-                <div className={`chat-xhs-share-cover chat-xhs-share-cover--${data?.xiaohongshuTone || "blush"}`}>
-                    {imageUrl ? <img src={imageUrl} alt="" /> : <span>{coverIcon}</span>}
-                </div>
-                <div className="chat-xhs-share-info">
-                    <div className="chat-xhs-share-title">{title}</div>
-                    <div className="chat-xhs-share-author">{author}</div>
-                    <div className="chat-xhs-share-desc">{description || body}</div>
-                </div>
-            </div>
-            {tags.length > 0 ? (
-                <div className="chat-xhs-share-tags">
-                    {tags.slice(0, 3).map(tag => <span key={tag}>#{tag}</span>)}
-                </div>
-            ) : null}
         </div>
     );
 }

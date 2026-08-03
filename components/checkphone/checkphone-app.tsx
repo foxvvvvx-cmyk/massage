@@ -60,7 +60,6 @@ import { CheckPhoneSteamPage } from "@/components/checkphone/checkphone-steam-pa
 import { CheckPhoneTelegramPage } from "@/components/checkphone/checkphone-telegram-page";
 import { CheckPhoneTakeoutPage } from "@/components/checkphone/checkphone-takeout-page";
 import { CheckPhoneWeiboPage } from "@/components/checkphone/checkphone-weibo-page";
-import { CheckPhoneXiaohongshuPage } from "@/components/checkphone/checkphone-xiaohongshu-page";
 import { CheckPhoneXPage } from "@/components/checkphone/checkphone-x-page";
 import { CheckPhoneYoutubePage } from "@/components/checkphone/checkphone-youtube-page";
 import { loadCharacters } from "@/lib/character-storage";
@@ -104,7 +103,6 @@ const CHECKPHONE_EMBEDDED_APP_IDS = [
   "music",
   "reading",
   "weibo",
-  "xiaohongshu",
   "email",
   "douyin",
   "takeout",
@@ -222,12 +220,6 @@ const IconSolidEye = ({ size = 32 }: { size?: number | string }) => (
     <path fillRule="evenodd" d="M1.323 11.447C2.811 6.976 7.028 3.75 12.001 3.75c4.97 0 9.185 3.223 10.675 7.69.12.362.12.752 0 1.113-1.487 4.471-5.705 7.697-10.677 7.697-4.97 0-9.186-3.223-10.675-7.69a1.762 1.762 0 010-1.113zM17.25 12a5.25 5.25 0 11-10.5 0 5.25 5.25 0 0110.5 0z" clipRule="evenodd" />
   </svg>
 );
-const IconSolidHeart = ({ size = 32 }: { size?: number | string }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
-    <path d="M11.645 20.91l-.007-.003-.022-.012a15.247 15.247 0 01-.383-.218 25.18 25.18 0 01-4.244-3.17C4.688 15.36 2.25 12.174 2.25 8.25 2.25 5.322 4.714 3 7.688 3A5.5 5.5 0 0112 5.052 5.5 5.5 0 0116.313 3c2.973 0 5.437 2.322 5.437 5.25 0 3.925-2.438 7.111-4.739 9.256a25.175 25.175 0 01-4.244 3.17 15.247 15.247 0 01-.383.219l-.022.012-.007.004-.003.001a.752.752 0 01-.704 0l-.003-.001z" />
-  </svg>
-);
-
 function AppGlyph({ appId, size = 26, strokeWidth = 1.5 }: { appId: CheckPhoneAppId, size?: number | string; strokeWidth?: number }) {
   const common = { size, strokeWidth };
   switch (appId) {
@@ -240,7 +232,6 @@ function AppGlyph({ appId, size = 26, strokeWidth = 1.5 }: { appId: CheckPhoneAp
     case "assets": return <IconSolidBank size={size} />;
     case "notes": return <IconSolidNotes size={size} />;
     case "reading": return <IconSolidBook size={size} />;
-    case "xiaohongshu": return <IconSolidHeart size={size} />;
     case "takeout": return <IconSolidShop size={size} />;
     case "weibo": return <IconSolidEye size={size} />;
     case "douyin": return <IconSolidMusic size={size} />;
@@ -262,7 +253,7 @@ function getAppIconClass(appId: CheckPhoneAppId, isDock = false) {
   const baseClass = isDock ? "cp-app-icon cp-app-icon--dock" : "cp-app-icon";
   // Interspersed distribution to ensure grey icons don't cluster in one column
   const midGreyApps: string[] = ["photos", "weibo", "steam", "telegram", "reddit"];
-  const lightGreyApps: string[] = ["messages", "bilibili", "xiaohongshu", "email", "instagram"];
+  const lightGreyApps: string[] = ["messages", "bilibili", "email", "instagram"];
   const whiteApps: string[] = ["browser", "douyin", "reading", "notes", "shopping", "assets", "youtube"];
 
   if (midGreyApps.includes(appId)) return `${baseClass} cp-app-icon--mid-grey`;
@@ -457,8 +448,6 @@ export function CheckPhoneApp({ onClose }: CheckPhoneAppProps) {
         return <CheckPhoneReadingPage character={activeCharacter} onBack={closeSelectedApp} />;
       case "weibo":
         return <CheckPhoneWeiboPage character={activeCharacter} onBack={closeSelectedApp} />;
-      case "xiaohongshu":
-        return <CheckPhoneXiaohongshuPage character={activeCharacter} onBack={closeSelectedApp} />;
       case "email":
         return <CheckPhoneEmailPage character={activeCharacter} onBack={closeSelectedApp} />;
       case "douyin":
@@ -838,7 +827,7 @@ export function CheckPhoneApp({ onClose }: CheckPhoneAppProps) {
                           <span className="cp-widget-label">iScreen</span>
                         </div>
 
-                        {/* Top Apps (slice 8 to 12) -> Game Library, Music, Xiaohongshu, Reading */}
+                        {/* Top Apps (slice 8 to 12) -> Game Library, Music, Weibo, Reading */}
                         {topApps.slice(8, 12).map((appId) => {
                           const spec = CHECKPHONE_APP_SPECS[appId];
                           return (

@@ -158,19 +158,17 @@ export const DATA_MODULES: DataModuleDefinition[] = [
   {
     id: "social",
     label: "社交内容",
-    description: "小红书、好友申请和社交互动状态",
+    description: "角色世界观关系与好友申请状态",
     variant: "action",
     sources: [
       {
         type: "kv",
-        label: "社交状态与小红书",
+        label: "社交状态",
         keys: [
           "ai_phone_character_worlds_v1",
           "ai_phone_character_world_layout_v1",
-          "ai_phone_xiaohongshu_state_v1",
           "ai_phone_friend_requests_v1",
         ],
-        prefixes: ["checkphone:xiaohongshu:readThreads", "xiaohongshu_events_", "ai_phone_xiaohongshu_events_"],
       },
     ],
   },

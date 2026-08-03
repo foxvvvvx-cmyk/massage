@@ -521,7 +521,7 @@ const LOCAL_DATA_LIBRARY_USAGE_GUIDE = [
     "常见路径：",
     "- /characters：角色卡与素材",
     "- /chat：聊天联系人、会话、消息和线下模式记录",
-    "- /social：小红书、好友申请和社交互动状态",
+    "- /social：好友申请和社交互动状态",
     "- /memory：长期记忆、核心记忆和事件计数",
     "- /settings：预设、世界书、正则、工具箱和绑定设置",
     "",

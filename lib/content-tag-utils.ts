@@ -99,18 +99,6 @@ export const CONTENT_SCOPE_TAG_GROUPS: TagGroupProfile[] = [
             profile("group_chat", "offline", "线下", ["group_chat", "offline"]),
         ],
     },
-    {
-        id: "xiaohongshu",
-        label: "小红书",
-        tags: ["xiaohongshu"],
-        minors: [
-            commonMinor("xiaohongshu", ["xiaohongshu"]),
-            profile("xiaohongshu", "activity", "角色浏览互动", ["xiaohongshu", "activity"]),
-            profile("xiaohongshu", "reaction", "用户笔记反应", ["xiaohongshu", "reaction"]),
-            profile("xiaohongshu", "comment", "评论回复", ["xiaohongshu", "comment"]),
-            profile("xiaohongshu", "mention", "@提及回复", ["xiaohongshu", "mention"]),
-        ],
-    },
     { id: "story", label: "剧情", tags: ["story"], minors: [commonMinor("story", ["story"])] },
     { id: "calendar", label: "日历", tags: ["calendar"], minors: [commonMinor("calendar", ["calendar"])] },
     { id: "game", label: "游戏", tags: ["game"], minors: [commonMinor("game", ["game"])] },
@@ -149,10 +137,6 @@ const LEGACY_TAG_MIGRATIONS = new Map<string, string[]>([
     [JSON.stringify(["chat", "chat-text"]), ["chat", "text"]],
     [JSON.stringify(["chat", "chat-voice"]), ["chat", "voice"]],
     [JSON.stringify(["chat", "chat-video"]), ["chat", "video"]],
-    [JSON.stringify(["xiaohongshu", "character_activity"]), ["xiaohongshu", "activity"]],
-    [JSON.stringify(["xiaohongshu", "user_post_reaction"]), ["xiaohongshu", "reaction"]],
-    [JSON.stringify(["xiaohongshu", "comment_reply"]), ["xiaohongshu", "comment"]],
-    [JSON.stringify(["xiaohongshu", "mention_reply"]), ["xiaohongshu", "mention"]],
 ]);
 
 export function normalizePromptScopeTags(tags: unknown): string[] | undefined {

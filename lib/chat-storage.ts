@@ -91,7 +91,6 @@ export type ChatMessage = {
         | "accept_red_packet" | "decline_red_packet" | "accept_transfer" | "decline_transfer"
         | "payment_request" | "accept_payment_request" | "decline_payment_request"
         | "music" | "music_share" | "music_notify" | "music_not_found"
-        | "xiaohongshu_note_share"
         | "gift"
         | "contact_card"
         | "tool_notice"
@@ -168,15 +167,6 @@ export type ChatMessage = {
         adminMuteMinutes?: number;// 禁言时长（分钟）
         musicTitle?: string;      // 音乐标题
         musicArtist?: string;     // 音乐歌手
-        xiaohongshuAuthor?: string;       // 小红书分享作者
-        xiaohongshuTitle?: string;        // 小红书分享标题
-        xiaohongshuBody?: string;         // 小红书分享正文
-        xiaohongshuDescription?: string;  // 小红书分享图片/视频描述
-        xiaohongshuNoteType?: "post" | "video";
-        xiaohongshuTags?: string[];
-        xiaohongshuImageAssetId?: string;
-        xiaohongshuCoverIcon?: string;
-        xiaohongshuTone?: string;
         callDuration?: string;    // 通话时长（如 05:23）
         voiceDuration?: number;   // 语音条时长（秒）
         synthesizedFromText?: string; // 语音条当前音频对应的合成文本
@@ -250,7 +240,6 @@ const MEDIA_PREVIEW_MAP: Record<string, string> = {
     payment_request: "[代付请求]",
     music: "[音乐]",
     music_share: "[音乐分享]",
-    xiaohongshu_note_share: "[小红书分享]",
     tool_notice: "[执行动作]",
     system_instruction: "[系统指令]",
     media_file: "[文件]",

@@ -12,7 +12,7 @@ import { notifyMascotPageContext } from "@/lib/mascot-events";
 import { loadCharacters } from "@/lib/character-storage";
 import { scopeSessionCSS } from "@/lib/css-scoper";
 import { kvGet } from "@/lib/kv-db";
-import { formatXiaohongshuShareForPrompt, type ChatSharePayload } from "@/lib/chat-share";
+import type { ChatSharePayload } from "@/lib/chat-share";
 import { CHAT_OPEN_SESSION_EVENT, CHAT_OPEN_ADD_CONTACT_EVENT } from "@/lib/chat-notification-events";
 import { getMascotSettingsSnapshot } from "@/lib/mascot-settings";
 
@@ -145,43 +145,17 @@ export const PhoneChatApp = memo(function PhoneChatApp({ onClose, initialSession
 
     const handleSelectContact = (sess: ChatSession | null) => {
         if (sharePayload && sess) {
-            if (sharePayload.type === "music") {
-                pushChatMessage({
-                    sessionId: sess.id,
-                    role: "user",
-                    content: "",
-                    mediaType: "music_share",
-                    mediaData: {
-                        musicTitle: sharePayload.title,
-                        musicArtist: sharePayload.artist,
-                        label: `${sharePayload.title} - ${sharePayload.artist}`,
-                    },
-                });
-            } else {
-                const content = formatXiaohongshuShareForPrompt({
-                    author: sharePayload.authorName,
-                    title: sharePayload.title,
-                    body: sharePayload.body,
-                    description: sharePayload.description,
-                });
-                pushChatMessage({
-                    sessionId: sess.id,
-                    role: "user",
-                    content,
-                    mediaType: "xiaohongshu_note_share",
-                    mediaData: {
-                        xiaohongshuAuthor: sharePayload.authorName,
-                        xiaohongshuTitle: sharePayload.title,
-                        xiaohongshuBody: sharePayload.body,
-                        xiaohongshuDescription: sharePayload.description,
-                        xiaohongshuNoteType: sharePayload.noteType,
-                        xiaohongshuTags: sharePayload.tags,
-                        xiaohongshuImageAssetId: sharePayload.imageAssetId,
-                        xiaohongshuCoverIcon: sharePayload.coverIcon,
-                        xiaohongshuTone: sharePayload.tone,
-                    },
-                });
-            }
+            pushChatMessage({
+                sessionId: sess.id,
+                role: "user",
+                content: "",
+                mediaType: "music_share",
+                mediaData: {
+                    musicTitle: sharePayload.title,
+                    musicArtist: sharePayload.artist,
+                    label: `${sharePayload.title} - ${sharePayload.artist}`,
+                },
+            });
             window.dispatchEvent(new CustomEvent("chat-messages-updated", { detail: { sessionId: sess.id } }));
             onShareDone?.();
         }

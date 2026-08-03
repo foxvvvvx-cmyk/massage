@@ -149,8 +149,6 @@ const CHAT_VISUAL_MEDIA_TYPES = new Set([
     "image",
     "location",
     "music_share",
-    "xiaohongshu_note_share",
-    "app_card",
     "audio",
     "video",
     "quote",
@@ -196,8 +194,6 @@ const CHAT_MEDIA_BUBBLE_TYPES = new Set([
     "image",
     "location",
     "music_share",
-    "xiaohongshu_note_share",
-    "app_card",
     "media_file",
 ]);
 
@@ -2540,8 +2536,6 @@ export function ChatRoom({ session, onBack }: ChatRoomProps) {
             location: "分享了位置",
             audio: "发了一条语音",
             music_share: "分享了音乐",
-            xiaohongshu_note_share: "分享了一条小红书帖子",
-            app_card: "分享了一张应用卡片",
             quote: "引用回复",
         };
         const getNoticeBody = (m: ChatMessage): string => {
@@ -2556,7 +2550,6 @@ export function ChatRoom({ session, onBack }: ChatRoomProps) {
             if (m.mediaType === "location") return `分享了位置: ${m.mediaData?.label || ""}`.trim();
             if (m.mediaType === "audio") return `发了一条语音: ${m.mediaData?.label || ""}`.trim();
             if (m.mediaType === "music_share") return `分享了音乐: ${m.mediaData?.musicTitle || ""}`.trim();
-            if (m.mediaType === "xiaohongshu_note_share") return `分享了一条小红书帖子: ${m.mediaData?.xiaohongshuTitle || ""}`.trim();
             if (m.mediaType === "quote") return `引用回复: ${m.mediaData?.quotePreview || ""}`.trim();
             if (m.mediaType === "payment_request") return `发起了代付请求: ${m.mediaData?.paymentRequestAmountLabel || m.mediaData?.amount || ""}`.trim();
             return mediaLabels[m.mediaType] || "";

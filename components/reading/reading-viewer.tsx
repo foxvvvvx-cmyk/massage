@@ -2180,7 +2180,7 @@ export function ReadingViewer({ book, onBack }: Props) {
                                             if (readingMessageMenu && readingMessageMenu.messageId !== msg.id) closeReadingMessageMenu();
                                         }}
                                     >
-                                        <div className={`chat-bubble-role-${msg.role} rounded-lg ${msg.mediaType && ["sticker", "red_packet", "transfer", "image", "location", "music_share", "xiaohongshu_note_share"].includes(msg.mediaType) ? "chat-bubble-media" : "max-w-[80%]"} break-words relative`}
+                                        <div className={`chat-bubble-role-${msg.role} rounded-lg ${msg.mediaType && ["sticker", "red_packet", "transfer", "image", "location", "music_share"].includes(msg.mediaType) ? "chat-bubble-media" : "max-w-[80%]"} break-words relative`}
                                             data-ui={msg.role === "user" ? "bubble-user" : "bubble-bot"}
                                             {...(activeMessageId === msg.id ? { "data-active": "" } : {})}>
                                             <MessageBubble

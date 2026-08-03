@@ -17,8 +17,6 @@ import {
   writeThemeAssetRecords,
   type ThemeAssetRecord,
 } from "./theme-storage";
-import { loadXiaohongshuState, saveXiaohongshuState } from "./xiaohongshu-storage";
-import type { XiaohongshuNote, XiaohongshuState } from "./xiaohongshu-types";
 
 export type MediaMaintenanceConfig = {
   enabled: boolean;
@@ -34,8 +32,6 @@ export type MediaMaintenanceResult = OrphanThemeCleanupResult & {
   finishedAt: string;
   chatImagesCompressed: number;
   chatImagesCleaned: number;
-  xiaohongshuImagesCompressed: number;
-  xiaohongshuImagesCleaned: number;
   musicTracksCleaned: number;
 };
 
@@ -202,19 +198,6 @@ function isChatImageMessage(message: ChatMessage): boolean {
     || (message.mediaType === "media_file" && message.mediaData?.fileType === "image");
 }
 
-function isChatXiaohongshuShareImage(message: ChatMessage): boolean {
-  return message.mediaType === "xiaohongshu_note_share" && Boolean(message.mediaData?.xiaohongshuImageAssetId);
-}
-
-async function persistChatMediaPatch(
-  message: ChatMessage,
-  patch: Partial<Pick<ChatMessage, "content" | "mediaType" | "mediaUrl" | "mediaData">>,
-): Promise<void> {
-  const nextMessage: ChatMessage = { ...message, ...patch };
-  const cached = updateChatMessage(message.id, patch);
-  await chatDb.messages.put(cached ?? nextMessage);
-}
-
 async function compactChatImage(message: ChatMessage, nowIso: string): Promise<{ changed: boolean; freedBytes: number }> {
   const mediaUrl = message.mediaUrl;
   const mediaRef = message.mediaData?.imageGenerationMediaRef;
@@ -286,19 +269,6 @@ async function compactChatImage(message: ChatMessage, nowIso: string): Promise<{
   return { changed: compressed !== null || mediaUrl !== nextRef, freedBytes: Math.max(0, beforeBytes - nextBlob.size) };
 }
 
-async function compactChatXiaohongshuShareImage(message: ChatMessage, nowIso: string): Promise<{ changed: boolean; freedBytes: number }> {
-  const assetId = message.mediaData?.xiaohongshuImageAssetId;
-  if (!assetId) return { changed: false, freedBytes: 0 };
-  const compressed = await compressThemeAssetById(assetId).catch(() => ({ changed: false, freedBytes: 0 }));
-  await persistChatMediaPatch(message, {
-    mediaData: {
-      ...message.mediaData,
-      mediaCompressedAt: nowIso,
-    },
-  });
-  return compressed;
-}
-
 async function cleanChatImage(message: ChatMessage, nowIso: string): Promise<number> {
   const seen = new Set<string>();
   let freedBytes = 0;
@@ -322,35 +292,19 @@ async function cleanChatImage(message: ChatMessage, nowIso: string): Promise<num
   return freedBytes + estimateValueBytes(message.mediaUrl);
 }
 
-async function cleanChatXiaohongshuShareImage(message: ChatMessage, nowIso: string): Promise<number> {
-  const assetId = message.mediaData?.xiaohongshuImageAssetId;
-  const nextMediaData: ChatMessage["mediaData"] = {
-    ...message.mediaData,
-    mediaCleanedAt: nowIso,
-  };
-  delete nextMediaData.xiaohongshuImageAssetId;
-  await persistChatMediaPatch(message, { mediaData: nextMediaData });
-  return estimateValueBytes(assetId);
-}
-
 async function runChatImageMaintenance(result: MediaMaintenanceResult, nowMs: number, nowIso: string): Promise<void> {
   const messages = await chatDb.messages.toArray().catch(() => []);
   for (const message of messages) {
     const isRegularImage = isChatImageMessage(message);
-    const isXiaohongshuShareImage = isChatXiaohongshuShareImage(message);
-    if (!isRegularImage && !isXiaohongshuShareImage) continue;
-    if (isRegularImage && !message.mediaUrl && !message.mediaData?.imageGenerationMediaRef) continue;
+    if (!isRegularImage) continue;
+    if (!message.mediaUrl && !message.mediaData?.imageGenerationMediaRef) continue;
     if (isOlderThan(message.createdAt, CLEAN_AFTER_MS, nowMs)) {
-      result.freedBytes += isXiaohongshuShareImage
-        ? await cleanChatXiaohongshuShareImage(message, nowIso).catch(() => 0)
-        : await cleanChatImage(message, nowIso).catch(() => 0);
+      result.freedBytes += await cleanChatImage(message, nowIso).catch(() => 0);
       result.chatImagesCleaned += 1;
       continue;
     }
     if (!message.mediaData?.mediaCompressedAt && isOlderThan(message.createdAt, COMPRESS_AFTER_MS, nowMs)) {
-      const compacted = isXiaohongshuShareImage
-        ? await compactChatXiaohongshuShareImage(message, nowIso).catch(() => ({ changed: false, freedBytes: 0 }))
-        : await compactChatImage(message, nowIso).catch(() => ({ changed: false, freedBytes: 0 }));
+      const compacted = await compactChatImage(message, nowIso).catch(() => ({ changed: false, freedBytes: 0 }));
       result.freedBytes += compacted.freedBytes;
       if (compacted.changed) result.chatImagesCompressed += 1;
     }
@@ -360,25 +314,6 @@ async function runChatImageMaintenance(result: MediaMaintenanceResult, nowMs: nu
 function themeAssetIdFromUrl(value: string | undefined): string | null {
   if (!value?.startsWith("asset://")) return null;
   return value.slice("asset://".length).trim() || null;
-}
-
-async function compressThemeAssetById(assetId: string): Promise<{ changed: boolean; freedBytes: number }> {
-  const [record] = await readThemeAssetRecords([assetId]);
-  if (!record || !isDataImageUrl(record.dataUrl)) return { changed: false, freedBytes: 0 };
-  const sourceBlob = await dataUrlToBlob(record.dataUrl);
-  const compressed = await compressImageBlob(sourceBlob).catch(() => null);
-  if (!compressed) return { changed: false, freedBytes: 0 };
-  const nextDataUrl = await blobToDataUrl(compressed);
-  await writeThemeAssetRecords([{
-    ...record,
-    dataUrl: nextDataUrl,
-    mimeType: compressed.type || record.mimeType,
-    updatedAt: new Date().toISOString(),
-  }]);
-  return {
-    changed: true,
-    freedBytes: Math.max(0, estimateValueBytes(record.dataUrl) - estimateValueBytes(nextDataUrl)),
-  };
 }
 
 async function compactDataUrlToThemeAsset(dataUrl: string): Promise<{ ref: string; freedBytes: number } | null> {
@@ -391,46 +326,6 @@ async function compactDataUrlToThemeAsset(dataUrl: string): Promise<{ ref: strin
     ref: `asset://${assetId}`,
     freedBytes: Math.max(0, estimateValueBytes(dataUrl) - nextBlob.size),
   };
-}
-
-function updateXiaohongshuStateNotes(
-  state: XiaohongshuState,
-  updater: (note: XiaohongshuNote) => XiaohongshuNote,
-): XiaohongshuState {
-  return {
-    ...state,
-    notes: state.notes.map(updater),
-  };
-}
-
-async function runXiaohongshuImageMaintenance(result: MediaMaintenanceResult, nowMs: number, nowIso: string): Promise<void> {
-  let state = loadXiaohongshuState();
-  let changed = false;
-
-  for (const note of state.notes) {
-    if (!note.imageAssetId) continue;
-    if (isOlderThan(note.createdAt, CLEAN_AFTER_MS, nowMs)) {
-      state = updateXiaohongshuStateNotes(state, item =>
-        item.id === note.id ? { ...item, imageAssetId: undefined, imageCleanedAt: nowIso, updatedAt: nowIso } : item
-      );
-      result.xiaohongshuImagesCleaned += 1;
-      changed = true;
-      continue;
-    }
-    if (note.imageCompressedAt || !isOlderThan(note.createdAt, COMPRESS_AFTER_MS, nowMs)) continue;
-    const compressed = await compressThemeAssetById(note.imageAssetId).catch(() => ({ changed: false, freedBytes: 0 }));
-    state = updateXiaohongshuStateNotes(state, item =>
-      item.id === note.id ? { ...item, imageCompressedAt: nowIso, updatedAt: nowIso } : item
-    );
-    result.freedBytes += compressed.freedBytes;
-    if (compressed.changed) result.xiaohongshuImagesCompressed += 1;
-    changed = true;
-  }
-
-  if (changed) {
-    saveXiaohongshuState(state);
-    window.dispatchEvent(new CustomEvent("xiaohongshu-updated"));
-  }
 }
 
 async function runMusicMaintenance(result: MediaMaintenanceResult, nowMs: number): Promise<void> {
@@ -671,8 +566,6 @@ function createEmptyResult(startedAt: string): MediaMaintenanceResult {
     finishedAt: startedAt,
     chatImagesCompressed: 0,
     chatImagesCleaned: 0,
-    xiaohongshuImagesCompressed: 0,
-    xiaohongshuImagesCleaned: 0,
     musicTracksCleaned: 0,
     deletedAssets: 0,
     freedBytes: 0,
@@ -694,14 +587,11 @@ function formatStorageBytes(bytes: number): string {
 export function formatMediaMaintenanceResult(result: MediaMaintenanceResult): string {
   const dynamicChanged = result.chatImagesCompressed
     + result.chatImagesCleaned
-    + result.xiaohongshuImagesCompressed
-    + result.xiaohongshuImagesCleaned
     + result.musicTracksCleaned
     + result.deletedAssets;
   if (dynamicChanged === 0) return "没有发现需要清理的过期媒体或孤儿主题素材。";
   return [
     `聊天图片：压缩 ${result.chatImagesCompressed}，清理 ${result.chatImagesCleaned}`,
-    `小红书图片：压缩 ${result.xiaohongshuImagesCompressed}，清理 ${result.xiaohongshuImagesCleaned}`,
     `本地音乐：清理 ${result.musicTracksCleaned}`,
     `孤儿主题素材：删除 ${result.deletedAssets}`,
     `预计释放 ${formatStorageBytes(result.freedBytes)}`,
@@ -718,7 +608,6 @@ export async function runMediaMaintenance(options: { force?: boolean; auto?: boo
     const result = createEmptyResult(startedAt);
     try {
       await runChatImageMaintenance(result, nowMs, startedAt);
-      await runXiaohongshuImageMaintenance(result, nowMs, startedAt);
       await runMusicMaintenance(result, nowMs);
       const orphan = await cleanupOrphanThemeAssets();
       result.deletedAssets = orphan.deletedAssets;

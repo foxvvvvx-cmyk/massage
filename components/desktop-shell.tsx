@@ -15,7 +15,6 @@ import MusicPlayer from "@/components/music/music-player";
 import MusicFloat from "@/components/music/music-float";
 import MiniAppWindow from "@/components/music/mini-app-window";
 import { PhoneCalendarApp } from "@/components/calendar-app";
-import { XiaohongshuApp } from "@/components/xiaohongshu/xiaohongshu-app";
 import { StoryApp } from "@/components/story/story-app";
 import ReadingApp from "@/components/reading/reading-app";
 import { MascotFloat } from "@/components/mascot/mascot-float";
@@ -747,11 +746,8 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets }: Deskto
   const [notice, setNotice] = useState<string | null>(null);
   const [activeApp, setActiveApp] = useState<DesktopIconId | null>(null);
   const [resourcesInitialPage, setResourcesInitialPage] = useState<ResourceSubPage>("main");
-  const [xiaohongshuMounted, setXiaohongshuMounted] = useState(false);
-  const [xiaohongshuBusy, setXiaohongshuBusy] = useState(false);
   const [shoppingMounted, setShoppingMounted] = useState(false);
   const [shoppingBusy, setShoppingBusy] = useState(false);
-  if (activeApp === "xiaohongshu" && !xiaohongshuMounted) setXiaohongshuMounted(true);
   if (activeApp === "shopping" && !shoppingMounted) setShoppingMounted(true);
   const [widgets, setWidgets] = useState<WidgetInstance[]>([]);
   const [incomingCall, setIncomingCall] = useState<{
@@ -2417,17 +2413,6 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets }: Deskto
     if (targetPageIndex !== page) setCurrentPageIndex(targetPageIndex);
   }, [editMode, getSwipePageWidth, pageCount, setSwipeDrag]);
 
-  const handleCloseXiaohongshu = useCallback((isBusy?: boolean) => {
-    const shouldKeepMounted = isBusy ?? xiaohongshuBusy;
-    setActiveApp(null);
-    if (shouldKeepMounted) {
-      setNotice("小红书正在后台生成，完成后会自动更新。");
-      return;
-    }
-    setXiaohongshuBusy(false);
-    setXiaohongshuMounted(false);
-  }, [xiaohongshuBusy]);
-
   const handleCloseShopping = useCallback((isBusy?: boolean) => {
     const shouldKeepMounted = isBusy ?? shoppingBusy;
     setActiveApp(null);
@@ -2510,10 +2495,6 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets }: Deskto
 
     if (activeApp === "calendar") {
       return <PhoneCalendarApp onClose={() => setActiveApp(null)} onNotice={setNotice} />;
-    }
-
-    if (activeApp === "xiaohongshu") {
-      return null;
     }
 
     if (activeApp === "story") {
@@ -2934,26 +2915,10 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets }: Deskto
                   </>
                 ) : (
                   <>
-                    <section className="phone-app-pane" style={activeApp === "xiaohongshu" || activeApp === "shopping" ? { display: "none" } : undefined}>
+                    <section className="phone-app-pane" style={activeApp === "shopping" ? { display: "none" } : undefined}>
                       {renderAppBody()}
                     </section>
                   </>
-                )}
-                {xiaohongshuMounted && (
-                  <section className="phone-app-pane" style={activeApp !== "xiaohongshu" ? { display: "none" } : undefined}>
-                    <XiaohongshuApp
-                      onClose={handleCloseXiaohongshu}
-                      onNotice={setNotice}
-                      visible={activeApp === "xiaohongshu"}
-                      onBusyChange={setXiaohongshuBusy}
-                      onIdle={() => {
-                        if (activeApp !== "xiaohongshu") {
-                          setXiaohongshuBusy(false);
-                          setXiaohongshuMounted(false);
-                        }
-                      }}
-                    />
-                  </section>
                 )}
                 {shoppingMounted && (
                   <section className="phone-app-pane" style={activeApp !== "shopping" ? { display: "none" } : undefined}>

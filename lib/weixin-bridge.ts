@@ -53,7 +53,6 @@ function getMediaLabel(part: ParsedMessagePart): string {
     return cleanText(data.label)
         || cleanText(data.musicTitle)
         || cleanText(data.giftName)
-        || cleanText(data.xiaohongshuTitle)
         || cleanText(part.content);
 }
 
@@ -582,62 +581,6 @@ function renderMusicShareCard(part: ParsedMessagePart): string | null {
     return canvas.toDataURL("image/png");
 }
 
-function renderXiaohongshuShareCard(part: ParsedMessagePart): string | null {
-    const data = part.mediaData || {};
-    const title = cleanText(data.xiaohongshuTitle) || getMediaLabel(part) || "小红书帖子";
-    const author = cleanText(data.xiaohongshuAuthor) || "小红书用户";
-    const body = cleanText(data.xiaohongshuDescription) || cleanText(data.xiaohongshuBody);
-    const tags = Array.isArray(data.xiaohongshuTags) ? data.xiaohongshuTags.map(cleanText).filter(Boolean).slice(0, 3) : [];
-    const canvasPack = makeCanvas(236, tags.length ? 164 : 138);
-    if (!canvasPack) return null;
-    const { canvas, ctx } = canvasPack;
-    fillRoundedRect(ctx, 0, 0, 236, tags.length ? 164 : 138, 8, "#ffffff");
-    ctx.fillStyle = "#ff2442";
-    fillRoundedRect(ctx, 11, 9, 30, 16, 4, "#ff2442");
-    ctx.fillStyle = "#ffffff";
-    ctx.font = canvasFont(800, 9);
-    ctx.fillText("RED", 17, 21);
-    ctx.fillStyle = "#6b4a50";
-    ctx.font = canvasFont(600, 10);
-    ctx.fillText(data.xiaohongshuNoteType === "video" ? "视频帖子" : "小红书帖子", 48, 21);
-
-    const coverGradient = ctx.createLinearGradient(11, 34, 69, 106);
-    coverGradient.addColorStop(0, "#fff1f4");
-    coverGradient.addColorStop(1, "#f6f0ff");
-    fillRoundedRect(ctx, 11, 34, 58, 72, 6, coverGradient);
-    ctx.fillStyle = "#ff2442";
-    ctx.font = canvasFont(800, 24);
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(cleanText(data.xiaohongshuCoverIcon) || (data.xiaohongshuNoteType === "video" ? "▶" : "小"), 40, 70);
-    ctx.textAlign = "left";
-    ctx.textBaseline = "alphabetic";
-
-    ctx.fillStyle = "#2c1d20";
-    ctx.font = canvasFont(800, 13);
-    drawWrappedText(ctx, title, 79, 48, 142, 17, 2);
-    ctx.fillStyle = "#8d626b";
-    ctx.font = canvasFont(500, 11);
-    drawSingleLineText(ctx, author, 79, 77, 142);
-    if (body) {
-        ctx.fillStyle = "#6f5a5e";
-        ctx.font = canvasFont(400, 11);
-        drawWrappedText(ctx, body, 79, 97, 142, 15, 2);
-    }
-
-    let tagX = 11;
-    tags.forEach((tag) => {
-        const text = `#${tag}`;
-        ctx.font = canvasFont(700, 10);
-        const width = Math.min(70, ctx.measureText(text).width + 14);
-        fillRoundedRect(ctx, tagX, 128, width, 20, 10, "#fff0f3");
-        ctx.fillStyle = "#ff2442";
-        drawSingleLineText(ctx, text, tagX + 7, 142, width - 14);
-        tagX += width + 5;
-    });
-    return canvas.toDataURL("image/png");
-}
-
 function renderStickerPlaceholder(part: ParsedMessagePart): string | null {
     const label = getMediaLabel(part) || "表情包";
     const canvasPack = makeCanvas(120, 120);
@@ -756,7 +699,6 @@ async function renderMediaCard(part: ParsedMessagePart, charName: string): Promi
         case "location": return renderLocationCard(part);
         case "music":
         case "music_share": return renderMusicShareCard(part);
-        case "xiaohongshu_note_share": return renderXiaohongshuShareCard(part);
         case "sticker": return renderStickerPlaceholder(part);
         default: return null;
     }

@@ -8,7 +8,6 @@ import type { UserIdentity } from "@/components/settings/user-identity";
 import { MacroEngine, postProcessTrim } from "./macro-engine";
 import type { RecentBlock, UnifiedRecentItem } from "./short-term-assembler";
 import { matchesActiveTags } from "./content-tag-utils";
-import { formatXiaohongshuShareForPrompt } from "./chat-share";
 import { stripStateAndInnerForPrompt } from "./prompt-sanitizer";
 import { formatPromptTimestamp, getPromptTimestampOptionsForTimeContext, resolvePromptTimeAware, type PromptTimestampOptions } from "./prompt-time";
 import { formatCharacterRelationsForPrompt } from "./character-world-storage";
@@ -88,7 +87,6 @@ export interface AssemblerInput {
     offlineBilingualInstruction?: string;    // offline-mode bilingual output rule for {{offlineBilingualInstruction}}
     offlineSummaryTag?: string;              // XML tag used for offline-mode summary output
     checkPhoneBilingualInstruction?: string; // checkphone bilingual output rule for {{checkPhoneBilingualInstruction}}
-    xiaohongshuBilingualInstruction?: string; // independent Xiaohongshu bilingual output rule for {{xiaohongshuBilingualInstruction}}
     phoneAppId?: string;
     phoneAppLabel?: string;
     phoneSnapshotSummary?: string;
@@ -99,10 +97,6 @@ export interface AssemblerInput {
     chapterContent?: string;
     annotationHistory?: string;
     readingQuote?: string;                  // Shared Reading：「聊这句」引用的句子
-    xiaohongshuFeedContext?: string;
-    xiaohongshuUserPostContext?: string;
-    xiaohongshuCommentContext?: string;
-    xiaohongshuMentionContext?: string;
     interviewTheme?: string;
     interviewHostName?: string;
     interviewGuests?: string;
@@ -674,7 +668,6 @@ export function assemblePromptPayload(input: AssemblerInput): LLMMessage[] {
         engine.offlineBilingualInstruction = input.offlineBilingualInstruction ?? "";
         engine.offlineSummaryTag = input.offlineSummaryTag ?? "summary";
         engine.checkPhoneBilingualInstruction = input.checkPhoneBilingualInstruction ?? "";
-        engine.xiaohongshuBilingualInstruction = input.xiaohongshuBilingualInstruction ?? "";
         engine.phoneAppId = input.phoneAppId ?? "";
         engine.phoneAppLabel = input.phoneAppLabel ?? "";
         engine.phoneSnapshotSummary = input.phoneSnapshotSummary ?? "";
@@ -684,10 +677,6 @@ export function assemblePromptPayload(input: AssemblerInput): LLMMessage[] {
         engine.chapterContent = input.chapterContent ?? "";
         engine.annotationHistory = input.annotationHistory ?? "";
         engine.readingQuote = input.readingQuote ?? "";
-        engine.xiaohongshuFeedContext = input.xiaohongshuFeedContext ?? "";
-        engine.xiaohongshuUserPostContext = input.xiaohongshuUserPostContext ?? "";
-        engine.xiaohongshuCommentContext = input.xiaohongshuCommentContext ?? "";
-        engine.xiaohongshuMentionContext = input.xiaohongshuMentionContext ?? "";
         engine.interviewTheme = input.interviewTheme ?? "";
         engine.interviewHostName = input.interviewHostName ?? "";
         engine.interviewGuests = input.interviewGuests ?? "";
@@ -975,15 +964,10 @@ export function assemblePromptPayload(input: AssemblerInput): LLMMessage[] {
         engine.offlineBilingualInstruction = input.offlineBilingualInstruction ?? "";
         engine.offlineSummaryTag = input.offlineSummaryTag ?? "summary";
         engine.checkPhoneBilingualInstruction = input.checkPhoneBilingualInstruction ?? "";
-        engine.xiaohongshuBilingualInstruction = input.xiaohongshuBilingualInstruction ?? "";
         engine.phoneAppId = input.phoneAppId ?? "";
         engine.phoneAppLabel = input.phoneAppLabel ?? "";
         engine.phoneSnapshotSummary = input.phoneSnapshotSummary ?? "";
         engine.phoneLastRefreshAt = input.phoneLastRefreshAt ?? "";
-        engine.xiaohongshuFeedContext = input.xiaohongshuFeedContext ?? "";
-        engine.xiaohongshuUserPostContext = input.xiaohongshuUserPostContext ?? "";
-        engine.xiaohongshuCommentContext = input.xiaohongshuCommentContext ?? "";
-        engine.xiaohongshuMentionContext = input.xiaohongshuMentionContext ?? "";
             engine.interviewTheme = input.interviewTheme ?? "";
             engine.interviewHostName = input.interviewHostName ?? "";
             engine.interviewGuests = input.interviewGuests ?? "";
@@ -1407,13 +1391,6 @@ export function formatRichMediaForHistory(msg: ChatMessage, userName: string, ch
             const mTitle = d?.musicTitle || "未知歌曲";
             return `[音乐分享:${mTitle}]`;
         }
-        case "xiaohongshu_note_share":
-            return formatXiaohongshuShareForPrompt({
-                author: d?.xiaohongshuAuthor,
-                title: d?.xiaohongshuTitle,
-                body: d?.xiaohongshuBody,
-                description: d?.xiaohongshuDescription,
-            });
         case "accept_red_packet":
             if (isGroup && d?.claimer && d?.owner) return `[${d.claimer}领取了${d.owner}的红包]`;
             return "[领取红包]";
@@ -1798,7 +1775,6 @@ export interface GroupAssemblerInput {
     offlineBilingualInstruction?: string;
     offlineSummaryTag?: string;
     checkPhoneBilingualInstruction?: string;
-    xiaohongshuBilingualInstruction?: string;
     nativeToolHistory?: boolean;
 }
 
@@ -2053,7 +2029,6 @@ export function assembleGroupPromptPayload(input: GroupAssemblerInput): LLMMessa
         engine.offlineBilingualInstruction = input.offlineBilingualInstruction ?? "";
         engine.offlineSummaryTag = input.offlineSummaryTag ?? "summary";
         engine.checkPhoneBilingualInstruction = input.checkPhoneBilingualInstruction ?? "";
-        engine.xiaohongshuBilingualInstruction = input.xiaohongshuBilingualInstruction ?? "";
 
         // Activate world book entries for this member(共享书已提升到组级注入,这里只处理独享书)
         const activatedEntries: WorldBookEntry[] = [];

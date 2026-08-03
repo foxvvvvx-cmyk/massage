@@ -11,8 +11,6 @@ import { loadMemoryConfig } from "./memory-storage";
 import { estimateTokens } from "./token-counter";
 import { loadStoryProjectionEntries } from "./story-storage";
 import { loadGameProjectionEntries } from "./game-storage";
-import { loadXiaohongshuProjectionEntries } from "./xiaohongshu-memory";
-import { formatXiaohongshuShareForPrompt } from "./chat-share";
 import { loadBlackMarketTheaterProjectionEntries } from "./black-market-storage";
 import { stripStateAndInnerForPrompt } from "./prompt-sanitizer";
 import { renderUserNameMacro } from "./user-macro";
@@ -35,8 +33,8 @@ function formatPhotoDirectiveForPrompt(msg: ChatMessage): string {
 
 export type NativeTimelineEntry = {
     id: string;
-    sourceApp: "chat" | "story" | "game" | "xiaohongshu" | "checkphone" | "custom_app";
-    sourceDetail?: "direct" | "group" | "system" | "story" | "chat_offline" | "game" | "xiaohongshu" | "black_market_theater" | "checkphone" | "custom_app_event"; // chat sub-type: 1:1 vs group chat vs system note
+    sourceApp: "chat" | "story" | "game" | "checkphone" | "custom_app";
+    sourceDetail?: "direct" | "group" | "system" | "story" | "chat_offline" | "game" | "black_market_theater" | "checkphone" | "custom_app_event"; // chat sub-type: 1:1 vs group chat vs system note
     authorType?: "user" | "character" | "npc"; // who authored this entry
     sessionId?: string;
     groupSessionId?: string; // for group chat: which group session
@@ -185,12 +183,6 @@ export function loadNativeTimeline(
                     itemsText: msg.mediaData?.paymentRequestItemsText,
                 });
                 else if (msg.mediaType === "music_share") content = `[音乐分享:${msg.mediaData?.musicTitle || ""}]`;
-                else if (msg.mediaType === "xiaohongshu_note_share") content = formatXiaohongshuShareForPrompt({
-                    author: msg.mediaData?.xiaohongshuAuthor,
-                    title: msg.mediaData?.xiaohongshuTitle,
-                    body: msg.mediaData?.xiaohongshuBody,
-                    description: msg.mediaData?.xiaohongshuDescription,
-                });
                 else if (msg.mediaType === "location") content = `[位置:${msg.mediaData?.label || ""}]`;
             }
 
@@ -290,12 +282,6 @@ export function loadNativeTimeline(
                 else if (msg.mediaType === "voice_call" || msg.mediaType === "video_call") content = `[我发起了${msg.mediaType === "voice_call" ? "语音" : "视频"}通话]`;
                 else if (msg.mediaType === "location") content = `[位置:${msg.mediaData?.label || ""}]`;
                 else if (msg.mediaType === "music_share") content = `[音乐分享:${msg.mediaData?.musicTitle || ""}]`;
-                else if (msg.mediaType === "xiaohongshu_note_share") content = formatXiaohongshuShareForPrompt({
-                    author: msg.mediaData?.xiaohongshuAuthor,
-                    title: msg.mediaData?.xiaohongshuTitle,
-                    body: msg.mediaData?.xiaohongshuBody,
-                    description: msg.mediaData?.xiaohongshuDescription,
-                });
                 else if (msg.mediaType === "media_file") {
                     const ft = msg.mediaData?.fileType;
                     const label = msg.mediaData?.fileName || "文件";
@@ -395,26 +381,6 @@ export function loadNativeTimeline(
         });
     }
 
-    // ── Xiaohongshu projections ──
-    const xiaohongshuEntries = loadXiaohongshuProjectionEntries(characterId, {
-        afterTimestamp: options?.afterTimestamp,
-    });
-    for (const xiaohongshuEntry of xiaohongshuEntries) {
-        entries.push({
-            id: xiaohongshuEntry.id,
-            sourceApp: "xiaohongshu",
-            sourceDetail: "xiaohongshu",
-            authorType: "character",
-            timestamp: xiaohongshuEntry.timestamp,
-            content: formatStoredPromptEventContent(xiaohongshuEntry.content, {
-                label: "小红书",
-                timestamp: xiaohongshuEntry.timestamp,
-                timeAware,
-                timestampOptions,
-            }),
-        });
-    }
-
     // ── Check phone projections ──
     const checkPhoneEntries = loadCheckPhoneProjectionEntries(characterId, {
         afterTimestamp: options?.afterTimestamp,
@@ -442,14 +408,13 @@ export function loadNativeTimeline(
 }
 
 // Fixed order — lower = further from LLM output (appears higher in prompt)
-const FEATURE_ORDER: Record<string, number> = { game: 0.5, xiaohongshu: 1.5, checkphone: 1.7, story: 2, theater: 2.2, custom_app: 2.6, group_chat: 3, chat: 4 };
+const FEATURE_ORDER: Record<string, number> = { game: 0.5, checkphone: 1.7, story: 2, theater: 2.2, custom_app: 2.6, group_chat: 3, chat: 4 };
 // Map appId → XML tag name for the "current feature" wrapper
 const FEATURE_TAG: Record<string, string> = {
     chat: "recent_chat",
     group_chat: "recent_group_chat",
     story: "recent_events",
     game: "recent_game",
-    xiaohongshu: "recent_xiaohongshu",
     checkphone: "recent_checkphone",
 };
 
@@ -660,11 +625,6 @@ export function prepareShortTermContext(
     const gameEventEntries = timeline.filter(e => e.sourceApp === "game");
     if (gameEventEntries.length > 0) {
         raw.push({ tag: "recent_game", order: FEATURE_ORDER.game, entries: gameEventEntries });
-    }
-
-    const xiaohongshuEntries = timeline.filter(e => e.sourceApp === "xiaohongshu");
-    if (xiaohongshuEntries.length > 0) {
-        raw.push({ tag: "recent_xiaohongshu", order: FEATURE_ORDER.xiaohongshu, entries: xiaohongshuEntries });
     }
 
     const checkPhoneEntries = timeline.filter(e => e.sourceApp === "checkphone");
@@ -883,11 +843,6 @@ export function prepareGroupShortTermContext(
         raw.push({ tag: "recent_game", order: FEATURE_ORDER.game, entries: gameEntries });
     }
 
-    const xiaohongshuEntries = timeline.filter(e => e.sourceApp === "xiaohongshu");
-    if (xiaohongshuEntries.length > 0) {
-        raw.push({ tag: "recent_xiaohongshu", order: FEATURE_ORDER.xiaohongshu, entries: xiaohongshuEntries });
-    }
-
     const checkPhoneEntries = timeline.filter(e => e.sourceApp === "checkphone");
     if (checkPhoneEntries.length > 0) {
         raw.push({ tag: "recent_checkphone", order: FEATURE_ORDER.checkphone, entries: checkPhoneEntries });
@@ -985,11 +940,10 @@ export function prepareGroupShortTermContext(
                 sourceApp: entry.sourceApp,
                 sourceTag: entry.sourceDetail === "group" ? "recent_group_chat" : (
                     entry.sourceApp === "game" ? "recent_game" :
-                        entry.sourceApp === "xiaohongshu" ? "recent_xiaohongshu" :
-                            entry.sourceApp === "checkphone" ? "recent_checkphone" :
-                                entry.sourceApp === "custom_app" ? "recent_custom_app" :
-                                    entry.sourceApp === "story" && entry.sourceDetail === "black_market_theater" ? "recent_theater" :
-                                        entry.sourceApp === "chat" ? "recent_chat" : "recent_events"
+                        entry.sourceApp === "checkphone" ? "recent_checkphone" :
+                            entry.sourceApp === "custom_app" ? "recent_custom_app" :
+                                entry.sourceApp === "story" && entry.sourceDetail === "black_market_theater" ? "recent_theater" :
+                                    entry.sourceApp === "chat" ? "recent_chat" : "recent_events"
                 ),
                 text: entry.content,
             });

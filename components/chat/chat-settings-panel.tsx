@@ -85,7 +85,6 @@ const SEARCH_MEDIA_BUBBLE_TYPES = new Set<SearchResultMediaType>([
     "image",
     "location",
     "music_share",
-    "xiaohongshu_note_share",
     "media_file",
 ]);
 
@@ -141,7 +140,6 @@ function getSearchHaystack(msg: ChatMessage): string {
         clipSearchText(getChatMessagePreview(msg)),
         clipSearchText(msg.mediaData?.label),
         clipSearchText(msg.mediaData?.musicTitle),
-        clipSearchText(msg.mediaData?.xiaohongshuTitle),
         clipSearchText(msg.mediaData?.giftName),
         clipSearchText(msg.senderName),
     ].filter(Boolean).join("\n");
