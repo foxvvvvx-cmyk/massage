@@ -6,6 +6,7 @@ import { startChatSync, stopChatSync } from "@/lib/chat-sync";
 import { ArrowRight } from "lucide-react";
 
 import { AccountGate } from "@/components/auth/account-gate";
+import { SitePasswordGate } from "@/components/auth/site-password-gate";
 import { CloudBackupScheduler } from "@/components/cloud-backup-scheduler";
 import { MediaMaintenanceScheduler } from "@/components/media-maintenance-scheduler";
 import { DesktopShell } from "./desktop-shell";
@@ -267,21 +268,23 @@ export function MainApp() {
   }, []);
 
   return (
-    <AccountGate>
-      {!splashDismissed ? (
-        <SplashScreen ready={hydrated} onEnter={() => setSplashDismissed(true)} />
-      ) : (
-        <main className="app-root">
-          <MusicProvider>
-            <DesktopShell
-              initialThemeProfile={preparedDesktopTheme?.profile}
-              initialThemeAssets={preparedDesktopTheme?.assets}
-            />
-            <CloudBackupScheduler />
-            <MediaMaintenanceScheduler />
-          </MusicProvider>
-        </main>
-      )}
-    </AccountGate>
+    <SitePasswordGate>
+      <AccountGate>
+        {!splashDismissed ? (
+          <SplashScreen ready={hydrated} onEnter={() => setSplashDismissed(true)} />
+        ) : (
+          <main className="app-root">
+            <MusicProvider>
+              <DesktopShell
+                initialThemeProfile={preparedDesktopTheme?.profile}
+                initialThemeAssets={preparedDesktopTheme?.assets}
+              />
+              <CloudBackupScheduler />
+              <MediaMaintenanceScheduler />
+            </MusicProvider>
+          </main>
+        )}
+      </AccountGate>
+    </SitePasswordGate>
   );
 }

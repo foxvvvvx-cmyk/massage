@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { ACCOUNT_GATE_COOKIE, ACCOUNT_SESSION_COOKIE } from "./lib/account-cookie-constants";
 import { verifyAccountGateCookieValue } from "./lib/account-gate-cookie";
 import { isSelfHostedModeEnabled } from "./lib/self-hosting";
+import { isSitePasswordGateEnabled, SITE_PASSWORD_COOKIE, verifySitePasswordCookieValue } from "./lib/site-password-cookie";
 
 const PUBLIC_ROUTE_PREFIXES = [
   "/api/auth/",
@@ -46,11 +47,28 @@ function rewriteToHome(request: NextRequest): NextResponse {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (isSelfHostedModeEnabled()) {
+  if (isStaticRoute(pathname) || isPublicRoute(pathname)) {
     return NextResponse.next();
   }
 
-  if (isStaticRoute(pathname) || isPublicRoute(pathname)) {
+  // 简单访问密码门禁：只要配置了 SITE_ACCESS_PASSWORD 就生效，跟自托管模式/账号系统无关，
+  // 优先于下面的自托管全开逻辑——没配置密码时行为跟之前完全一样（全开）。
+  if (isSitePasswordGateEnabled()) {
+    const sitePasswordCookie = request.cookies.get(SITE_PASSWORD_COOKIE)?.value ?? "";
+    const unlocked = await verifySitePasswordCookieValue(sitePasswordCookie);
+    if (unlocked) return NextResponse.next();
+
+    if (isApiRoute(pathname)) {
+      return NextResponse.json(
+        { ok: false, error: "请先输入访问密码。" },
+        { status: 401, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+    if (pathname === "/") return NextResponse.next();
+    return rewriteToHome(request);
+  }
+
+  if (isSelfHostedModeEnabled()) {
     return NextResponse.next();
   }
 
