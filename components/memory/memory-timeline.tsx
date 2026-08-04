@@ -134,19 +134,6 @@ function parseEntry(evt: NativeTimelineEntry, userName: string): ParsedEntry | n
         };
     }
 
-    // Story/VN/map/game/diary/note wall/check phone/interview/co-create/black-market theater projection.
-    if (evt.sourceApp === "story" && evt.sourceDetail === "black_market_theater") {
-        const stripped = content.replace(/^\[小剧场(?: [^\]]+)?\]\s*/, "");
-        return {
-            type: "projection",
-            id: evt.id,
-            timestamp: evt.timestamp,
-            source: "story",
-            label: "小剧场",
-            message: stripped || content,
-        };
-    }
-
     if (evt.sourceApp === "story" || evt.sourceApp === "game" || evt.sourceApp === "checkphone") {
         const source = evt.sourceApp as "story" | "game" | "checkphone";
         const label = source === "story" ? "剧情" : source === "game" ? "小游戏" : "查手机";

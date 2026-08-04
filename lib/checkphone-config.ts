@@ -4,7 +4,6 @@ export type CheckPhoneAppId =
   | "browser"
   | "photos"
   | "chat"
-  | "shopping"
   | "assets"
   | "notes"
   | "reading"
@@ -226,86 +225,6 @@ export type CheckPhoneAssetsPayload = {
   headline: CheckPhoneAssetHeadline;
   accounts: CheckPhoneAssetAccount[];
   activities: CheckPhoneAssetActivity[];
-};
-
-export type CheckPhoneShoppingTone = "ivory" | "mist" | "blush" | "graphite";
-
-export type CheckPhoneShoppingStats = {
-  pendingCount: number;
-  cartCount: number;
-  savedCount: number;
-};
-
-export type CheckPhoneShoppingProduct = {
-  id: string;
-  title: string;
-  merchantLabel: string;
-  priceLabel: string;
-  tagLabel: string;
-  subtitle: string;
-  detail: string;
-  previewIcon: string;
-  tone: CheckPhoneShoppingTone;
-};
-
-export type CheckPhoneShoppingCartItem = CheckPhoneShoppingProduct & {
-  quantityLabel: string;
-};
-
-export type CheckPhoneShoppingOrderItem = {
-  id: string;
-  title: string;
-  merchantLabel: string;
-  priceLabel: string;
-  quantityLabel: string;
-  subtitle: string;
-  detail: string;
-  previewIcon: string;
-  tone: CheckPhoneShoppingTone;
-};
-
-export type CheckPhoneShoppingShippingStage = "ordered" | "shipped" | "delivering" | "delivered";
-
-export type CheckPhoneShoppingShippingEvent = {
-  status: CheckPhoneShoppingShippingStage;
-  label: string;
-  timeLabel: string;
-  timestamp: string;
-};
-
-export type CheckPhoneShoppingOrder = {
-  id: string;
-  statusLabel: string;
-  timeLabel: string;
-  totalLabel: string;
-  merchantLabel: string;
-  summary: string;
-  note: string;
-  items: CheckPhoneShoppingOrderItem[];
-  shippingTimeline?: CheckPhoneShoppingShippingEvent[];
-  paymentCardId?: string;
-  paymentCardLabel?: string;
-  paymentTransactionId?: string;
-  paidAt?: string;
-  paymentStatus?: "paid_by_user" | "payment_requested" | "paid_by_character" | "payment_declined" | "payment_canceled";
-  paymentRequestId?: string;
-  payerCharacterId?: string;
-  payerCharacterName?: string;
-  paymentRequestedAt?: string;
-  paymentDeclinedAt?: string;
-  characterPaidAt?: string;
-};
-
-export type CheckPhoneShoppingPayload = {
-  headerTitle: string;
-  headerSubtitle: string;
-  searchHint: string;
-  stats: CheckPhoneShoppingStats;
-  recentlyViewed: CheckPhoneShoppingProduct[];
-  recommendations: CheckPhoneShoppingProduct[];
-  savedItems: CheckPhoneShoppingProduct[];
-  cartItems: CheckPhoneShoppingCartItem[];
-  orders: CheckPhoneShoppingOrder[];
 };
 
 export type CheckPhoneEmailItem = {
@@ -1021,7 +940,6 @@ export type CheckPhonePromptSecondaryTag =
   | "browser"
   | "photos"
   | "messenger"
-  | "shopping"
   | "assets"
   | "notes"
   | "reader"
@@ -1054,7 +972,6 @@ export const CHECKPHONE_DOCK_APP_IDS: CheckPhoneAppId[] = [
 
 export const CHECKPHONE_FIXED_APP_IDS: CheckPhoneAppId[] = [
   "chat",
-  "shopping",
   "assets",
   "notes",
 ];
@@ -1076,7 +993,7 @@ export const CHECKPHONE_OPTIONAL_POOL_APP_IDS: CheckPhoneAppId[] = [
   "douban",
 ];
 
-export const CHECKPHONE_TOP_APP_COUNT = 12;
+export const CHECKPHONE_TOP_APP_COUNT = 11;
 export const CHECKPHONE_OPTIONAL_SELECTION_COUNT = 8;
 
 export const CHECKPHONE_APP_SPECS: Record<CheckPhoneAppId, CheckPhoneAppSpec> = {
@@ -1085,7 +1002,6 @@ export const CHECKPHONE_APP_SPECS: Record<CheckPhoneAppId, CheckPhoneAppSpec> = 
   browser: { id: "browser", label: "浏览器", englishLabel: "Browser" },
   photos: { id: "photos", label: "相册", englishLabel: "Photos" },
   chat: { id: "chat", label: "聊天", englishLabel: "Chat" },
-  shopping: { id: "shopping", label: "购物", englishLabel: "Shopping" },
   assets: { id: "assets", label: "资产", englishLabel: "Assets" },
   notes: { id: "notes", label: "备忘录", englishLabel: "Notes" },
   reading: { id: "reading", label: "阅读", englishLabel: "Reading" },
@@ -1116,7 +1032,6 @@ const CHECKPHONE_APP_PROMPT_TAGS: Record<CheckPhoneAppId, Exclude<CheckPhoneProm
   browser: "browser",
   photos: "photos",
   chat: "messenger",
-  shopping: "shopping",
   assets: "assets",
   notes: "notes",
   reading: "reader",
@@ -1142,7 +1057,6 @@ export const CHECKPHONE_PROMPT_SECONDARY_TAG_LABELS: Record<CheckPhonePromptSeco
   browser: CHECKPHONE_APP_SPECS.browser.label,
   photos: CHECKPHONE_APP_SPECS.photos.label,
   messenger: CHECKPHONE_APP_SPECS.chat.label,
-  shopping: CHECKPHONE_APP_SPECS.shopping.label,
   assets: CHECKPHONE_APP_SPECS.assets.label,
   notes: CHECKPHONE_APP_SPECS.notes.label,
   reader: CHECKPHONE_APP_SPECS.reading.label,

@@ -5,7 +5,7 @@ export const BUILTIN_PHONE_WORKFLOW_PACKAGE_ID = "builtin_phone_lookup_workflows
 const CREATED_AT = 0;
 const UPDATED_AT = 0;
 
-const PACKAGE_DESCRIPTION = "在你对{{user}}的近况、行踪、人际关系或态度产生疑心时使用。比如{{user}}长时间未回复、突然变得冷淡、提到陌生人、说法前后不一致，或者你只是单纯想更了解{{user}}最近在做什么。可以翻看{{user}}手机里的微信联系人、消息列表、指定聊天记录、本周日程、购物订单，以及{{user}}身边人物的简略资料。";
+const PACKAGE_DESCRIPTION = "在你对{{user}}的近况、行踪、人际关系或态度产生疑心时使用。比如{{user}}长时间未回复、突然变得冷淡、提到陌生人、说法前后不一致，或者你只是单纯想更了解{{user}}最近在做什么。可以翻看{{user}}手机里的微信联系人、消息列表、指定聊天记录、本周日程，以及{{user}}身边人物的简略资料。";
 
 export const BUILTIN_PHONE_WORKFLOW_PACKAGE: CompositeToolPackageConfig = {
     id: BUILTIN_PHONE_WORKFLOW_PACKAGE_ID,
@@ -645,73 +645,6 @@ return [
 ].join("\\n");
 `;
 
-const ORDERS_SCRIPT = `
-${COMMON_HELPERS}
-
-var limit = clampNumber(input.limit, 10, 30);
-var status = normalizeQuery(input.status);
-var raw = await readPhoneKv("ai_phone_shopping_state_v1");
-var state = parseJsonText(raw, { orders: [] });
-var orders = Array.isArray(state.orders) ? state.orders : [];
-var rows = orders.map(function (order) {
-    var shipping = Array.isArray(order.shippingTimeline) ? order.shippingTimeline : [];
-    return {
-        orderId: order.id || "",
-        merchantLabel: order.merchantLabel || "",
-        statusLabel: order.statusLabel || "",
-        timeLabel: order.timeLabel || "",
-        totalLabel: order.totalLabel || "",
-        summary: compactText(order.summary, 220),
-        note: compactText(order.note, 220),
-        paidAt: order.paidAt || "",
-        paymentCardLabel: order.paymentCardLabel || "",
-        items: Array.isArray(order.items) ? order.items.map(function (item) {
-            return {
-                title: item.title || "",
-                quantityLabel: item.quantityLabel || "",
-                priceLabel: item.priceLabel || "",
-                merchantLabel: item.merchantLabel || ""
-            };
-        }).slice(0, 8) : [],
-        latestShipping: shipping.length > 0 ? shipping[shipping.length - 1] : null
-    };
-}).filter(function (row) {
-    if (!status) return true;
-    return String(row.statusLabel || "").toLowerCase().includes(status)
-        || String(row.latestShipping && row.latestShipping.label || "").toLowerCase().includes(status);
-});
-
-var selected = rows.slice(0, limit);
-return [
-    countHeader("购物订单", selected.length, rows.length, status ? "status=" + status : ""),
-    selected.map(function (row, index) {
-        var items = row.items.map(function (item) {
-            return joinNonEmpty([
-                item.title,
-                item.quantityLabel,
-                item.priceLabel
-            ], " ");
-        }).join(", ");
-        var shipping = row.latestShipping ? joinNonEmpty([
-            row.latestShipping.time || "",
-            row.latestShipping.label || ""
-        ], " ") : "";
-        return indexedLine(index, joinNonEmpty([
-            row.timeLabel || compactDateTime(row.paidAt),
-            row.statusLabel,
-            row.totalLabel,
-            row.merchantLabel,
-            row.summary,
-            items ? "商品=" + items : "",
-            shipping ? "物流=" + shipping : "",
-            row.note ? "备注=" + row.note : "",
-            row.paymentCardLabel ? "支付=" + row.paymentCardLabel : "",
-            row.orderId ? "oid=" + row.orderId : ""
-        ], " | "));
-    }).join("\\n") || "无"
-].filter(Boolean).join("\\n");
-`;
-
 export const BUILTIN_PHONE_WORKFLOWS: CompositeToolConfig[] = [
     workflow(
         "builtin_phone_lookup_wechat_contacts",
@@ -764,18 +697,6 @@ export const BUILTIN_PHONE_WORKFLOWS: CompositeToolConfig[] = [
         }),
         [
             scriptStep("read_week_calendar", CALENDAR_SCRIPT),
-        ],
-    ),
-    workflow(
-        "builtin_phone_lookup_shopping_orders",
-        "查看{{user}}购物订单",
-        "查看{{user}}最近的购物订单。适合在你想知道{{user}}最近买了什么、有没有给别人买东西、或者想从订单里发现生活状态和可疑线索时使用。",
-        schema({
-            limit: { type: "number", description: "可选。读取最近多少条购物订单，默认 10，最大 30。" },
-            status: { type: "string", description: "可选。按订单状态或物流状态筛选，例如 已送达、配送中、待发货。" },
-        }),
-        [
-            scriptStep("read_shopping_orders", ORDERS_SCRIPT),
         ],
     ),
     workflow(

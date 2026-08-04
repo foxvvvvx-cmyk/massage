@@ -175,7 +175,7 @@ export const DATA_MODULES: DataModuleDefinition[] = [
   {
     id: "apps",
     label: "内容应用",
-    description: "日历、购物、余额、阅读、音乐、经期记录与应用偏好",
+    description: "日历、阅读、音乐、经期记录与应用偏好",
     variant: "teal",
     large: true,
     sources: [
@@ -189,8 +189,6 @@ export const DATA_MODULES: DataModuleDefinition[] = [
         keys: [
           "ai_phone_calendar_plans_v1",
           "ai_phone_calendar_config_v1",
-          "ai_phone_shopping_state_v1",
-          "ai_phone_wallet_state_v1",
           "ai_phone_reading_interaction_config_v1",
           "ai_phone_reading_appearance_v1",
           "ai_phone_menstrual_config_v1",
@@ -221,7 +219,7 @@ export const DATA_MODULES: DataModuleDefinition[] = [
   {
     id: "creative",
     label: "创作与玩法",
-    description: "故事、黑市与查手机快照",
+    description: "故事与查手机快照",
     variant: "success",
     large: true,
     sources: [
@@ -234,12 +232,7 @@ export const DATA_MODULES: DataModuleDefinition[] = [
           "checkphone-settings",
           "ai_phone_game_state_v1",
           "ai_phone_game_hall_drafts_v1",
-          "ai_phone_black_market_state_v1",
-          "ai_phone_black_market_user_id_v1",
-          "ai_phone_black_market_scene_sessions_v1",
-          "ai_phone_black_market_studio_drafts_v1",
         ],
-        prefixes: ["ai_phone_black_market_theater_events_"],
       },
     ],
   },

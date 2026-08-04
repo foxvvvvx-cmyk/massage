@@ -20,7 +20,6 @@ import ReadingApp from "@/components/reading/reading-app";
 import { MascotFloat } from "@/components/mascot/mascot-float";
 import { useMusicControlsOptional } from "@/lib/music-context";
 import { PhoneResourcesApp, type ResourceSubPage } from "@/components/phone-resources-app";
-import { ShoppingApp } from "@/components/shopping/shopping-app";
 import { GameHubApp } from "@/components/game/game-hub-app";
 import { hydrateKvDb, kvGet, kvSet, kvRemove, kvKeysWithPrefix } from "@/lib/kv-db";
 import { deleteDatabase } from "@/lib/data-management/idb";
@@ -746,9 +745,6 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets }: Deskto
   const [notice, setNotice] = useState<string | null>(null);
   const [activeApp, setActiveApp] = useState<DesktopIconId | null>(null);
   const [resourcesInitialPage, setResourcesInitialPage] = useState<ResourceSubPage>("main");
-  const [shoppingMounted, setShoppingMounted] = useState(false);
-  const [shoppingBusy, setShoppingBusy] = useState(false);
-  if (activeApp === "shopping" && !shoppingMounted) setShoppingMounted(true);
   const [widgets, setWidgets] = useState<WidgetInstance[]>([]);
   const [incomingCall, setIncomingCall] = useState<{
     sessionId: string; type: "voice" | "video"; charName: string; charAvatar: string | null; isGroup?: boolean;
@@ -2413,17 +2409,6 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets }: Deskto
     if (targetPageIndex !== page) setCurrentPageIndex(targetPageIndex);
   }, [editMode, getSwipePageWidth, pageCount, setSwipeDrag]);
 
-  const handleCloseShopping = useCallback((isBusy?: boolean) => {
-    const shouldKeepMounted = isBusy ?? shoppingBusy;
-    setActiveApp(null);
-    if (shouldKeepMounted) {
-      setNotice("购物正在后台生成，完成后会自动更新。");
-      return;
-    }
-    setShoppingBusy(false);
-    setShoppingMounted(false);
-  }, [shoppingBusy]);
-
   function renderAppBody() {
     if (!activeApp || !activeIcon) {
       return null;
@@ -2503,10 +2488,6 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets }: Deskto
 
     if (activeApp === "reading") {
       return <ReadingApp onClose={() => setActiveApp(null)} />;
-    }
-
-    if (activeApp === "shopping") {
-      return null;
     }
 
     if (activeApp === "game") {
@@ -2915,25 +2896,10 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets }: Deskto
                   </>
                 ) : (
                   <>
-                    <section className="phone-app-pane" style={activeApp === "shopping" ? { display: "none" } : undefined}>
+                    <section className="phone-app-pane">
                       {renderAppBody()}
                     </section>
                   </>
-                )}
-                {shoppingMounted && (
-                  <section className="phone-app-pane" style={activeApp !== "shopping" ? { display: "none" } : undefined}>
-                    <ShoppingApp
-                      onClose={handleCloseShopping}
-                      visible={activeApp === "shopping"}
-                      onBusyChange={setShoppingBusy}
-                      onIdle={() => {
-                        if (activeApp !== "shopping") {
-                          setShoppingBusy(false);
-                          setShoppingMounted(false);
-                        }
-                      }}
-                    />
-                  </section>
                 )}
               </div>
 

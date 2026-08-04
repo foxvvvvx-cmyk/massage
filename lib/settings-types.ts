@@ -179,12 +179,12 @@ export type ImageGenerationSettings = {
 export type ContentAppId =
     | "chat" | "music" | "reading"
     | "forum" | "story" | "game"
-    | "calendar" | "group_chat" | "shopping";
+    | "calendar" | "group_chat";
 
 export const CONTENT_APP_IDS: ContentAppId[] = [
     "chat", "music", "reading",
     "story", "game",
-    "calendar", "group_chat", "shopping"
+    "calendar", "group_chat"
 ];
 
 export const CONTENT_APP_LABELS: Record<ContentAppId, string> = {
@@ -196,7 +196,6 @@ export const CONTENT_APP_LABELS: Record<ContentAppId, string> = {
     game: "游戏",
     calendar: "日历",
     group_chat: "群聊",
-    shopping: "购物",
 };
 
 // Binding slot — config selections for a given scope

@@ -20,7 +20,6 @@ import {
   Radar,
   RefreshCw,
   Send,
-  ShoppingBag,
   Sparkles,
   TvMinimalPlay,
   X,
@@ -55,7 +54,6 @@ import { CheckPhonePhonePage } from "@/components/checkphone/checkphone-phone-pa
 import { CheckPhonePhotosPage } from "@/components/checkphone/checkphone-photos-page";
 import { CheckPhoneReadingPage } from "@/components/checkphone/checkphone-reading-page";
 import { CheckPhoneRedditPage } from "@/components/checkphone/checkphone-reddit-page";
-import { CheckPhoneShoppingPage } from "@/components/checkphone/checkphone-shopping-page";
 import { CheckPhoneSteamPage } from "@/components/checkphone/checkphone-steam-page";
 import { CheckPhoneTelegramPage } from "@/components/checkphone/checkphone-telegram-page";
 import { CheckPhoneTakeoutPage } from "@/components/checkphone/checkphone-takeout-page";
@@ -95,7 +93,6 @@ const CHECKPHONE_EMBEDDED_APP_IDS = [
   "chat",
   "phone",
   "notes",
-  "shopping",
   "assets",
   "photos",
   "browser",
@@ -228,7 +225,6 @@ function AppGlyph({ appId, size = 26, strokeWidth = 1.5 }: { appId: CheckPhoneAp
     case "browser": return <IconSolidBrowser size={size} />;
     case "photos": return <IconSolidPhotos size={size} />;
     case "chat": return <IconSolidChat size={size} />;
-    case "shopping": return <IconSolidShop size={size} />;
     case "assets": return <IconSolidBank size={size} />;
     case "notes": return <IconSolidNotes size={size} />;
     case "reading": return <IconSolidBook size={size} />;
@@ -254,7 +250,7 @@ function getAppIconClass(appId: CheckPhoneAppId, isDock = false) {
   // Interspersed distribution to ensure grey icons don't cluster in one column
   const midGreyApps: string[] = ["photos", "weibo", "steam", "telegram", "reddit"];
   const lightGreyApps: string[] = ["messages", "bilibili", "email", "instagram"];
-  const whiteApps: string[] = ["browser", "douyin", "reading", "notes", "shopping", "assets", "youtube"];
+  const whiteApps: string[] = ["browser", "douyin", "reading", "notes", "assets", "youtube"];
 
   if (midGreyApps.includes(appId)) return `${baseClass} cp-app-icon--mid-grey`;
   if (lightGreyApps.includes(appId)) return `${baseClass} cp-app-icon--light-grey`;
@@ -432,8 +428,6 @@ export function CheckPhoneApp({ onClose }: CheckPhoneAppProps) {
         return <CheckPhonePhonePage character={activeCharacter} onBack={closeSelectedApp} />;
       case "notes":
         return <CheckPhoneNotesPage character={activeCharacter} onBack={closeSelectedApp} />;
-      case "shopping":
-        return <CheckPhoneShoppingPage character={activeCharacter} onBack={closeSelectedApp} />;
       case "assets":
         return <CheckPhoneAssetsPage character={activeCharacter} onBack={closeSelectedApp} />;
       case "photos":

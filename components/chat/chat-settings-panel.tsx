@@ -78,10 +78,6 @@ const SEARCH_SCAN_CHUNK_SIZE = 120;
 
 const SEARCH_MEDIA_BUBBLE_TYPES = new Set<SearchResultMediaType>([
     "sticker",
-    "red_packet",
-    "transfer",
-    "payment_request",
-    "gift",
     "image",
     "location",
     "music_share",
@@ -97,12 +93,6 @@ const SEARCH_VISUAL_MEDIA_TYPES = new Set<SearchResultMediaType>([
 
 const SEARCH_ACTION_MEDIA_TYPES = new Set<SearchResultMediaType>([
     "poke",
-    "accept_red_packet",
-    "decline_red_packet",
-    "accept_transfer",
-    "decline_transfer",
-    "accept_payment_request",
-    "decline_payment_request",
     "group_admin_notice",
 ]);
 
@@ -140,7 +130,6 @@ function getSearchHaystack(msg: ChatMessage): string {
         clipSearchText(getChatMessagePreview(msg)),
         clipSearchText(msg.mediaData?.label),
         clipSearchText(msg.mediaData?.musicTitle),
-        clipSearchText(msg.mediaData?.giftName),
         clipSearchText(msg.senderName),
     ].filter(Boolean).join("\n");
 }
@@ -595,7 +584,7 @@ export function ChatSettingsPanel({
                                         jumpToSearchMessage(msg.id);
                                     }
                                 }}
-                                className={`chat-bubble-role-${bubbleRole} ${isMediaBubble ? "chat-bubble-media" : ""} ${isStandaloneHtmlPreview ? "chat-bubble-html-preview" : ""} ${msg.mediaType === "music_share" ? "chat-bubble-music-share" : ""} ${msg.mediaType === "gift" || msg.mediaType === "image" || isStandaloneHtmlPreview ? "rounded-none" : "rounded-md"} break-words relative cursor-pointer select-none`}
+                                className={`chat-bubble-role-${bubbleRole} ${isMediaBubble ? "chat-bubble-media" : ""} ${isStandaloneHtmlPreview ? "chat-bubble-html-preview" : ""} ${msg.mediaType === "music_share" ? "chat-bubble-music-share" : ""} ${msg.mediaType === "image" || isStandaloneHtmlPreview ? "rounded-none" : "rounded-md"} break-words relative cursor-pointer select-none`}
                                 data-ui={bubbleRole === "user" ? "bubble-user" : "bubble-bot"}
                                 data-msg-id={msg.id}
                             >
@@ -603,7 +592,6 @@ export function ChatSettingsPanel({
                                     msg={msg}
                                     charName={senderChar?.name}
                                     userName={userIdentity?.name || "你"}
-                                    groupSize={session.isGroup ? (session.participantIds?.length || 0) + (session.isSpectator ? 0 : 1) : undefined}
                                     characterId={msg.senderCharacterId || session.contactId}
                                     defaultTranslationExpanded={session.collapseBilingualTranslation !== false ? false : true}
                                 />

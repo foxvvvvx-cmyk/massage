@@ -20,5 +20,4 @@ export const CONTENT_APP_ACCENTS: Record<ContentAppId, string> = {
     game: "#3B82F6",
     calendar: "#14B8A6",
     group_chat: "#22C55E",
-    shopping: "#F59E0B",
 };

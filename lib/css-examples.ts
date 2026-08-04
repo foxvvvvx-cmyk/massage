@@ -305,30 +305,11 @@ export const CHAT_SESSION_CSS_EXAMPLE = `/* ═══ 单独聊天室 CSS 示例
 }
 
 /* ── 卡片消息 ── */
-.chat-red-packet-card,
-.chat-transfer-card,
 .chat-html-inline,
 .chat-music-share-card {
   background: var(--c-card);
   border: 1px solid var(--c-card-border);
   border-radius: 14px;
-}
-
-.chat-red-packet-body {
-  /* background: linear-gradient(135deg, #ff6a5f, #e8473f); */
-}
-
-.chat-transfer-body {
-  /* background: linear-gradient(135deg, #ffb347, #ff8c2a); */
-}
-
-.ui-media-footer {
-  background: var(--c-card);
-  color: var(--c-text);
-}
-
-.ui-media-footer[data-status="declined"] {
-  color: var(--c-icon);
 }
 
 .chat-html-inline-frame {
@@ -409,52 +390,6 @@ export const CHAT_SESSION_CSS_EXAMPLE = `/* ═══ 单独聊天室 CSS 示例
   background: var(--c-icon-active);
 }
 
-/* 礼物卡片 */
-.chat-gift-card {
-  background: #ffffff;
-  border: none;
-  border-radius: 0;
-  overflow: visible;
-  /* 不需要阴影可改为：box-shadow: none; */
-  box-shadow: 0 1px 4px rgba(0,0,0,0.025);
-  margin: 2px 0 4px;
-}
-
-.chat-gift-card-body {
-  background: #ffffff;
-  overflow: visible;
-}
-
-.chat-gift-card-status {
-  background: rgba(0,0,0,0.055);
-  color: var(--c-text-title);
-}
-
-.chat-gift-card-title {
-  color: var(--c-text-title);
-  font-size: calc(24px*var(--app-text-scale,1));
-}
-
-.chat-gift-card-divider {
-  background: rgba(0,0,0,0.12);
-}
-
-.chat-gift-card-footer {
-  border-top: 1px solid rgba(0,0,0,0.12);
-}
-
-.chat-gift-card-cell-label,
-.chat-gift-card-kicker,
-.chat-gift-card-label,
-.chat-gift-card-brand {
-  color: var(--c-icon);
-}
-
-.chat-gift-card-cell-value,
-.chat-gift-card-source {
-  color: var(--c-text);
-}
-
 /* 文字照片卡片 */
 .chat-photo-card {
   background: #ffffff;
@@ -494,28 +429,6 @@ export const CHAT_SESSION_CSS_EXAMPLE = `/* ═══ 单独聊天室 CSS 示例
   object-fit: contain;
 }
 
-/* 支付卡片（微信扫码付 / 支付宝等） */
-.scan-pay-card {
-  background: var(--c-card);
-  border: 1px solid var(--c-card-border);
-  border-radius: 14px;
-}
-.scan-pay-title {
-  color: var(--c-text-title);
-}
-.scan-pay-qr {
-  border-radius: 8px;
-}
-.scan-pay-hint {
-  color: var(--c-text);
-}
-.scan-pay-btn {
-  border-radius: 999px;
-}
-.scan-pay-btn-primary {
-  background: #07c160; /* 打开微信按钮（默认微信绿） */
-  color: #ffffff;
-}
 
 /* ── 状态值面板 ── */
 .state-panel {
@@ -794,52 +707,6 @@ export const CHAT_APP_CSS_EXAMPLE = `/* ═══ 聊天应用 CSS 示例 ══
   max-height: min(52vh, 420px);
 }
 
-/* 礼物卡片 */
-.chat-gift-card {
-  background: #ffffff;
-  border: none;
-  border-radius: 0;
-  overflow: visible;
-  /* 不需要阴影可改为：box-shadow: none; */
-  box-shadow: 0 1px 4px rgba(0,0,0,0.025);
-  margin: 2px 0 4px;
-}
-
-.chat-gift-card-body {
-  background: #ffffff;
-  overflow: visible;
-}
-
-.chat-gift-card-status {
-  background: rgba(0,0,0,0.055);
-  color: var(--c-text-title);
-}
-
-.chat-gift-card-title {
-  color: var(--c-text-title);
-  font-size: calc(24px*var(--app-text-scale,1));
-}
-
-.chat-gift-card-divider {
-  background: rgba(0,0,0,0.12);
-}
-
-.chat-gift-card-footer {
-  border-top: 1px solid rgba(0,0,0,0.12);
-}
-
-.chat-gift-card-cell-label,
-.chat-gift-card-kicker,
-.chat-gift-card-label,
-.chat-gift-card-brand {
-  color: var(--c-icon);
-}
-
-.chat-gift-card-cell-value,
-.chat-gift-card-source {
-  color: var(--c-text);
-}
-
 /* 文字照片卡片 */
 .chat-photo-card {
   background: #ffffff;
@@ -879,28 +746,6 @@ export const CHAT_APP_CSS_EXAMPLE = `/* ═══ 聊天应用 CSS 示例 ══
   object-fit: contain;
 }
 
-/* 支付卡片（微信扫码付 / 支付宝等） */
-.scan-pay-card {
-  background: var(--c-card);
-  border: 1px solid var(--c-card-border);
-  border-radius: 14px;
-}
-.scan-pay-title {
-  color: var(--c-text-title);
-}
-.scan-pay-qr {
-  border-radius: 8px;
-}
-.scan-pay-hint {
-  color: var(--c-text);
-}
-.scan-pay-btn {
-  border-radius: 999px;
-}
-.scan-pay-btn-primary {
-  background: #07c160; /* 打开微信按钮（默认微信绿） */
-  color: #ffffff;
-}
 
 /* ══════════════════════════
    8. 高级：自定义字体

@@ -33,8 +33,6 @@ import { Alert } from "@/components/ui/feedback";
 type AddStep = "select-character" | "scanning" | "done";
 
 const LOCAL_ASSISTANT_CARD_ASSETS = [
-    "generic-red-packet-card-v1.png",
-    "generic-transfer-card-v1.png",
     "generic-music-card-v1.png",
     "generic-photo-card-v1.png",
 ];

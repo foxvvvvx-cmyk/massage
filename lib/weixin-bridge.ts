@@ -10,7 +10,6 @@ import { loadMediaBlob, isMediaStoreRef } from "./media-cache-storage";
 import { parseAIResponse, type ParsedMessagePart } from "./rich-message-parser";
 import { splitBilingualText } from "./bilingual-text";
 import { resolveVoiceConfig, synthesizeSpeech } from "./tts-service";
-import { formatShoppingPaymentRequestHistory } from "./shopping-payment-request";
 
 // ── iLink 实际消息格式 ────────────────────────────────────────
 type ILinkTextItem = { type: 1; text_item: { text: string } };
@@ -42,17 +41,10 @@ function cleanText(text: unknown): string {
     return typeof text === "string" ? text.trim() : "";
 }
 
-function moneyText(amount: unknown): string {
-    return typeof amount === "number" && Number.isFinite(amount)
-        ? `¥${amount.toFixed(2).replace(/\.00$/, "")}`
-        : "";
-}
-
 function getMediaLabel(part: ParsedMessagePart): string {
     const data = part.mediaData || {};
     return cleanText(data.label)
         || cleanText(data.musicTitle)
-        || cleanText(data.giftName)
         || cleanText(part.content);
 }
 
@@ -92,18 +84,6 @@ function partToWeixinText(part: ParsedMessagePart, charName: string): string | n
     }
     if (part.mediaType === "voice_call") return `${charName}向你发起了语音通话`;
     if (part.mediaType === "video_call") return `${charName}向你发起了视频通话`;
-    if (part.mediaType === "accept_red_packet") return `${charName}领取了红包`;
-    if (part.mediaType === "decline_red_packet") return `${charName}退回了红包`;
-    if (part.mediaType === "accept_transfer") return `${charName}接受了转账`;
-    if (part.mediaType === "decline_transfer") return `${charName}拒收了转账`;
-    if (part.mediaType === "payment_request") return formatShoppingPaymentRequestHistory({
-        amount: data.amount,
-        amountLabel: data.paymentRequestAmountLabel,
-        items: data.paymentRequestItems,
-        itemsText: data.paymentRequestItemsText,
-    });
-    if (part.mediaType === "accept_payment_request") return `${charName}接受了代付`;
-    if (part.mediaType === "decline_payment_request") return `${charName}拒绝了代付`;
 
     return content || null;
 }
@@ -229,36 +209,6 @@ function clipRoundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, w:
     ctx.clip();
 }
 
-function drawMoneyIcon(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, fill: string, text = "¥") {
-    ctx.fillStyle = fill;
-    ctx.beginPath();
-    ctx.arc(x + size / 2, y + size / 2, size / 2, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "rgba(255,255,255,0.92)";
-    ctx.font = canvasFont(800, size * 0.47);
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(text, x + size / 2, y + size / 2 + 1);
-    ctx.textAlign = "left";
-    ctx.textBaseline = "alphabetic";
-}
-
-function drawRedPacketIcon(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number) {
-    fillRoundedRect(ctx, x, y, w, h, 8, "#c93424");
-    ctx.fillStyle = "#f8d678";
-    ctx.fillRect(x + 5, y + 8, w - 10, 3);
-    ctx.beginPath();
-    ctx.arc(x + w / 2, y + h / 2 + 2, 9, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "#9e251d";
-    ctx.font = canvasFont(800, 13);
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText("福", x + w / 2, y + h / 2 + 2);
-    ctx.textAlign = "left";
-    ctx.textBaseline = "alphabetic";
-}
-
 function drawMusicIcon(ctx: CanvasRenderingContext2D, x: number, y: number, scale = 1, stroke = "#5b7b64") {
     ctx.save();
     ctx.translate(x, y);
@@ -296,208 +246,6 @@ function drawMapPin(ctx: CanvasRenderingContext2D, x: number, y: number, size: n
     ctx.arc(0, 1, size * 0.19, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
-}
-
-function renderRedPacketCard(part: ParsedMessagePart): string | null {
-    const data = part.mediaData || {};
-    const canvasPack = makeCanvas(240, 108);
-    if (!canvasPack) return null;
-    const { canvas, ctx } = canvasPack;
-    ctx.save();
-    clipRoundedRect(ctx, 0, 0, 240, 108, 12);
-
-    const gradient = ctx.createLinearGradient(0, 0, 240, 76);
-    gradient.addColorStop(0, "#fa9d3b");
-    gradient.addColorStop(1, "#e8602c");
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, 240, 76);
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 76, 240, 32);
-
-    drawRedPacketIcon(ctx, 16, 21, 34, 34);
-    ctx.fillStyle = "#ffffff";
-    ctx.font = canvasFont(500, 15);
-    drawSingleLineText(ctx, cleanText(data.label) || "恭喜发财，大吉大利", 62, 36, 160);
-    if (typeof data.count === "number" && data.count > 1) {
-        ctx.fillStyle = "rgba(255,255,255,0.74)";
-        ctx.font = canvasFont(500, 12);
-        ctx.fillText(`共 ${data.count} 个`, 62, 56);
-    }
-
-    ctx.fillStyle = data.status === "declined" ? "#a9a9a9" : "#8a8a8a";
-    ctx.font = canvasFont(400, 11);
-    ctx.fillText("微信红包", 16, 97);
-    ctx.restore();
-    return canvas.toDataURL("image/png");
-}
-
-function renderTransferCard(part: ParsedMessagePart): string | null {
-    const data = part.mediaData || {};
-    const hasRecipient = !!cleanText(data.recipientName);
-    const height = hasRecipient ? 130 : 108;
-    const canvasPack = makeCanvas(240, height);
-    if (!canvasPack) return null;
-    const { canvas, ctx } = canvasPack;
-    ctx.save();
-    clipRoundedRect(ctx, 0, 0, 240, height, 12);
-
-    const gradient = ctx.createLinearGradient(0, 0, 240, 78);
-    gradient.addColorStop(0, "#fdbe5c");
-    gradient.addColorStop(1, "#f09c41");
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, 240, hasRecipient ? 100 : 78);
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, hasRecipient ? 100 : 78, 240, 32);
-
-    drawMoneyIcon(ctx, 16, 23, 34, "rgba(255,255,255,0.22)");
-    ctx.fillStyle = "#ffffff";
-    ctx.font = canvasFont(800, 24);
-    ctx.fillText(moneyText(data.amount) || "¥0", 62, 38);
-    ctx.font = canvasFont(500, 13);
-    ctx.fillStyle = "rgba(255,255,255,0.86)";
-    drawSingleLineText(ctx, cleanText(data.label) || "转账", 62, 59, 154);
-    if (hasRecipient) {
-        ctx.font = canvasFont(500, 12);
-        ctx.fillStyle = "rgba(255,255,255,0.72)";
-        drawSingleLineText(ctx, `转给 ${cleanText(data.recipientName)}`, 16, 91, 208);
-    }
-
-    ctx.fillStyle = "#8a8a8a";
-    ctx.font = canvasFont(400, 12);
-    ctx.fillText("微信转账", 16, hasRecipient ? 120 : 98);
-    if (data.status === "received") {
-        ctx.textAlign = "right";
-        ctx.fillText("已收款", 224, hasRecipient ? 120 : 98);
-        ctx.textAlign = "left";
-    } else if (data.status === "declined") {
-        ctx.textAlign = "right";
-        ctx.fillText("已退回", 224, hasRecipient ? 120 : 98);
-        ctx.textAlign = "left";
-    }
-    ctx.restore();
-    return canvas.toDataURL("image/png");
-}
-
-function renderPaymentRequestCard(part: ParsedMessagePart): string | null {
-    const data = part.mediaData || {};
-    const canvasPack = makeCanvas(260, 132);
-    if (!canvasPack) return null;
-    const { canvas, ctx } = canvasPack;
-    const amountText = moneyText(data.amount) || (cleanText(data.paymentRequestAmountLabel) ? `¥${cleanText(data.paymentRequestAmountLabel)}` : "¥0");
-    const itemsText = cleanText(data.paymentRequestItemsText)
-        || (Array.isArray(data.paymentRequestItems)
-            ? data.paymentRequestItems
-                .map(item => `${cleanText(item?.title)}/${cleanText(item?.detail)}/${cleanText(item?.priceLabel)}/${cleanText(item?.quantityLabel)}`)
-                .filter(Boolean)
-                .join("; ")
-            : "");
-
-    ctx.save();
-    clipRoundedRect(ctx, 0, 0, 260, 132, 14);
-
-    const gradient = ctx.createLinearGradient(0, 0, 260, 88);
-    gradient.addColorStop(0, "#43b883");
-    gradient.addColorStop(1, "#2b8f72");
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, 260, 88);
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 88, 260, 44);
-
-    drawMoneyIcon(ctx, 18, 26, 36, "rgba(255,255,255,0.22)");
-    ctx.fillStyle = "#ffffff";
-    ctx.font = canvasFont(800, 24);
-    drawSingleLineText(ctx, amountText, 66, 42, 166);
-    ctx.fillStyle = "rgba(255,255,255,0.88)";
-    ctx.font = canvasFont(500, 13);
-    drawSingleLineText(ctx, "请TA代付", 66, 64, 166);
-
-    ctx.fillStyle = "#3f4f49";
-    ctx.font = canvasFont(600, 12);
-    drawWrappedText(ctx, itemsText || "商品", 16, 108, 198, 15, 2);
-    ctx.fillStyle = "#8a8a8a";
-    ctx.font = canvasFont(500, 11);
-    ctx.textAlign = "right";
-    const status = data.status === "paid" ? "已代付" : data.status === "declined" ? "已拒绝" : "待代付";
-    ctx.fillText(status, 244, 120);
-    ctx.textAlign = "left";
-    ctx.restore();
-    return canvas.toDataURL("image/png");
-}
-
-function renderGiftCard(part: ParsedMessagePart): string | null {
-    const data = part.mediaData || {};
-    const title = cleanText(data.giftName) || cleanText(data.label) || "礼物";
-    const merchant = cleanText(data.giftMerchantLabel) || "角色赠礼";
-    const recipient = cleanText(data.recipientName);
-    const serial = (cleanText(data.shoppingGiftId) || cleanText(data.giftOrderId) || title || "gift")
-        .replace(/[^a-z0-9]/gi, "")
-        .slice(-6)
-        .toUpperCase() || "GIFT01";
-    const canvasPack = makeCanvas(248, 338);
-    if (!canvasPack) return null;
-    const { canvas, ctx } = canvasPack;
-
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, 248, 338);
-    ctx.strokeStyle = "rgba(0,0,0,0.08)";
-    ctx.lineWidth = 1;
-    ctx.strokeRect(0.5, 0.5, 247, 337);
-
-    ctx.fillStyle = "#8e8a82";
-    ctx.font = canvasFont(700, 11);
-    ctx.fillText("GIFT CARD", 20, 30);
-    ctx.fillStyle = "#2c3440";
-    ctx.font = canvasFont(400, 12);
-    drawSingleLineText(ctx, merchant, 20, 51, 128);
-    fillRoundedRect(ctx, 180, 20, 48, 24, 4, "rgba(0,0,0,0.055)");
-    ctx.fillStyle = "#2c3440";
-    ctx.font = canvasFont(700, 11);
-    ctx.fillText("已送出", 187, 36);
-
-    ctx.strokeStyle = "rgba(0,0,0,0.12)";
-    ctx.beginPath();
-    ctx.moveTo(20, 74);
-    ctx.lineTo(228, 74);
-    ctx.stroke();
-
-    ctx.fillStyle = "#8e8a82";
-    ctx.font = canvasFont(700, 10);
-    ctx.fillText("SELECTED GIFT", 20, 106);
-    ctx.fillStyle = "#2c3440";
-    ctx.font = canvasFont(600, 24);
-    drawWrappedText(ctx, title, 20, 136, 208, 28, 3);
-
-    const cells: Array<[string, string, boolean?]> = [
-        ...(recipient ? [["收礼人", recipient, true] as [string, string, boolean]] : []),
-        ["编号", `G-${serial}`],
-        ["来源", merchant],
-        ["礼物值", cleanText(data.giftPriceLabel) || "心意礼物"],
-    ];
-    let x = 20;
-    let y = 220;
-    cells.slice(0, 4).forEach(([label, value, strong], index) => {
-        x = index % 2 === 0 ? 20 : 132;
-        y = 220 + Math.floor(index / 2) * 48;
-        ctx.fillStyle = "#8e8a82";
-        ctx.font = canvasFont(400, 10);
-        ctx.fillText(label, x, y);
-        ctx.fillStyle = strong ? "#2c3440" : "#5f6670";
-        ctx.font = canvasFont(strong ? 700 : 400, 12);
-        drawSingleLineText(ctx, value, x, y + 20, 88);
-    });
-
-    ctx.strokeStyle = "rgba(0,0,0,0.12)";
-    ctx.beginPath();
-    ctx.moveTo(20, 300);
-    ctx.lineTo(228, 300);
-    ctx.stroke();
-    ctx.fillStyle = "#8e8a82";
-    ctx.font = canvasFont(700, 10);
-    ctx.fillText("GIFT CERTIFICATE", 20, 322);
-    ctx.textAlign = "right";
-    ctx.fillText("AI PHONE", 228, 322);
-    ctx.textAlign = "left";
-    return canvas.toDataURL("image/png");
 }
 
 function renderPhotoCard(part: ParsedMessagePart): string | null {
@@ -691,10 +439,6 @@ function getAudioDuration(blob: Blob): Promise<number | null> {
 async function renderMediaCard(part: ParsedMessagePart, charName: string): Promise<string | null> {
     void charName;
     switch (part.mediaType) {
-        case "red_packet": return renderRedPacketCard(part);
-        case "transfer": return renderTransferCard(part);
-        case "payment_request": return renderPaymentRequestCard(part);
-        case "gift": return renderGiftCard(part);
         case "image": return renderPhotoCard(part);
         case "location": return renderLocationCard(part);
         case "music":
@@ -899,9 +643,6 @@ async function handleIncomingMessage(
         if (outgoing) weixinOutbox.push(outgoing);
 
         if (p.mediaType === "voice_call" || p.mediaType === "video_call") continue;
-        if (p.mediaType === "accept_red_packet" || p.mediaType === "decline_red_packet"
-            || p.mediaType === "accept_transfer" || p.mediaType === "decline_transfer"
-            || p.mediaType === "accept_payment_request" || p.mediaType === "decline_payment_request") continue;
         if (p.mediaType === "poke") {
             const pokeSender = (p.mediaData?.pokeSender === "我" ? charName : p.mediaData?.pokeSender) || charName;
             const pokeTarget = p.mediaData?.pokeTarget || "你";

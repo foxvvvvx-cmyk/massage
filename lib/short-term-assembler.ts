@@ -11,12 +11,10 @@ import { loadMemoryConfig } from "./memory-storage";
 import { estimateTokens } from "./token-counter";
 import { loadStoryProjectionEntries } from "./story-storage";
 import { loadGameProjectionEntries } from "./game-storage";
-import { loadBlackMarketTheaterProjectionEntries } from "./black-market-storage";
 import { stripStateAndInnerForPrompt } from "./prompt-sanitizer";
 import { renderUserNameMacro } from "./user-macro";
 import { loadChatOfflineProjectionEntries } from "./chat-offline-storage";
 import { loadCheckPhoneProjectionEntries } from "./checkphone-storage";
-import { formatShoppingPaymentRequestHistory } from "./shopping-payment-request";
 import {
     formatPromptEventLabel,
     formatPromptTimestamp,
@@ -34,7 +32,7 @@ function formatPhotoDirectiveForPrompt(msg: ChatMessage): string {
 export type NativeTimelineEntry = {
     id: string;
     sourceApp: "chat" | "story" | "game" | "checkphone" | "custom_app";
-    sourceDetail?: "direct" | "group" | "system" | "story" | "chat_offline" | "game" | "black_market_theater" | "checkphone" | "custom_app_event"; // chat sub-type: 1:1 vs group chat vs system note
+    sourceDetail?: "direct" | "group" | "system" | "story" | "chat_offline" | "game" | "checkphone" | "custom_app_event"; // chat sub-type: 1:1 vs group chat vs system note
     authorType?: "user" | "character" | "npc"; // who authored this entry
     sessionId?: string;
     groupSessionId?: string; // for group chat: which group session
@@ -134,13 +132,7 @@ export function loadNativeTimeline(
             let content = stripStateAndInnerForPrompt(msg.content || "");
 
             // Action notifications: group format with names
-            if (msg.mediaType === "accept_red_packet") content = `[${msg.mediaData?.claimer || ""}领取了${msg.mediaData?.owner || ""}的红包]`;
-            else if (msg.mediaType === "decline_red_packet") content = `[${msg.mediaData?.claimer || ""}退回了${msg.mediaData?.owner || ""}的红包]`;
-            else if (msg.mediaType === "accept_transfer") content = `[${msg.mediaData?.claimer || ""}领取了${msg.mediaData?.owner || ""}的转账]`;
-            else if (msg.mediaType === "decline_transfer") content = `[${msg.mediaData?.claimer || ""}退回了${msg.mediaData?.owner || ""}的转账]`;
-            else if (msg.mediaType === "accept_payment_request") content = `[${msg.mediaData?.claimer || ""}接受了${msg.mediaData?.owner || ""}的代付]`;
-            else if (msg.mediaType === "decline_payment_request") content = `[${msg.mediaData?.claimer || ""}拒绝了${msg.mediaData?.owner || ""}的代付]`;
-            else if (msg.mediaType === "poke") content = `[${msg.mediaData?.pokeSender || ""}拍了拍${msg.mediaData?.pokeTarget || ""}]`;
+            if (msg.mediaType === "poke") content = `[${msg.mediaData?.pokeSender || ""}拍了拍${msg.mediaData?.pokeTarget || ""}]`;
             else if (msg.mediaType === "group_admin_notice" && msg.mediaData?.adminAction) {
                 content = buildGroupAdminBracketText(
                     msg.mediaData.adminAction,
@@ -154,34 +146,9 @@ export function loadNativeTimeline(
                 if (msg.mediaType === "sticker") content = `[表情包:${msg.mediaData?.label || "贴纸"}]`;
                 else if (msg.mediaType === "audio") content = `[语音条:${msg.mediaData?.label || "语音消息"}]`;
                 else if (msg.mediaType === "image") content = formatPhotoDirectiveForPrompt(msg);
-                else if (msg.mediaType === "red_packet") {
-                    const cnt = msg.mediaData?.count;
-                    content = cnt && cnt > 1
-                        ? `[红包:${msg.mediaData?.amount ?? 0}:${cnt}:${msg.mediaData?.label || "恭喜发财"}]`
-                        : `[红包:${msg.mediaData?.amount ?? 0}:${msg.mediaData?.label || "恭喜发财"}]`;
-                }
-                else if (msg.mediaType === "transfer") {
-                    const sn = msg.mediaData?.senderName;
-                    const rn = msg.mediaData?.recipientName;
-                    content = sn && rn
-                        ? `[转账:${msg.mediaData?.amount ?? 0}:${msg.mediaData?.label || "转账"}:${sn}:${rn}]`
-                        : `[转账:${msg.mediaData?.amount ?? 0}:${msg.mediaData?.label || "转账"}]`;
-                }
                 else if (msg.mediaType === "contact_card") {
                     content = `[名片:${msg.mediaData?.contactCardName || msg.mediaData?.label || "联系人"}]`;
                 }
-                else if (msg.mediaType === "gift") {
-                    const giftName = msg.mediaData?.giftName || msg.mediaData?.label || "礼物";
-                    content = msg.mediaData?.recipientName
-                        ? `[礼物:${giftName}:${msg.mediaData.recipientName}]`
-                        : `[礼物:${giftName}]`;
-                }
-                else if (msg.mediaType === "payment_request") content = formatShoppingPaymentRequestHistory({
-                    amount: msg.mediaData?.amount,
-                    amountLabel: msg.mediaData?.paymentRequestAmountLabel,
-                    items: msg.mediaData?.paymentRequestItems,
-                    itemsText: msg.mediaData?.paymentRequestItemsText,
-                });
                 else if (msg.mediaType === "music_share") content = `[音乐分享:${msg.mediaData?.musicTitle || ""}]`;
                 else if (msg.mediaType === "location") content = `[位置:${msg.mediaData?.label || ""}]`;
             }
@@ -250,35 +217,15 @@ export function loadNativeTimeline(
             let content = stripStateAndInnerForPrompt(msg.content || "");
 
             // Action notifications: always override content to bracket format (stored content is natural language for UI)
-            if (msg.mediaType === "accept_red_packet") content = "[领取红包]";
-            else if (msg.mediaType === "decline_red_packet") content = "[拒收红包]";
-            else if (msg.mediaType === "accept_transfer") content = "[领取转账]";
-            else if (msg.mediaType === "decline_transfer") content = "[拒收转账]";
-            else if (msg.mediaType === "accept_payment_request") content = "[接受代付]";
-            else if (msg.mediaType === "decline_payment_request") content = "[拒绝代付]";
-            else if (msg.mediaType === "poke") content = `[我拍了拍${msg.mediaData?.pokeTarget || ""}]`;
+            if (msg.mediaType === "poke") content = `[我拍了拍${msg.mediaData?.pokeTarget || ""}]`;
             // Represent rich media as text when content is empty
             else if (!content && msg.mediaType) {
                 if (msg.mediaType === "sticker") content = `[表情包:${msg.mediaData?.label || "贴纸"}]`;
                 else if (msg.mediaType === "audio") content = `[语音条:${msg.mediaData?.label || "语音消息"}]`;
                 else if (msg.mediaType === "image") content = formatPhotoDirectiveForPrompt(msg);
-                else if (msg.mediaType === "red_packet") content = `[红包:${msg.mediaData?.amount ?? 0}:${msg.mediaData?.label || "恭喜发财"}]`;
-                else if (msg.mediaType === "transfer") content = `[转账:${msg.mediaData?.amount ?? 0}:${msg.mediaData?.label || "转账"}]`;
                 else if (msg.mediaType === "contact_card") {
                     content = `[名片:${msg.mediaData?.contactCardName || msg.mediaData?.label || "联系人"}]`;
                 }
-                else if (msg.mediaType === "gift") {
-                    const giftName = msg.mediaData?.giftName || msg.mediaData?.label || "礼物";
-                    content = msg.mediaData?.recipientName
-                        ? `[礼物:${giftName}:${msg.mediaData.recipientName}]`
-                        : `[礼物:${giftName}]`;
-                }
-                else if (msg.mediaType === "payment_request") content = formatShoppingPaymentRequestHistory({
-                    amount: msg.mediaData?.amount,
-                    amountLabel: msg.mediaData?.paymentRequestAmountLabel,
-                    items: msg.mediaData?.paymentRequestItems,
-                    itemsText: msg.mediaData?.paymentRequestItemsText,
-                });
                 else if (msg.mediaType === "voice_call" || msg.mediaType === "video_call") content = `[我发起了${msg.mediaType === "voice_call" ? "语音" : "视频"}通话]`;
                 else if (msg.mediaType === "location") content = `[位置:${msg.mediaData?.label || ""}]`;
                 else if (msg.mediaType === "music_share") content = `[音乐分享:${msg.mediaData?.musicTitle || ""}]`;
@@ -347,25 +294,6 @@ export function loadNativeTimeline(
         });
     }
 
-    // ── Black market theater projections ──
-    const theaterEntries = loadBlackMarketTheaterProjectionEntries(characterId, {
-        afterTimestamp: options?.afterTimestamp,
-    });
-    for (const theaterEntry of theaterEntries) {
-        entries.push({
-            id: theaterEntry.id,
-            sourceApp: "story",
-            sourceDetail: "black_market_theater",
-            timestamp: theaterEntry.timestamp,
-            content: formatStoredPromptEventContent(theaterEntry.content, {
-                label: "小剧场",
-                timestamp: theaterEntry.timestamp,
-                timeAware,
-                timestampOptions,
-            }),
-        });
-    }
-
     // ── Game hall projections ──
     const gameEntries = loadGameProjectionEntries(characterId, {
         afterTimestamp: options?.afterTimestamp,
@@ -408,7 +336,7 @@ export function loadNativeTimeline(
 }
 
 // Fixed order — lower = further from LLM output (appears higher in prompt)
-const FEATURE_ORDER: Record<string, number> = { game: 0.5, checkphone: 1.7, story: 2, theater: 2.2, custom_app: 2.6, group_chat: 3, chat: 4 };
+const FEATURE_ORDER: Record<string, number> = { game: 0.5, checkphone: 1.7, story: 2, custom_app: 2.6, group_chat: 3, chat: 4 };
 // Map appId → XML tag name for the "current feature" wrapper
 const FEATURE_TAG: Record<string, string> = {
     chat: "recent_chat",
@@ -609,17 +537,11 @@ export function prepareShortTermContext(
     if (appId !== "story") {
         const storyEntries = timeline.filter(e =>
             e.sourceApp === "story"
-            && e.sourceDetail !== "black_market_theater"
             && !isChatOfflineEntry(e)
         );
         if (storyEntries.length > 0) {
             raw.push({ tag: "recent_events", order: FEATURE_ORDER.story, entries: storyEntries });
         }
-    }
-
-    const theaterEntries = timeline.filter(e => e.sourceApp === "story" && e.sourceDetail === "black_market_theater");
-    if (theaterEntries.length > 0) {
-        raw.push({ tag: "recent_theater", order: FEATURE_ORDER.theater, entries: theaterEntries });
     }
 
     const gameEventEntries = timeline.filter(e => e.sourceApp === "game");
@@ -826,16 +748,10 @@ export function prepareGroupShortTermContext(
 
     const storyEntries = timeline.filter(e =>
         e.sourceApp === "story"
-        && e.sourceDetail !== "black_market_theater"
         && !isChatOfflineEntry(e)
     );
     if (storyEntries.length > 0) {
         raw.push({ tag: "recent_events", order: FEATURE_ORDER.story, entries: storyEntries });
-    }
-
-    const theaterEntries = timeline.filter(e => e.sourceApp === "story" && e.sourceDetail === "black_market_theater");
-    if (theaterEntries.length > 0) {
-        raw.push({ tag: "recent_theater", order: FEATURE_ORDER.theater, entries: theaterEntries });
     }
 
     const gameEntries = timeline.filter(e => e.sourceApp === "game");
@@ -942,8 +858,7 @@ export function prepareGroupShortTermContext(
                     entry.sourceApp === "game" ? "recent_game" :
                         entry.sourceApp === "checkphone" ? "recent_checkphone" :
                             entry.sourceApp === "custom_app" ? "recent_custom_app" :
-                                entry.sourceApp === "story" && entry.sourceDetail === "black_market_theater" ? "recent_theater" :
-                                    entry.sourceApp === "chat" ? "recent_chat" : "recent_events"
+                                entry.sourceApp === "chat" ? "recent_chat" : "recent_events"
                 ),
                 text: entry.content,
             });

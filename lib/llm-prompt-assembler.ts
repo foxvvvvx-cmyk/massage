@@ -12,7 +12,6 @@ import { stripStateAndInnerForPrompt } from "./prompt-sanitizer";
 import { formatPromptTimestamp, getPromptTimestampOptionsForTimeContext, resolvePromptTimeAware, type PromptTimestampOptions } from "./prompt-time";
 import { formatCharacterRelationsForPrompt } from "./character-world-storage";
 import { buildCharacterTimeContext, buildGroupTimeContext, type CharacterTimeContext } from "./character-time";
-import { formatShoppingPaymentRequestHistory } from "./shopping-payment-request";
 import { buildGroupAdminBracketText } from "./group-admin";
 
 export type LLMMessageRole = "system" | "user" | "assistant" | "tool";
@@ -1329,32 +1328,6 @@ export function assemblePromptPayload(input: AssemblerInput): LLMMessage[] {
 export function formatRichMediaForHistory(msg: ChatMessage, userName: string, charName: string, isGroup?: boolean): string {
     const d = msg.mediaData;
     switch (msg.mediaType) {
-        case "red_packet": {
-            const cnt = d?.count;
-            return isGroup && cnt && cnt > 1
-                ? `[红包:${d?.amount ?? 0}:${cnt}:${d?.label ?? "恭喜发财"}]`
-                : `[红包:${d?.amount ?? 0}:${d?.label ?? "恭喜发财"}]`;
-        }
-        case "transfer": {
-            const sn = d?.senderName;
-            const rn = d?.recipientName;
-            return isGroup && sn && rn
-                ? `[转账:${d?.amount ?? 0}:${d?.label ?? "转账"}:${sn}:${rn}]`
-                : `[转账:${d?.amount ?? 0}:${d?.label ?? "转账"}]`;
-        }
-        case "gift": {
-            const giftName = d?.giftName || d?.label || "礼物";
-            return isGroup && d?.recipientName
-                ? `[礼物:${giftName}:${d.recipientName}]`
-                : `[礼物:${giftName}]`;
-        }
-        case "payment_request":
-            return formatShoppingPaymentRequestHistory({
-                amount: d?.amount,
-                amountLabel: d?.paymentRequestAmountLabel,
-                items: d?.paymentRequestItems,
-                itemsText: d?.paymentRequestItemsText,
-            });
         case "contact_card":
             return `[名片:${d?.contactCardName || d?.label || "联系人"}]`;
         case "image":
@@ -1391,24 +1364,6 @@ export function formatRichMediaForHistory(msg: ChatMessage, userName: string, ch
             const mTitle = d?.musicTitle || "未知歌曲";
             return `[音乐分享:${mTitle}]`;
         }
-        case "accept_red_packet":
-            if (isGroup && d?.claimer && d?.owner) return `[${d.claimer}领取了${d.owner}的红包]`;
-            return "[领取红包]";
-        case "decline_red_packet":
-            if (isGroup && d?.claimer && d?.owner) return `[${d.claimer}退回了${d.owner}的红包]`;
-            return "[拒收红包]";
-        case "accept_transfer":
-            if (isGroup && d?.claimer && d?.owner) return `[${d.claimer}领取了${d.owner}的转账]`;
-            return "[领取转账]";
-        case "decline_transfer":
-            if (isGroup && d?.claimer && d?.owner) return `[${d.claimer}退回了${d.owner}的转账]`;
-            return "[拒收转账]";
-        case "accept_payment_request":
-            if (isGroup && d?.claimer && d?.owner) return `[${d.claimer}接受了${d.owner}的代付]`;
-            return "[接受代付]";
-        case "decline_payment_request":
-            if (isGroup && d?.claimer && d?.owner) return `[${d.claimer}拒绝了${d.owner}的代付]`;
-            return "[拒绝代付]";
         default:
             return msg.content;
     }

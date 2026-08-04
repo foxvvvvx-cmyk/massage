@@ -164,7 +164,7 @@ function HtmlPageSegment({ html, onOptionSelect, htmlPageMode }: HtmlPageProps) 
     const contained = htmlPageMode === "contained";
 
     const srcDoc = useMemo(() => {
-        // 高度桥接：照搬黑市剧场那套"按构造稳定"的做法——getBoundingClientRect 测真实
+        // 高度桥接："按构造稳定"的做法——getBoundingClientRect 测真实
         // 默认让 html/body overflow:hidden + min-height:0 贴住内容；contained 模式保留 iframe 内部滚动。
         // 内容、能缩回去；MutationObserver + 一堆事件捕捉任何变化(自定义按钮也行)；
         // body 高=内容高，父层改 iframe 高不反馈到内容 → 测出不变 → 天然不循环。

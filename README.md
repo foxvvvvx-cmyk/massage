@@ -80,12 +80,11 @@ NEXT_PUBLIC_SELF_HOSTED_MODE=true
 
 ## 启用自己的 Supabase（可选云端功能）
 
-账号、激活码、成年审核、游戏大厅、黑市等云端功能需要你自己的 Supabase 项目。在 Supabase SQL Editor 按需执行 `docs/` 下的建表脚本：
+账号、激活码、成年审核、游戏大厅等云端功能需要你自己的 Supabase 项目。在 Supabase SQL Editor 按需执行 `docs/` 下的建表脚本：
 
 - `docs/account-supabase.sql`：账号、会话、激活码
 - `docs/verify-supabase.sql`：成年审核与审核图片桶（部署说明见 `docs/verify-setup.md`）
 - `docs/game-hall-supabase.sql`：游戏大厅
-- `docs/black-market-supabase.sql`：黑市
 
 然后关闭单机模式并填入服务端密钥：
 

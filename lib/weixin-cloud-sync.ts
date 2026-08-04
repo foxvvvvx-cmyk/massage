@@ -1157,12 +1157,6 @@ function importCloudAssistantMessage(
   const visibleParts = parsed.parts.filter(part =>
     part.mediaType !== "voice_call"
     && part.mediaType !== "video_call"
-    && part.mediaType !== "accept_red_packet"
-    && part.mediaType !== "decline_red_packet"
-    && part.mediaType !== "accept_transfer"
-    && part.mediaType !== "decline_transfer"
-    && part.mediaType !== "accept_payment_request"
-    && part.mediaType !== "decline_payment_request"
   );
 
   const messages: ChatMessage[] = [];

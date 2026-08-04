@@ -5,8 +5,8 @@ import { ChatSession, ChatMessage, CHAT_APP_SETTINGS_UPDATED_EVENT, CHAT_INITIAL
 import type { StateValue } from "@/lib/chat-storage";
 import { parseStateValues, mergeStateValues } from "@/lib/state-value-parser";
 import { parseAIResponse, type ParsedMessagePart } from "@/lib/rich-message-parser";
-import { MessageBubble, MediaDetailModal, prewarmStickerCache, BilingualTextBlock, isStandaloneHtmlPreviewContent, normalizeTextBubbleContent } from "./message-bubble";
-import { PhotoInputModal, TextPhotoModal, VoiceRecordModal, RedPacketModal, LocationInputModal, SystemInstructionModal } from "./rich-input-modals";
+import { MessageBubble, prewarmStickerCache, BilingualTextBlock, isStandaloneHtmlPreviewContent, normalizeTextBubbleContent } from "./message-bubble";
+import { PhotoInputModal, TextPhotoModal, VoiceRecordModal, LocationInputModal, SystemInstructionModal } from "./rich-input-modals";
 import { EmojiPanel, StickerPanel } from "./emoji-panel";
 import { StateValuesPanel } from "./state-values-panel";
 import { generateChatCompletion, generateOfflineChatCompletion, flattenCompletionResult, ChatEngineError } from "@/lib/chat-engine";
@@ -26,8 +26,6 @@ import { ChatSettingsPanel } from "./chat-settings-panel";
 import { VoiceCallScreen } from "./voice-call-screen";
 import { VideoCallScreen } from "./video-call-screen";
 import { GroupCallScreen } from "./group-call-screen";
-import { TransferTargetModal } from "./transfer-target-modal";
-import { GiftPickerModal } from "./gift-picker-modal";
 import { ConfirmDialog } from "@/components/ui/modal";
 import { deleteWeixinCloudMessagesFromCloud } from "@/lib/weixin-cloud-sync";
 import { loadBindingConfig, loadRegexes, resolveBinding, resolveUserIdentity } from "@/lib/settings-storage";
@@ -37,7 +35,7 @@ import { applyDisplayRegex, applyEditRegex } from "@/lib/llm-prompt-assembler";
 import { scheduleFollowUp, cancelFollowUp } from "@/lib/follow-up-service";
 import { PENDING_REPLY_PREFIX } from "@/lib/friend-request-engine";
 import type { UserIdentity } from "@/components/settings/user-identity";
-import { AlertCircle, Blocks, Check, Trash2, User, ChevronLeft, Clapperboard, Gift, Loader2, MoreHorizontal, X } from "lucide-react";
+import { AlertCircle, Blocks, Check, Trash2, User, ChevronLeft, Clapperboard, Loader2, MoreHorizontal, X } from "lucide-react";
 import { setDebugChatState } from "@/lib/debug-store";
 import { scopeSessionCSS } from "@/lib/css-scoper";
 import { setChatActive } from "@/lib/music-action-queue";
@@ -48,9 +46,6 @@ import type { MemoryWriteRequest, ToolResult } from "@/lib/tool-executor";
 import { formatChatUiTime } from "@/lib/chat-time";
 import { parseActionTags } from "@/lib/action-parser";
 import { kvGet, kvSet, kvRemove } from "@/lib/kv-db";
-import { creditWalletBalance, payWithWalletBalance } from "@/lib/wallet-storage";
-import { loadDeliveredShoppingGifts, type ShoppingGiftCandidate } from "@/lib/shopping-gift-utils";
-import { settleShoppingPaymentRequest } from "@/lib/shopping-payment-request";
 import type { RegexConfig } from "@/lib/settings-types";
 import { MacroEngine } from "@/lib/macro-engine";
 import {
@@ -71,7 +66,7 @@ function isCallSysMsg(msg: ChatMessage): boolean {
     return CALL_SYS_RE.test(msg.content);
 }
 /** Returns the effective UI role: call messages render as "system" regardless of stored role */
-const ACTION_MEDIA_TYPES = new Set(["poke", "accept_red_packet", "decline_red_packet", "accept_transfer", "decline_transfer", "accept_payment_request", "decline_payment_request", "group_admin_notice"]);
+const ACTION_MEDIA_TYPES = new Set(["poke", "group_admin_notice"]);
 function uiRole(msg: ChatMessage): string {
     if (msg.role === "system" || ACTION_MEDIA_TYPES.has(msg.mediaType || "")) return "system";
     if (isCallSysMsg(msg)) return "system";
@@ -141,10 +136,6 @@ const OfflineAssistantTextBlock = memo(function OfflineAssistantTextBlock({
 
 const CHAT_VISUAL_MEDIA_TYPES = new Set([
     "sticker",
-    "red_packet",
-    "transfer",
-    "payment_request",
-    "gift",
     "contact_card",
     "image",
     "location",
@@ -186,10 +177,6 @@ function getWeixinCloudDeleteTargetCount(messages: ChatMessage[]): number {
 
 const CHAT_MEDIA_BUBBLE_TYPES = new Set([
     "sticker",
-    "red_packet",
-    "transfer",
-    "payment_request",
-    "gift",
     "contact_card",
     "image",
     "location",
@@ -254,7 +241,6 @@ type AssistantMessageDraft = Omit<ChatMessage, "id" | "createdAt" | "status"> & 
 type ManagedGenerationOptions = {
     history: ChatMessage[];
     errorPrefix?: string;
-    onDecline?: () => void | Promise<void>;
 };
 
 const activeGenerationRuns = new Map<string, ActiveGenerationRun>();
@@ -427,7 +413,7 @@ type PendingMessageJump = {
 };
 
 const TRANSIENT_MESSAGE_PREFIX = "ui-transient-";
-type RichModalKind = "photo" | "text_photo" | "red_packet" | "transfer" | "location" | "transfer_target" | "voice_msg" | "gift" | "system_instruction";
+type RichModalKind = "photo" | "text_photo" | "location" | "voice_msg" | "system_instruction";
 type ChatTextInputHandle = {
     appendText: (text: string, options?: { focus?: boolean }) => void;
     clear: () => void;
@@ -628,9 +614,6 @@ const ChatTextInputBar = memo(forwardRef<ChatTextInputHandle, {
         { icon: <Clapperboard size={22} strokeWidth={1.5} color={theaterMode ? "var(--c-icon-active)" : "var(--c-text)"} />, label: "番外指令模式", active: theaterMode, onClick: onToggleTheaterMode },
         { icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--c-text)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M23 7l-7 5 7 5V7z" /><rect x="1" y="5" width="15" height="14" rx="2" ry="2" /></svg>, label: "视频通话", onClick: onStartVideoCall },
         { icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--c-text)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" /><path d="M19 10v2a7 7 0 0 1-14 0v-2" /><line x1="12" y1="19" x2="12" y2="22" /></svg>, label: "语音通话", onClick: onStartVoiceCall },
-        { icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--c-text)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2" /><line x1="2" y1="10" x2="22" y2="10" /></svg>, label: "红包", onClick: () => onOpenRichModal("red_packet") },
-        { icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--c-text)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><text x="12" y="16" textAnchor="middle" fontSize="12" fill="var(--c-text)" stroke="none">¥</text></svg>, label: "转账", onClick: () => onOpenRichModal(isGroup ? "transfer_target" : "transfer") },
-        { icon: <Gift size={22} strokeWidth={1.5} color="var(--c-text)" />, label: "礼物", onClick: () => onOpenRichModal("gift") },
         { icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--c-text)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>, label: "位置", onClick: () => onOpenRichModal("location") },
         { icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--c-text)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" /><path d="M19 10v2a7 7 0 0 1-14 0v-2" /><line x1="12" y1="19" x2="12" y2="22" /><line x1="8" y1="22" x2="16" y2="22" /></svg>, label: "语音条", onClick: () => onOpenRichModal("voice_msg") },
     ];
@@ -966,9 +949,6 @@ export function ChatRoom({ session, onBack }: ChatRoomProps) {
 
     // Rich media input modals
     const [richModal, setRichModal] = useState<RichModalKind | null>(null);
-    const [transferTarget, setTransferTarget] = useState<Character | null>(null);
-    // Media detail modal (red packet / transfer detail view)
-    const [mediaDetailMsg, setMediaDetailMsg] = useState<ChatMessage | null>(null);
     // Quote reply
     const [quotingMessage, setQuotingMessage] = useState<ChatMessage | null>(null);
     // Emoji panel
@@ -1344,13 +1324,7 @@ export function ChatRoom({ session, onBack }: ChatRoomProps) {
         return parts.flatMap(part => {
             if (
                 part.mediaType === "voice_call" ||
-                part.mediaType === "video_call" ||
-                part.mediaType === "accept_red_packet" ||
-                part.mediaType === "decline_red_packet" ||
-                part.mediaType === "accept_transfer" ||
-                part.mediaType === "decline_transfer" ||
-                part.mediaType === "accept_payment_request" ||
-                part.mediaType === "decline_payment_request"
+                part.mediaType === "video_call"
             ) {
                 return [];
             }
@@ -1389,11 +1363,6 @@ export function ChatRoom({ session, onBack }: ChatRoomProps) {
             window.removeEventListener("settings-bindings-updated", refreshRegexes);
         };
     }, []);
-
-    const availableShoppingGifts = useMemo(
-        () => loadDeliveredShoppingGifts(),
-        [messages],
-    );
 
     useEffect(() => {
         setUserIdentity(resolveUserIdentity(session.contactId, "chat"));
@@ -1465,14 +1434,14 @@ export function ChatRoom({ session, onBack }: ChatRoomProps) {
                 saveChatSessions(sessions);
             }
 
-            void runManagedGeneration({ history: msgs, onDecline: triggerReply });
+            void runManagedGeneration({ history: msgs });
         }
 
         // Friend request accepted: trigger AI reply (localStorage flag set by handleAcceptFriendRequest)
         const pendingKey = PENDING_REPLY_PREFIX + session.id;
         if (kvGet(pendingKey)) {
             kvRemove(pendingKey);
-            void runManagedGeneration({ history: msgs, onDecline: triggerReply });
+            void runManagedGeneration({ history: msgs });
         }
     }, [session.id]);
 
@@ -1733,259 +1702,6 @@ export function ChatRoom({ session, onBack }: ChatRoomProps) {
         return () => window.removeEventListener("ai-call-trigger", handler);
     }, [session.id]);
 
-    // Helper: handle AI accepting/declining user's red packet or transfer
-    const buildAssistantActionEditMeta = (rawResponseText: string) => ({
-        responseBatchId: createResponseBatchId(),
-        rawResponseText,
-    });
-
-    const handleAIMediaAction = (actionType: string, charN: string, userN: string) => {
-        // Find the target message in current messages (most recent matching user message with pending status)
-        const targetMediaType = actionType.includes("payment_request")
-            ? "payment_request"
-            : actionType.includes("red_packet") ? "red_packet" : "transfer";
-        const targetMsg = [...messages].reverse().find(
-            m => m.role === "user" && m.mediaType === targetMediaType && m.mediaData?.status === "pending"
-        );
-        if (!targetMsg) return;
-
-        let newStatus: "opened" | "received" | "declined" | "paid";
-        let sysText: string;
-        let rawResponseText: string;
-        if (actionType === "accept_red_packet") {
-            newStatus = "opened";
-            const amt = targetMsg.mediaData?.amount;
-            const amtStr = amt != null ? `，金额:${amt}元` : "";
-            sysText = `${charN}领取了${userN}的红包${amtStr}`;
-            rawResponseText = `[${charN}领取了${userN}的红包]`;
-        } else if (actionType === "decline_red_packet") {
-            newStatus = "declined";
-            sysText = `${charN}退回了${userN}的红包`;
-            rawResponseText = `[${charN}退回了${userN}的红包]`;
-        } else if (actionType === "accept_transfer") {
-            newStatus = "received";
-            sysText = `${charN}领取了${userN}的转账`;
-            rawResponseText = `[${charN}领取了${userN}的转账]`;
-        } else if (actionType === "accept_payment_request") {
-            newStatus = "paid";
-            sysText = `${charN}接受了${userN}的代付请求`;
-            rawResponseText = `[${charN}接受了${userN}的代付]`;
-            settleShoppingPaymentRequest({
-                orderId: targetMsg.mediaData?.shoppingOrderId,
-                requestId: targetMsg.mediaData?.paymentRequestId,
-                accepted: true,
-                payerCharacterId: session.contactId,
-                payerCharacterName: charN,
-            });
-        } else if (actionType === "decline_payment_request") {
-            newStatus = "declined";
-            sysText = `${charN}拒绝了${userN}的代付请求`;
-            rawResponseText = `[${charN}拒绝了${userN}的代付]`;
-            settleShoppingPaymentRequest({
-                orderId: targetMsg.mediaData?.shoppingOrderId,
-                requestId: targetMsg.mediaData?.paymentRequestId,
-                accepted: false,
-                payerCharacterId: session.contactId,
-                payerCharacterName: charN,
-            });
-        } else {
-            newStatus = "declined";
-            sysText = `${charN}拒收了${userN}的转账`;
-            rawResponseText = `[${charN}拒收了${userN}的转账]`;
-        }
-
-        const refundReason = actionType === "decline_red_packet" ? "红包退回" : actionType === "decline_transfer" ? "转账退回" : null;
-        const updatedMediaData = {
-            ...(refundReason ? refundOutgoingMoneyMessage(targetMsg, refundReason) : targetMsg.mediaData),
-            status: newStatus,
-            ...(targetMediaType === "payment_request" ? {
-                paymentResolvedAt: new Date().toISOString(),
-                paymentPayerId: session.contactId,
-                paymentPayerName: charN,
-            } : {}),
-        };
-        updateMessageMediaData(targetMsg.id, updatedMediaData);
-        setMessages(prev => prev.map(m =>
-            m.id === targetMsg.id ? { ...m, mediaData: updatedMediaData } : m
-        ));
-        // Insert action notification (correct role + mediaType for prompt formatting)
-        const sysMsg = pushChatMessage({
-            sessionId: session.id,
-            role: "assistant",
-            content: sysText,
-            mediaType: actionType as ChatMessage["mediaType"],
-            ...buildAssistantActionEditMeta(rawResponseText),
-        });
-        setMessages(prev => [...prev, sysMsg]);
-    };
-
-    // ── 群聊红包/转账动作处理 ──
-    // 获取消息发送人显示名（user→用户名，assistant→角色名）
-    const getMsgSender = (m: ChatMessage) =>
-        m.role === "user" ? (userIdentity?.name || "你") : (m.senderName || "未知");
-
-    // 红包：按 ownerName 匹配发送人，领取/退回
-    // 拼手气红包：随机分配金额（二倍均值法）
-    const calcRedPacketShare = (totalAmount: number, claimedAmounts: Record<string, number>, totalRecipients: number): number => {
-        const claimedTotal = Object.values(claimedAmounts).reduce((s, v) => s + v, 0);
-        const remaining = totalAmount - claimedTotal;
-        const claimedCount = Object.keys(claimedAmounts).length;
-        const leftCount = totalRecipients - claimedCount;
-        if (leftCount <= 1) return Math.round(remaining * 100) / 100; // 最后一个人拿剩余
-        const avg = remaining / leftCount;
-        const max = avg * 2;
-        const share = Math.max(0.01, Math.random() * max);
-        return Math.round(Math.min(share, remaining - 0.01 * (leftCount - 1)) * 100) / 100;
-    };
-
-    const handleGroupRedPacketAction = (action: "accept" | "decline", claimerName: string, ownerName?: string) => {
-        // 从 localStorage 读最新数据，避免 processGroupParts 循环中多人领取时闭包过期
-        const freshMessages = loadChatMessages(session.id);
-        const targetMsg = [...freshMessages].reverse().find(m => {
-            if (m.mediaType !== "red_packet") return false;
-            if (m.mediaData?.status !== "pending" && m.mediaData?.status !== "opened") return false;
-            // 已被领完的跳过
-            if (m.mediaData?.status === "opened") {
-                const cnt = m.mediaData?.count || 1;
-                if ((m.mediaData?.claimedBy?.length || 0) >= cnt) return false;
-            }
-            if (!ownerName) return true;
-            return getMsgSender(m) === ownerName;
-        });
-        if (!targetMsg) return;
-        // 已领过的不能重复领
-        if (targetMsg.mediaData?.claimedBy?.includes(claimerName)) return;
-        const owner = ownerName || getMsgSender(targetMsg);
-        const ownerDisplay = owner === (userIdentity?.name) ? "你" : owner;
-        // 发红包的人自己不能领
-        if (claimerName === owner) return;
-        const totalRecipients = targetMsg.mediaData?.count || 1;
-        // 已领满则拒绝
-        if ((targetMsg.mediaData?.claimedBy?.length || 0) >= totalRecipients) return;
-        if (action === "accept") {
-            const prevAmounts = targetMsg.mediaData?.claimedAmounts || {};
-            const share = calcRedPacketShare(targetMsg.mediaData?.amount || 0, prevAmounts, totalRecipients);
-            const claimedBy = [...(targetMsg.mediaData?.claimedBy || []), claimerName];
-            const claimedAmounts = { ...prevAmounts, [claimerName]: share };
-            // 所有人都领完才标记 opened，否则保持 pending 让其他人继续领
-            const allClaimed = claimedBy.length >= totalRecipients;
-            const newStatus = allClaimed ? "opened" as const : "pending" as const;
-            const updatedData = { ...targetMsg.mediaData, status: newStatus, claimedBy, claimedAmounts };
-            updateMessageMediaData(targetMsg.id, updatedData);
-            setMessages(prev => prev.map(m => m.id === targetMsg.id ? { ...m, mediaData: updatedData } : m));
-            const sysMsg = pushChatMessage({
-                sessionId: session.id,
-                role: "assistant",
-                content: `${claimerName}领取了${ownerDisplay}的红包，金额:${share}元`,
-                mediaType: "accept_red_packet",
-                mediaData: { claimer: claimerName, owner: ownerDisplay },
-                senderName: claimerName,
-                ...buildAssistantActionEditMeta(`[${claimerName}领取了${ownerDisplay}的红包]`),
-            });
-            setMessages(prev => [...prev, sysMsg]);
-        } else {
-            const sysMsg = pushChatMessage({
-                sessionId: session.id,
-                role: "assistant",
-                content: `${claimerName}退回了${ownerDisplay}的红包`,
-                mediaType: "decline_red_packet",
-                mediaData: { claimer: claimerName, owner: ownerDisplay },
-                senderName: claimerName,
-                ...buildAssistantActionEditMeta(`[${claimerName}退回了${ownerDisplay}的红包]`),
-            });
-            setMessages(prev => [...prev, sysMsg]);
-        }
-    };
-
-    // 转账：按 ownerName 匹配发送人，且验证 claimerName === recipientName
-    const handleGroupTransferAction = (action: "accept" | "decline", claimerName: string, ownerName?: string) => {
-        const freshMessages = loadChatMessages(session.id);
-        const targetMsg = [...freshMessages].reverse().find(m => {
-            if (m.mediaType !== "transfer" || m.mediaData?.status !== "pending") return false;
-            if (!ownerName) return true;
-            const sender = m.mediaData?.senderName || getMsgSender(m);
-            return sender === ownerName;
-        });
-        if (!targetMsg) return;
-        // 验证：只有收款人才能接受/拒收
-        const recipient = targetMsg.mediaData?.recipientName;
-        if (recipient && recipient !== claimerName) return; // 非收款人，操作无效
-        const owner = ownerName || targetMsg.mediaData?.senderName || getMsgSender(targetMsg);
-        const ownerDisplay = owner === (userIdentity?.name) ? "你" : owner;
-        const newStatus = action === "accept" ? "received" as const : "declined" as const;
-        const refundData = action === "decline" && targetMsg.role === "user"
-            ? refundOutgoingMoneyMessage(targetMsg, "转账退回")
-            : targetMsg.mediaData;
-        const updatedData = { ...refundData, status: newStatus };
-        updateMessageMediaData(targetMsg.id, updatedData);
-        setMessages(prev => prev.map(m => m.id === targetMsg.id ? { ...m, mediaData: updatedData } : m));
-        const isAccept = action === "accept";
-        const sysText = isAccept
-            ? `${claimerName}领取了${ownerDisplay}的转账`
-            : `${claimerName}退回了${ownerDisplay}的转账`;
-        const sysMsg = pushChatMessage({
-            sessionId: session.id,
-            role: "assistant",
-            content: sysText,
-            mediaType: isAccept ? "accept_transfer" : "decline_transfer",
-            mediaData: { claimer: claimerName, owner: ownerDisplay },
-            senderName: claimerName,
-            ...buildAssistantActionEditMeta(
-                isAccept
-                    ? `[${claimerName}领取了${ownerDisplay}的转账]`
-                    : `[${claimerName}退回了${ownerDisplay}的转账]`
-            ),
-        });
-        setMessages(prev => [...prev, sysMsg]);
-    };
-
-    const handleGroupPaymentRequestAction = (action: "accept" | "decline", claimerName: string, ownerName?: string) => {
-        const freshMessages = loadChatMessages(session.id);
-        const targetMsg = [...freshMessages].reverse().find(m => {
-            if (m.mediaType !== "payment_request" || m.mediaData?.status !== "pending") return false;
-            if (!ownerName) return true;
-            const sender = m.mediaData?.paymentRequesterName || m.mediaData?.senderName || getMsgSender(m);
-            return sender === ownerName;
-        });
-        if (!targetMsg) return;
-        const owner = ownerName || targetMsg.mediaData?.paymentRequesterName || targetMsg.mediaData?.senderName || getMsgSender(targetMsg);
-        const ownerDisplay = owner === (userIdentity?.name) ? "你" : owner;
-        const isAccept = action === "accept";
-        const updatedData = {
-            ...targetMsg.mediaData,
-            status: isAccept ? "paid" as const : "declined" as const,
-            paymentResolvedAt: new Date().toISOString(),
-            paymentPayerName: claimerName,
-        };
-        if (targetMsg.role === "user") {
-            settleShoppingPaymentRequest({
-                orderId: targetMsg.mediaData?.shoppingOrderId,
-                requestId: targetMsg.mediaData?.paymentRequestId,
-                accepted: isAccept,
-                payerCharacterName: claimerName,
-            });
-        }
-        updateMessageMediaData(targetMsg.id, updatedData);
-        setMessages(prev => prev.map(m => m.id === targetMsg.id ? { ...m, mediaData: updatedData } : m));
-        const sysText = isAccept
-            ? `${claimerName}接受了${ownerDisplay}的代付请求`
-            : `${claimerName}拒绝了${ownerDisplay}的代付请求`;
-        const sysMsg = pushChatMessage({
-            sessionId: session.id,
-            role: "assistant",
-            content: sysText,
-            mediaType: isAccept ? "accept_payment_request" : "decline_payment_request",
-            mediaData: { claimer: claimerName, owner: ownerDisplay },
-            senderName: claimerName,
-            ...buildAssistantActionEditMeta(
-                isAccept
-                    ? `[${claimerName}接受了${ownerDisplay}的代付]`
-                    : `[${claimerName}拒绝了${ownerDisplay}的代付]`
-            ),
-        });
-        setMessages(prev => [...prev, sysMsg]);
-    };
-
     // Group admin action from AI output: validate permission + apply.
     // Returns display fields, or null when the tag must be silently dropped.
     const applyAIGroupAdminAction = (actorCharacterId: string, data: ChatMessage["mediaData"]) => {
@@ -2058,48 +1774,6 @@ export function ChatRoom({ session, onBack }: ChatRoomProps) {
                         if (callType === "voice") setShowVoiceCall(true);
                         else setShowVideoCall(true);
                     }
-                    continue;
-                }
-                if (part.mediaType === "accept_red_packet") {
-                    throwIfGenerationStopped(guard);
-                    const claimer = part.mediaData?.claimer || r.characterName;
-                    const owner = part.mediaData?.owner;
-                    handleGroupRedPacketAction("accept", claimer, owner);
-                    continue;
-                }
-                if (part.mediaType === "decline_red_packet") {
-                    throwIfGenerationStopped(guard);
-                    const claimer = part.mediaData?.claimer || r.characterName;
-                    const owner = part.mediaData?.owner;
-                    handleGroupRedPacketAction("decline", claimer, owner);
-                    continue;
-                }
-                if (part.mediaType === "accept_transfer") {
-                    throwIfGenerationStopped(guard);
-                    const claimer = part.mediaData?.claimer || r.characterName;
-                    const owner = part.mediaData?.owner;
-                    handleGroupTransferAction("accept", claimer, owner);
-                    continue;
-                }
-                if (part.mediaType === "decline_transfer") {
-                    throwIfGenerationStopped(guard);
-                    const claimer = part.mediaData?.claimer || r.characterName;
-                    const owner = part.mediaData?.owner;
-                    handleGroupTransferAction("decline", claimer, owner);
-                    continue;
-                }
-                if (part.mediaType === "accept_payment_request") {
-                    throwIfGenerationStopped(guard);
-                    const claimer = part.mediaData?.claimer || r.characterName;
-                    const owner = part.mediaData?.owner;
-                    handleGroupPaymentRequestAction("accept", claimer, owner);
-                    continue;
-                }
-                if (part.mediaType === "decline_payment_request") {
-                    throwIfGenerationStopped(guard);
-                    const claimer = part.mediaData?.claimer || r.characterName;
-                    const owner = part.mediaData?.owner;
-                    handleGroupPaymentRequestAction("decline", claimer, owner);
                     continue;
                 }
                 if (part.mediaType === "group_admin_notice") {
@@ -2414,11 +2088,11 @@ export function ChatRoom({ session, onBack }: ChatRoomProps) {
 
     // Helper: Split AI response by \n\n into multiple messages (online chat mode)
     // Uses shared parseAIResponse for rich-media support.
-    // Returns { hasVisible, stateValues, hasDecline } — hasVisible is false if the AI chose [静默].
+    // Returns { hasVisible, stateValues } — hasVisible is false if the AI chose [静默].
     const splitAndSaveAIMessages = async (
         aiResponseText: string,
         options?: { promptHidden?: boolean } & GenerationRunGuard,
-    ): Promise<{ hasVisible: boolean; stateValues: StateValue[]; triggerCall?: "voice" | "video"; hasDecline?: boolean }> => {
+    ): Promise<{ hasVisible: boolean; stateValues: StateValue[]; triggerCall?: "voice" | "video" }> => {
         throwIfGenerationStopped(options);
         const responseBatchId = createResponseBatchId();
         const previousState = session.isGroup
@@ -2428,9 +2102,8 @@ export function ChatRoom({ session, onBack }: ChatRoomProps) {
         const { parts, stateValues, statusPanel, innerMonologue } = parseAIResponse(aiResponseText, previousState);
         throwIfGenerationStopped(options);
 
-        // Detect call triggers and AI media actions, filter them out
+        // Detect call triggers, filter them out
         let triggerCall: "voice" | "video" | undefined;
-        let hasDecline = false;
         const charN = character?.name || "对方";
         const userN = userIdentity?.name || "你";
         const filteredParts: typeof parts = [];
@@ -2443,16 +2116,6 @@ export function ChatRoom({ session, onBack }: ChatRoomProps) {
             throwIfGenerationStopped(options);
             if (p.mediaType === "voice_call") { triggerCall = "voice"; continue; }
             if (p.mediaType === "video_call") { triggerCall = "video"; continue; }
-            if (p.mediaType === "accept_red_packet" || p.mediaType === "decline_red_packet"
-                || p.mediaType === "accept_transfer" || p.mediaType === "decline_transfer"
-                || p.mediaType === "accept_payment_request" || p.mediaType === "decline_payment_request") {
-                if (p.mediaType === "decline_red_packet" || p.mediaType === "decline_transfer" || p.mediaType === "decline_payment_request") {
-                    hasDecline = true;
-                }
-                throwIfGenerationStopped(options);
-                handleAIMediaAction(p.mediaType, charN, userN);
-                continue;
-            }
             // Music: convert to plain text [音乐:xxx] (stays in history for AI), auto-play
             if (p.mediaType === "music") {
                 const mTitle = p.mediaData?.musicTitle || p.mediaData?.label;
@@ -2494,7 +2157,7 @@ export function ChatRoom({ session, onBack }: ChatRoomProps) {
                 });
                 setMessages(prev => [...prev, aiMsg]);
             }
-            return { hasVisible: false, stateValues, triggerCall, hasDecline };
+            return { hasVisible: false, stateValues, triggerCall };
         }
 
         // Build rich-media drafts first, then publish them in the same order as the UI display.
@@ -2528,9 +2191,6 @@ export function ChatRoom({ session, onBack }: ChatRoomProps) {
         }
 
         const mediaLabels: Record<string, string> = {
-            red_packet: "发了一个红包",
-            transfer: "发了一笔转账",
-            payment_request: "发起了代付请求",
             sticker: "发了一个表情",
             image: "发了一张照片",
             location: "分享了位置",
@@ -2551,7 +2211,6 @@ export function ChatRoom({ session, onBack }: ChatRoomProps) {
             if (m.mediaType === "audio") return `发了一条语音: ${m.mediaData?.label || ""}`.trim();
             if (m.mediaType === "music_share") return `分享了音乐: ${m.mediaData?.musicTitle || ""}`.trim();
             if (m.mediaType === "quote") return `引用回复: ${m.mediaData?.quotePreview || ""}`.trim();
-            if (m.mediaType === "payment_request") return `发起了代付请求: ${m.mediaData?.paymentRequestAmountLabel || m.mediaData?.amount || ""}`.trim();
             return mediaLabels[m.mediaType] || "";
         };
         const dispatchVisibleNotice = (m: ChatMessage): void => {
@@ -2595,7 +2254,7 @@ export function ChatRoom({ session, onBack }: ChatRoomProps) {
             await Promise.allSettled(imageReplacementTasks);
             throwIfGenerationStopped(options);
         }
-        return { hasVisible: true, stateValues, triggerCall, hasDecline };
+        return { hasVisible: true, stateValues, triggerCall };
     };
 
     // Helper: handle AI-triggered call from splitAndSaveAIMessages result
@@ -2785,7 +2444,6 @@ export function ChatRoom({ session, onBack }: ChatRoomProps) {
     const runManagedGeneration = async ({
         history,
         errorPrefix = "发送失败",
-        onDecline,
     }: ManagedGenerationOptions) => {
         if (isGeneratingRef.current) return;
 
@@ -2793,7 +2451,6 @@ export function ChatRoom({ session, onBack }: ChatRoomProps) {
         const generationRunId = generationRun.runId;
         const isCurrentGeneration = () => isGenerationRunActive(session.id, generationRunId);
         const generationGuard: GenerationRunGuard = { signal: generationRun.controller.signal, isActive: isCurrentGeneration };
-        let shouldRunDeclineReply = false;
 
         isGeneratingRef.current = true;
         setIsGenerating(true);
@@ -2826,7 +2483,6 @@ export function ChatRoom({ session, onBack }: ChatRoomProps) {
                 if (!isCurrentGeneration()) return;
                 scheduleFollowUp(session.id, 0, result.stateValues);
                 handleCallTrigger(result.triggerCall);
-                shouldRunDeclineReply = Boolean(result.hasDecline);
             }
         } catch (error: any) {
             if (!isCurrentGeneration() || isAbortLikeError(error)) return;
@@ -2845,11 +2501,9 @@ export function ChatRoom({ session, onBack }: ChatRoomProps) {
                 window.dispatchEvent(new CustomEvent(CHAT_BG_COMPLETE, { detail: { sessionId: session.id } }));
             }
         }
-
-        if (shouldRunDeclineReply && onDecline) await onDecline();
     };
 
-    // Helper: trigger one AI reply based on current chat history (for events like call connect/hangup, decline)
+    // Helper: trigger one AI reply based on current chat history (for events like call connect/hangup)
     const triggerReply = async () => {
         const latestMessages = loadChatMessages(session.id);
         applyStoredMessageWindow(latestMessages);
@@ -2857,78 +2511,6 @@ export function ChatRoom({ session, onBack }: ChatRoomProps) {
     };
 
     // ── Rich media send helpers ──
-    const getMoneyMediaAmount = (mediaData: ChatMessage["mediaData"]): number => {
-        const amount = Number(mediaData?.amount ?? 0);
-        return Number.isFinite(amount) ? Math.max(0, Math.round(amount * 100) / 100) : 0;
-    };
-
-    const debitOutgoingMoneyMessage = (
-        mediaType: ChatMessage["mediaType"],
-        mediaData: ChatMessage["mediaData"],
-    ): { ok: boolean; mediaData?: ChatMessage["mediaData"] } => {
-        if (mediaType !== "red_packet" && mediaType !== "transfer") return { ok: true, mediaData };
-        const amount = getMoneyMediaAmount(mediaData);
-        if (amount <= 0) {
-            showChatToast("金额无效");
-            return { ok: false };
-        }
-        const isRedPacket = mediaType === "red_packet";
-        const result = payWithWalletBalance({
-            amount,
-            title: isRedPacket ? "发红包" : "发转账",
-            detail: `${session.isGroup ? session.groupName || "群聊" : character?.name || "聊天"}：${isRedPacket ? "发红包" : "发转账"} ${amount.toFixed(2)} 元`,
-            category: isRedPacket ? "红包" : "转账",
-        });
-        if (!result.ok || !result.transaction) {
-            showChatToast(result.error ?? "余额不足");
-            return { ok: false };
-        }
-        return {
-            ok: true,
-            mediaData: {
-                ...mediaData,
-                walletTransactionId: result.transaction.id,
-            },
-        };
-    };
-
-    const refundOutgoingMoneyMessage = (msg: ChatMessage, reason: "红包退回" | "转账退回"): ChatMessage["mediaData"] => {
-        const data = msg.mediaData;
-        if (!data?.walletTransactionId || data.walletRefundTransactionId) return data;
-        const amount = getMoneyMediaAmount(data);
-        if (amount <= 0) return data;
-        const result = creditWalletBalance(amount, reason, `${reason}：${data.label || msg.content || "聊天款项"}`, "聊天退款");
-        if (!result.ok || !result.transaction) return data;
-        return {
-            ...data,
-            walletRefundTransactionId: result.transaction.id,
-        };
-    };
-
-    const creditIncomingMoneyMessage = (msg: ChatMessage, actionType: string): ChatMessage => {
-        if (actionType !== "accept_red_packet" && actionType !== "accept_transfer") return msg;
-        const data = msg.mediaData;
-        if (data?.walletDepositTransactionId) return msg;
-        const userName = userIdentity?.name || "你";
-        const amount = actionType === "accept_red_packet"
-            ? Number(data?.claimedAmounts?.[userName] ?? data?.amount ?? 0)
-            : Number(data?.amount ?? 0);
-        const safeAmount = Number.isFinite(amount) ? Math.max(0, Math.round(amount * 100) / 100) : 0;
-        if (safeAmount <= 0) return msg;
-        const result = creditWalletBalance(
-            safeAmount,
-            actionType === "accept_red_packet" ? "领取红包" : "收款",
-            `${actionType === "accept_red_packet" ? "领取红包" : "收款"}：${data?.label || msg.content || "聊天款项"}`,
-            actionType === "accept_red_packet" ? "红包" : "转账",
-        );
-        if (!result.ok || !result.transaction) return msg;
-        const updatedData = {
-            ...data,
-            walletDepositTransactionId: result.transaction.id,
-        };
-        updateMessageMediaData(msg.id, updatedData);
-        return { ...msg, mediaData: updatedData };
-    };
 
     const sendRichMessage = (mediaType: ChatMessage["mediaType"], mediaData: ChatMessage["mediaData"], content: string = "", mediaUrl?: string): boolean => {
         if (!ensureGroupSpeakPermission()) return false;
@@ -2953,15 +2535,12 @@ export function ChatRoom({ session, onBack }: ChatRoomProps) {
             return true;
         }
 
-        const walletDebit = debitOutgoingMoneyMessage(mediaType, mediaData);
-        if (!walletDebit.ok) return false;
-
         const newMsg = pushChatMessage({
             sessionId: session.id,
             role: "user",
             content,
             mediaType,
-            mediaData: walletDebit.mediaData,
+            mediaData,
             ...(mediaUrl ? { mediaUrl } : {}),
         });
         setMessages(prev => [...prev, newMsg]);
@@ -2991,37 +2570,12 @@ export function ChatRoom({ session, onBack }: ChatRoomProps) {
         return true;
     };
 
-    const sendShoppingGiftMessage = (gift: ShoppingGiftCandidate, recipient?: Character): boolean => {
-        if (session.isGroup && !recipient) {
-            showChatToast("请选择收礼对象");
-            return false;
-        }
-        const sent = sendRichMessage("gift", {
-            label: gift.productName,
-            giftName: gift.productName,
-            shoppingGiftId: gift.id,
-            giftOrderId: gift.orderId,
-            giftItemId: gift.itemId,
-            giftMerchantLabel: gift.merchantLabel,
-            giftPriceLabel: gift.priceLabel,
-            giftPreviewIcon: gift.previewIcon,
-            giftTone: gift.tone,
-            giftDeliveredAt: gift.deliveredAt,
-            giftSentAt: new Date().toISOString(),
-            senderName: userIdentity?.name || "你",
-            ...(recipient ? { recipientId: recipient.id, recipientName: recipient.name } : {}),
-        });
-        if (sent) showChatToast("礼物已送出");
-        return sent;
-    };
-
     const triggerAIResponse = async () => {
         if (isGeneratingRef.current) return;
         const generationRun = createGenerationRun(session.id);
         const generationRunId = generationRun.runId;
         const isCurrentGeneration = () => isGenerationRunActive(session.id, generationRunId);
         const generationGuard: GenerationRunGuard = { signal: generationRun.controller.signal, isActive: isCurrentGeneration };
-        let shouldRunDeclineReply = false;
         isGeneratingRef.current = true;
         setIsGenerating(true);
         setPendingGenerate(false);
@@ -3231,7 +2785,6 @@ export function ChatRoom({ session, onBack }: ChatRoomProps) {
                     } else {
                         handleCallTrigger(lastSendResult.triggerCall);
                     }
-                    shouldRunDeclineReply = Boolean(lastSendResult.hasDecline);
                 }
             }
         } catch (error: any) {
@@ -3257,7 +2810,6 @@ export function ChatRoom({ session, onBack }: ChatRoomProps) {
                 setPendingGenerate(true);
             }
         }
-        if (shouldRunDeclineReply) await triggerReply();
     };
 
     // 围观群/被禁言时用户不能发言
@@ -3670,7 +3222,6 @@ export function ChatRoom({ session, onBack }: ChatRoomProps) {
         await runManagedGeneration({
             history: contextMessages,
             errorPrefix: "重试失败",
-            onDecline: triggerReply,
         });
     };
 
@@ -3713,7 +3264,6 @@ export function ChatRoom({ session, onBack }: ChatRoomProps) {
     const normalizeEditedAssistantParts = (
         parts: ReturnType<typeof parseAIResponse>["parts"],
         senderNameOverride?: string,
-        options?: { omitHandledFinancialActions?: boolean },
     ) => {
         return parts.flatMap(part => {
             if (part.mediaType === "music") {
@@ -3726,37 +3276,6 @@ export function ChatRoom({ session, onBack }: ChatRoomProps) {
             }
             if (part.mediaType === "video_call") {
                 return [{ content: "[我发起了视频通话]" }];
-            }
-            if (
-                options?.omitHandledFinancialActions &&
-                (
-                    part.mediaType === "accept_red_packet" ||
-                    part.mediaType === "decline_red_packet" ||
-                    part.mediaType === "accept_transfer" ||
-                    part.mediaType === "decline_transfer" ||
-                    part.mediaType === "accept_payment_request" ||
-                    part.mediaType === "decline_payment_request"
-                )
-            ) {
-                return [];
-            }
-            if (part.mediaType === "accept_red_packet") {
-                return [{ content: "[领取红包]" }];
-            }
-            if (part.mediaType === "decline_red_packet") {
-                return [{ content: "[拒收红包]" }];
-            }
-            if (part.mediaType === "accept_transfer") {
-                return [{ content: "[领取转账]" }];
-            }
-            if (part.mediaType === "decline_transfer") {
-                return [{ content: "[拒收转账]" }];
-            }
-            if (part.mediaType === "accept_payment_request") {
-                return [{ content: "[接受代付]" }];
-            }
-            if (part.mediaType === "decline_payment_request") {
-                return [{ content: "[拒绝代付]" }];
             }
             if (part.mediaType === "poke") {
                 const sender = (part.mediaData?.pokeSender === "我" ? senderNameOverride : part.mediaData?.pokeSender)
@@ -3856,9 +3375,7 @@ export function ChatRoom({ session, onBack }: ChatRoomProps) {
             for (const segment of segments) {
                 const responseBatchId = createResponseBatchId();
                 const { parts, stateValues, statusPanel, innerMonologue } = parseAIResponse(segment.responseText, getCurrentStateForCharacter(segment.characterId));
-                const normalizedParts = normalizeEditedAssistantParts(parts, segment.characterName, {
-                    omitHandledFinancialActions: true,
-                });
+                const normalizedParts = normalizeEditedAssistantParts(parts, segment.characterName);
                 let attachedState = false;
                 for (const part of normalizedParts) {
                     if (!part.content.trim() && !part.mediaType && (!(statusPanel || innerMonologue) || attachedState)) continue;
@@ -5121,7 +4638,7 @@ export function ChatRoom({ session, onBack }: ChatRoomProps) {
                                                 },
                                                 onContextMenu: (e: React.MouseEvent) => { e.preventDefault(); openMessageContextMenu(msg.id, { x: e.clientX, y: e.clientY }); },
                                             } : {})}
-                                            className={`chat-bubble-role-${msg.role} ${isMediaBubble ? "chat-bubble-media" : ""} ${isStandaloneHtmlPreview ? "chat-bubble-html-preview" : ""} ${renderMsg.mediaType === "music_share" ? "chat-bubble-music-share" : ""} ${renderMsg.mediaType === "gift" || renderMsg.mediaType === "image" || isStandaloneHtmlPreview ? "rounded-none" : "rounded-md"} break-words relative cursor-pointer select-none`}
+                                            className={`chat-bubble-role-${msg.role} ${isMediaBubble ? "chat-bubble-media" : ""} ${isStandaloneHtmlPreview ? "chat-bubble-html-preview" : ""} ${renderMsg.mediaType === "music_share" ? "chat-bubble-music-share" : ""} ${renderMsg.mediaType === "image" || isStandaloneHtmlPreview ? "rounded-none" : "rounded-md"} break-words relative cursor-pointer select-none`}
                                             style={isStandaloneHtmlPreview ? STANDALONE_CARD_BUBBLE_STYLE : undefined}
                                             data-ui={msg.role === "user" ? "bubble-user" : "bubble-bot"}
                                             data-msg-id={msg.id}
@@ -5135,18 +4652,8 @@ export function ChatRoom({ session, onBack }: ChatRoomProps) {
                                                 displayContent={msg.displayProjected ? undefined : bubbleDisplayContent}
                                                 charName={character?.name}
                                                 userName={userIdentity?.name || "你"}
-                                                groupSize={session.isGroup ? (session.participantIds?.length || 0) + (session.isSpectator ? 0 : 1) : undefined}
-                                                onShowDetail={setMediaDetailMsg}
                                                 characterId={msg.senderCharacterId || session.contactId}
                                                 onUpdate={(updated) => setMessages(prev => prev.map(m => m.id === updated.id ? updated : m))}
-                                                onSystemMessage={(text) => {
-                                                    const sysMsg = pushChatMessage({
-                                                        sessionId: session.id,
-                                                        role: "system",
-                                                        content: text,
-                                                    });
-                                                    setMessages(prev => [...prev, sysMsg]);
-                                                }}
                                                 onMusicPlay={handleMusicCardPlay}
                                                 onActionSelect={(text) => chatTextInputRef.current?.appendText(text)}
                                                 defaultTranslationExpanded={session.collapseBilingualTranslation !== false ? false : true}
@@ -5381,62 +4888,6 @@ export function ChatRoom({ session, onBack }: ChatRoomProps) {
                     onClose={() => setRichModal(null)}
                 />
             )}
-            {richModal === "gift" && (
-                <GiftPickerModal
-                    gifts={availableShoppingGifts}
-                    isGroup={session.isGroup}
-                    recipients={groupCharacters}
-                    onSend={(gift, recipient) => {
-                        const sent = sendShoppingGiftMessage(gift, recipient);
-                        if (sent) setRichModal(null);
-                    }}
-                    onClose={() => setRichModal(null)}
-                />
-            )}
-            {richModal === "red_packet" && (
-                <RedPacketModal
-                    mode="red_packet"
-                    isGroup={session.isGroup}
-                    onSend={(amount, label, count) => {
-                        const sent = sendRichMessage("red_packet", { amount, label, status: "pending", count: count || 1 });
-                        if (sent) setRichModal(null);
-                    }}
-                    onClose={() => setRichModal(null)}
-                />
-            )}
-            {richModal === "transfer_target" && session.isGroup && (
-                <TransferTargetModal
-                    participants={groupCharacters}
-                    onSelect={(char) => {
-                        setTransferTarget(char);
-                        setRichModal("transfer");
-                    }}
-                    onClose={() => setRichModal(null)}
-                />
-            )}
-            {richModal === "transfer" && (
-                <RedPacketModal
-                    mode="transfer"
-                    onSend={(amount, label) => {
-                        if (session.isGroup && transferTarget) {
-                            const sent = sendRichMessage("transfer", {
-                                amount, label, status: "pending",
-                                senderName: userIdentity?.name || "你",
-                                recipientId: transferTarget.id,
-                                recipientName: transferTarget.name,
-                            });
-                            if (sent) {
-                                setRichModal(null);
-                                setTransferTarget(null);
-                            }
-                        } else {
-                            const sent = sendRichMessage("transfer", { amount, label, status: "pending" });
-                            if (sent) setRichModal(null);
-                        }
-                    }}
-                    onClose={() => { setRichModal(null); setTransferTarget(null); }}
-                />
-            )}
             {richModal === "location" && (
                 <LocationInputModal
                     onSend={(loc) => { setRichModal(null); sendRichMessage("location", { label: loc }); }}
@@ -5450,31 +4901,6 @@ export function ChatRoom({ session, onBack }: ChatRoomProps) {
                         if (sent) setRichModal(null);
                     }}
                     onClose={() => setRichModal(null)}
-                />
-            )}
-
-            {/* Red Packet / Transfer Detail Modal */}
-            {mediaDetailMsg && (
-                <MediaDetailModal
-                    msg={mediaDetailMsg}
-                    userName={userIdentity?.name || "你"}
-                    groupSize={session.isGroup ? (session.participantIds?.length || 0) + (session.isSpectator ? 0 : 1) : undefined}
-                    onAccept={(updatedMsg, sysText, actionType) => {
-                        const walletUpdatedMsg = updatedMsg.role === "assistant"
-                            ? creditIncomingMoneyMessage(updatedMsg, actionType)
-                            : updatedMsg;
-                        setMessages(prev => prev.map(m => m.id === walletUpdatedMsg.id ? walletUpdatedMsg : m));
-                        setMediaDetailMsg(null);
-                        const claimerN = userIdentity?.name || "你";
-                        const ownerN = walletUpdatedMsg.senderName || (walletUpdatedMsg.role === "assistant" ? (character?.name || "对方") : claimerN);
-                        const sysMsg = pushChatMessage({
-                            sessionId: session.id, role: "user", content: sysText,
-                            mediaType: actionType as ChatMessage["mediaType"],
-                            ...(session.isGroup ? { mediaData: { claimer: claimerN, owner: ownerN }, senderName: claimerN } : {}),
-                        });
-                        setMessages(prev => [...prev, sysMsg]);
-                    }}
-                    onClose={() => setMediaDetailMsg(null)}
                 />
             )}
 

@@ -12,8 +12,6 @@ import {
     loadAllFollowUpSchedules,
     saveFollowUpSchedule,
     clearFollowUpSchedule,
-    updateMessageMediaStatus,
-    updateMessageMediaData,
     createResponseBatchId,
     getLatestCharacterStateValues,
 } from "./chat-storage";
@@ -25,7 +23,6 @@ import type { ParsedMessagePart } from "./rich-message-parser";
 import { loadCharacters } from "./character-storage";
 import { bgSetInterval } from "./bg-timer";
 import { dispatchChatMessageNotice } from "./chat-notification-events";
-import { settleShoppingPaymentRequest } from "./shopping-payment-request";
 import {
     createPendingChatGeneratedImageData,
     generateAndApplyChatGeneratedImage,
@@ -466,85 +463,6 @@ async function fireMenstrualPeriodCare(input: {
     }
 }
 
-// ── AI media action handler for follow-up context ──
-
-function handleFollowUpMediaAction(
-    actionType: string,
-    sessionId: string,
-    contextMessages: ChatMessage[],
-) {
-    const targetMediaType = actionType.includes("payment_request")
-        ? "payment_request"
-        : actionType.includes("red_packet") ? "red_packet" : "transfer";
-    const targetMsg = [...contextMessages].reverse().find(
-        m => m.role === "user" && m.mediaType === targetMediaType && m.mediaData?.status === "pending"
-    );
-    if (!targetMsg) return;
-
-    const charName = resolveFollowUpSenderName(sessionId);
-    const userName = "你";
-    const responseBatchId = createResponseBatchId();
-
-    let newStatus: "opened" | "received" | "declined" | "paid";
-    let sysText: string;
-    let rawResponseText: string;
-    if (actionType === "accept_red_packet") {
-        newStatus = "opened";
-        sysText = `${charName}领取了${userName}的红包`;
-        rawResponseText = `[${charName}领取了${userName}的红包]`;
-    } else if (actionType === "decline_red_packet") {
-        newStatus = "declined";
-        sysText = `${charName}退回了${userName}的红包`;
-        rawResponseText = `[${charName}退回了${userName}的红包]`;
-    } else if (actionType === "accept_transfer") {
-        newStatus = "received";
-        sysText = `${charName}已收款`;
-        rawResponseText = `[${charName}领取了${userName}的转账]`;
-    } else if (actionType === "accept_payment_request") {
-        newStatus = "paid";
-        sysText = `${charName}接受了${userName}的代付请求`;
-        rawResponseText = `[${charName}接受了${userName}的代付]`;
-        settleShoppingPaymentRequest({
-            orderId: targetMsg.mediaData?.shoppingOrderId,
-            requestId: targetMsg.mediaData?.paymentRequestId,
-            accepted: true,
-            payerCharacterName: charName,
-        });
-    } else if (actionType === "decline_payment_request") {
-        newStatus = "declined";
-        sysText = `${charName}拒绝了${userName}的代付请求`;
-        rawResponseText = `[${charName}拒绝了${userName}的代付]`;
-        settleShoppingPaymentRequest({
-            orderId: targetMsg.mediaData?.shoppingOrderId,
-            requestId: targetMsg.mediaData?.paymentRequestId,
-            accepted: false,
-            payerCharacterName: charName,
-        });
-    } else {
-        newStatus = "declined";
-        sysText = `${charName}退回了${userName}的转账`;
-        rawResponseText = `[${charName}退回了${userName}的转账]`;
-    }
-
-    if (targetMediaType === "payment_request") {
-        updateMessageMediaData(targetMsg.id, {
-            ...targetMsg.mediaData,
-            status: newStatus,
-            paymentResolvedAt: new Date().toISOString(),
-            paymentPayerName: charName,
-        });
-    } else {
-        updateMessageMediaStatus(targetMsg.id, newStatus as "opened" | "received" | "declined");
-    }
-    pushChatMessage({
-        sessionId,
-        role: "system",
-        content: sysText,
-        responseBatchId,
-        rawResponseText,
-    });
-}
-
 // ── Response parser (uses shared parseAIResponse) ──
 
 function buildGeneratedFollowUpImageMessage(
@@ -589,12 +507,6 @@ async function parseAndSaveResponse(
     const filteredParts = parts.filter(p => {
         if (p.mediaType === "voice_call") { triggerCall = "voice"; return false; }
         if (p.mediaType === "video_call") { triggerCall = "video"; return false; }
-        if (p.mediaType === "accept_red_packet" || p.mediaType === "decline_red_packet"
-            || p.mediaType === "accept_transfer" || p.mediaType === "decline_transfer"
-            || p.mediaType === "accept_payment_request" || p.mediaType === "decline_payment_request") {
-            handleFollowUpMediaAction(p.mediaType, sessionId, contextMessages);
-            return false;
-        }
         // Poke: convert to system message (resolve "我" to character name)
         if (p.mediaType === "poke") {
             const pokeSender = (p.mediaData?.pokeSender === "我" ? charName : p.mediaData?.pokeSender) || charName;

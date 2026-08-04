@@ -228,12 +228,10 @@ Character {
 | **阅读** | `reading-engine.ts`, `reading-parser.ts` | EPUB/文本阅读器 |
 | **剧情/VN** | `vn-engine.ts`, `vn-storage.ts` | 视觉小说引擎 |
 | **共创** | `cocreate-engine.ts`, `cocreate-memory.ts` | 协作创作 |
-| **购物** | `shopping-engine.ts`, `shopping-storage.ts` | 角色购物车/支付系统 |
 | **Dwelling** | `dwelling-engine.ts` | 角色居住环境上下文 |
 | **Checkphone** | `checkphone-engine.ts` | Steam 游戏《Checkphone》集成 |
 | **Mascot** | `mascot-engine.ts`, `mascot-context.tsx` | 桌面吉祥物 |
 | **自定义 App** | `custom-app-*.ts` | 用户可创建自定义小程序 |
-| **黑市** | `black-market-*.ts` | 角色间的影子经济系统 |
 | **便签墙** | `notewall-*.ts` | 全局协作便签 |
 | **面试杂志** | `interview-magazine-*.ts` | 角色访谈 |
 | **微信桥接** | `weixin-bridge.ts`, `weixin-cloud-sync.ts` | 微信公众号集成 |
@@ -406,7 +404,6 @@ story（剧情）
 game（游戏）
 dwelling（居住）
 checkphone（Checkphone）
-shopping（购物）
 calendar（日历）
 interview_magazine（访谈杂志）
 moments（朋友圈）

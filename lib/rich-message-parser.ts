@@ -46,92 +46,6 @@ const RICH_PATTERNS: {
     build: (m: RegExpMatchArray) => ParsedMessagePart;
 }[] = [
     {
-        // 3段格式：[红包:金额:个数:留言]
-        regex: new RegExp(`\\[红包${C}(\\d+(?:\\.\\d+)?)${C}(\\d+)${C}([^\\]]*)\\]`),
-        build: (m) => ({
-            content: "",
-            mediaType: "red_packet",
-            mediaData: { amount: parseFloat(m[1]), count: parseInt(m[2], 10), label: m[3] || "恭喜发财", status: "pending" },
-        }),
-    },
-    {
-        // 2段格式（向后兼容）：[红包:金额:留言]
-        regex: new RegExp(`\\[红包${C}(\\d+(?:\\.\\d+)?)${C}([^\\]]*)\\]`),
-        build: (m) => ({
-            content: "",
-            mediaType: "red_packet",
-            mediaData: { amount: parseFloat(m[1]), count: 1, label: m[2] || "恭喜发财", status: "pending" },
-        }),
-    },
-    {
-        // 兼容两种格式：[转账:金额:留言] (1:1) 和 [转账:金额:留言:转账人:收款人] (群聊)
-        regex: /\[转账[：:](\d+(?:\.\d+)?)[：:]([^\]：:]*?)(?:[：:]([^\]：:]*?)[：:]([^\]]*?))?\]/,
-        build: (m) => ({
-            content: "",
-            mediaType: "transfer",
-            mediaData: {
-                amount: parseFloat(m[1]),
-                label: m[2]?.trim() || "转账",
-                status: "pending" as const,
-                senderName: m[3]?.trim() || "",
-                recipientName: m[4]?.trim() || "",
-            },
-        }),
-    },
-    {
-        // [代付请求:总金额:商品名/详情/价格/数量; 商品名/详情/价格/数量]
-        regex: /\[代付请求[：:](\d+(?:\.\d+)?)[：:]([^\]]+)\]/,
-        build: (m) => ({
-            content: "",
-            mediaType: "payment_request" as const,
-            mediaData: {
-                amount: parseFloat(m[1]),
-                paymentRequestAmountLabel: m[1],
-                paymentRequestItemsText: m[2].trim(),
-                label: "代付请求",
-                status: "pending" as const,
-                paymentRequestedAt: new Date().toISOString(),
-            },
-        }),
-    },
-    {
-        // 群聊赠礼：[礼物:商品名:收礼人]，兼容旧格式：[礼物:商品名:送给收礼人]
-        regex: new RegExp(`\\[礼物${C}([^\\]：:]+)${C}(?:送给)?([^\\]]+)\\]`),
-        build: (m) => {
-            const giftName = m[1].trim();
-            return {
-                content: "",
-                mediaType: "gift" as const,
-                mediaData: {
-                    giftName,
-                    label: giftName,
-                    recipientName: m[2].trim(),
-                    giftMerchantLabel: "角色赠礼",
-                    giftPriceLabel: "心意礼物",
-                    giftSentAt: new Date().toISOString(),
-                },
-            };
-        },
-    },
-    {
-        // 私聊赠礼：[礼物:商品名]
-        regex: new RegExp(`\\[礼物${C}([^\\]]+)\\]`),
-        build: (m) => {
-            const giftName = m[1].trim();
-            return {
-                content: "",
-                mediaType: "gift" as const,
-                mediaData: {
-                    giftName,
-                    label: giftName,
-                    giftMerchantLabel: "角色赠礼",
-                    giftPriceLabel: "心意礼物",
-                    giftSentAt: new Date().toISOString(),
-                },
-            };
-        },
-    },
-    {
         // 推荐联系人名片：[名片:角色名]。名字在渲染时按推荐人同世界实时解析，
         // 查无此人也放行成卡——点击后可现场生成该角色档案（幻觉转建档）。
         regex: new RegExp(`\\[名片${C}([^\\]]+)\\]`),
@@ -236,31 +150,6 @@ const RICH_PATTERNS: {
         regex: /\[我向[^\]]+发起了视频通话\]/,
         build: () => ({ content: "", mediaType: "video_call" as const }),
     },
-    // 群聊带主语宾语的格式（优先匹配）
-    {
-        regex: /\[([^\]]+)领取了([^\]]+)的红包\]/,
-        build: (m) => ({ content: "", mediaType: "accept_red_packet" as const, mediaData: { claimer: m[1]?.trim(), owner: m[2]?.trim() } }),
-    },
-    {
-        regex: /\[([^\]]+)退回了([^\]]+)的红包\]/,
-        build: (m) => ({ content: "", mediaType: "decline_red_packet" as const, mediaData: { claimer: m[1]?.trim(), owner: m[2]?.trim() } }),
-    },
-    {
-        regex: /\[([^\]]+)(?:接受|领取)了([^\]]+)的转账\]/,
-        build: (m) => ({ content: "", mediaType: "accept_transfer" as const, mediaData: { claimer: m[1]?.trim(), owner: m[2]?.trim() } }),
-    },
-    {
-        regex: /\[([^\]]+)(?:拒收|退回)了([^\]]+)的转账\]/,
-        build: (m) => ({ content: "", mediaType: "decline_transfer" as const, mediaData: { claimer: m[1]?.trim(), owner: m[2]?.trim() } }),
-    },
-    {
-        regex: /\[([^\]]+)(?:接受|同意|支付|代付)了([^\]]+)的代付\]/,
-        build: (m) => ({ content: "", mediaType: "accept_payment_request" as const, mediaData: { claimer: m[1]?.trim(), owner: m[2]?.trim() } }),
-    },
-    {
-        regex: /\[([^\]]+)(?:拒绝|拒收|退回)了([^\]]+)的代付\]/,
-        build: (m) => ({ content: "", mediaType: "decline_payment_request" as const, mediaData: { claimer: m[1]?.trim(), owner: m[2]?.trim() } }),
-    },
     // 群管理操作（权限在 processGroupParts 校验，无权限的标签直接丢弃）
     {
         regex: /\[([^\]]+?)将群主转让给了?([^\]]+?)\]/,
@@ -313,31 +202,6 @@ const RICH_PATTERNS: {
     {
         regex: /\[([^\]]+?)解除了([^\]]+?)的禁言\]/,
         build: (m) => ({ content: "", mediaType: "group_admin_notice" as const, mediaData: { adminAction: "unmute" as const, adminActorName: m[1]?.trim(), adminTargetName: m[2]?.trim() } }),
-    },
-    // 1:1 简单格式（兼容）
-    {
-        regex: /\[领取红包\]/,
-        build: () => ({ content: "", mediaType: "accept_red_packet" as const }),
-    },
-    {
-        regex: /\[拒收红包\]/,
-        build: () => ({ content: "", mediaType: "decline_red_packet" as const }),
-    },
-    {
-        regex: /\[(?:接受|领取)转账\]/,
-        build: () => ({ content: "", mediaType: "accept_transfer" as const }),
-    },
-    {
-        regex: /\[拒收转账\]/,
-        build: () => ({ content: "", mediaType: "decline_transfer" as const }),
-    },
-    {
-        regex: /\[接受代付\]/,
-        build: () => ({ content: "", mediaType: "accept_payment_request" as const }),
-    },
-    {
-        regex: /\[拒绝代付\]/,
-        build: () => ({ content: "", mediaType: "decline_payment_request" as const }),
     },
 ];
 

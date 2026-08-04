@@ -85,13 +85,10 @@ export type ChatMessage = {
     editableResponseText?: string; // Processed text shown in the reply editor
     isRetracted?: boolean;
     mediaType?: "image" | "audio" | "video"
-        | "red_packet" | "transfer" | "location"
+        | "location"
         | "poke" | "sticker" | "quote"
         | "voice_call" | "video_call"
-        | "accept_red_packet" | "decline_red_packet" | "accept_transfer" | "decline_transfer"
-        | "payment_request" | "accept_payment_request" | "decline_payment_request"
         | "music" | "music_share" | "music_notify" | "music_not_found"
-        | "gift"
         | "contact_card"
         | "tool_notice"
         | "tool_result"
@@ -118,49 +115,6 @@ export type ChatMessage = {
         senderName?: string;      // 转账发起人显示名（群聊）
         recipientId?: string;     // 转账收款人角色 ID
         recipientName?: string;   // 转账收款人显示名
-        claimedBy?: string[];     // 群红包已领取人名列表
-        claimedAmounts?: Record<string, number>; // 拼手气红包：每人领取金额
-        walletTransactionId?: string; // 发送红包/转账时扣款流水
-        walletRefundTransactionId?: string; // 被拒收/退回时退款流水
-        walletDepositTransactionId?: string; // 领取红包/转账时入账流水
-        shoppingGiftId?: string; // 购物订单中的可送礼物实例 ID
-        giftOrderId?: string;    // 礼物来源订单 ID
-        giftItemId?: string;     // 礼物来源商品 ID
-        giftName?: string;       // 礼物商品名
-        giftMerchantLabel?: string; // 礼物来源商家
-        giftPriceLabel?: string; // 礼物商品价格
-        giftPreviewIcon?: string;// 礼物展示图标
-        giftTone?: "ivory" | "mist" | "blush" | "graphite";
-        giftDeliveredAt?: string;// 到货时间
-        giftSentAt?: string;     // 送出时间
-        paymentRequestId?: string; // 代付请求 ID
-        shoppingOrderId?: string;  // 代付关联购物订单 ID
-        paymentRequestAmountLabel?: string; // 代付金额展示
-        paymentRequestItemsText?: string;   // AI 输出的代付商品文本
-        paymentRequestItems?: Array<{
-            title: string;
-            detail: string;
-            priceLabel: string;
-            quantityLabel: string;
-        }>;
-        paymentRequestSummary?: string;
-        paymentRequesterId?: string;
-        paymentRequesterName?: string;
-        paymentPayerId?: string;
-        paymentPayerName?: string;
-        paymentRequestedAt?: string;
-        paymentResolvedAt?: string;
-        paymentWalletTransactionId?: string;
-        blackMarketTheaterLocalId?: string;
-        blackMarketTheaterTemplateId?: string;
-        blackMarketTheaterTitle?: string;
-        blackMarketTheaterCodeName?: string;
-        blackMarketTheaterRarity?: string;
-        blackMarketTheaterSynopsis?: string;
-        blackMarketTheaterGlyph?: string;
-        blackMarketTheaterStartedAt?: string;
-        claimer?: string;         // 领取/接受动作的执行人名
-        owner?: string;           // 领取/接受动作的目标人名（谁发的红包/转账）
         adminAction?: "transfer_owner" | "set_admin" | "unset_admin" | "kick" | "invite" | "mute" | "unmute"; // 群管理操作类型
         adminActorName?: string;  // 群管理操作执行人显示名
         adminTargetName?: string; // 群管理操作目标显示名
@@ -233,11 +187,9 @@ export const CHAT_REQUEST_REPLY_EVENT = "chat-request-reply";
 // ── Media Preview Map ─────────────────────────
 const MEDIA_PREVIEW_MAP: Record<string, string> = {
     image: "[图片]", audio: "[语音]", video: "[视频]",
-    red_packet: "[红包]", transfer: "[转账]", location: "[位置]",
+    location: "[位置]",
     poke: "[拍了拍你]", sticker: "[表情]", quote: "[引用]",
-    gift: "[礼物]",
     contact_card: "[名片]",
-    payment_request: "[代付请求]",
     music: "[音乐]",
     music_share: "[音乐分享]",
     tool_notice: "[执行动作]",
@@ -277,10 +229,7 @@ export function getChatMessagePreview(msg: ChatMessage): string {
     }
 
     // Action notifications: show natural language with user name → "你"
-    if (msg.mediaType === "accept_red_packet" || msg.mediaType === "decline_red_packet"
-        || msg.mediaType === "accept_transfer" || msg.mediaType === "decline_transfer"
-        || msg.mediaType === "accept_payment_request" || msg.mediaType === "decline_payment_request"
-        || msg.mediaType === "group_admin_notice") {
+    if (msg.mediaType === "group_admin_notice") {
         return toYou(msg.content);
     }
 

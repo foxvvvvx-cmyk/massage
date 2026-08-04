@@ -17,7 +17,6 @@ export type CheckPhoneBilingualTone =
   | "browser"
   | "photos"
   | "notes"
-  | "shopping"
   | "assets"
   | "phone"
   | "telegram"
