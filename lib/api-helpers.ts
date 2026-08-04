@@ -90,6 +90,15 @@ export function isNativeGoogleApi(config: ApiConfig): boolean {
 }
 
 /**
+ * VPS Claude（笃）：不走 buildProviderRequest/fetch 直连，而是转发给自己 VPS 上
+ * claude -p --resume 的桥接服务（/api/dubot）。不需要 baseUrl/apiKey/model，
+ * 也不支持原生工具调用循环（Claude Code 自己管工具，app 这边只拿最终文本）。
+ */
+export function isVpsClaudeProvider(config: { provider: string }): boolean {
+    return config.provider === "VPS Claude";
+}
+
+/**
  * Send a simple LLM request (single user message) and return the text response.
  * Used by summarizer and other non-chat LLM calls.
  * Handles all provider formats automatically.

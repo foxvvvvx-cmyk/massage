@@ -40,7 +40,7 @@ import {
     type LlmToolDefinition,
 } from "./llm-provider-adapter";
 import { setDebugPromptSnapshot, type DebugPromptSnapshot } from "./debug-store";
-import { extractFinishReason } from "./api-helpers";
+import { extractFinishReason, isVpsClaudeProvider } from "./api-helpers";
 import { loadMemoryConfig, incrementEventCounter } from "./memory-storage";
 import { retrieveCoreMemoriesForPrompt, retrieveMemoriesForPrompt } from "./memory-service";
 import { formatCoreMemories, formatLongTermMemories } from "./memory-injector";
@@ -2246,6 +2246,33 @@ async function generateNativeChatCompletion(
     return { parts };
 }
 
+/**
+ * VPS Claude（笃）专用：不走 assemblePromptPayload/工具循环，只把最新一条用户消息转发给
+ * VPS 上 claude -p --resume 的桥接服务——世界书/记忆/人设/情绪状态都由桥接服务那边
+ * （persona.txt + memory.db + jiwen）自己组装，session 记忆靠 --resume 维持，不需要
+ * app 这边每轮重发完整历史。
+ */
+async function generateVpsClaudeCompletion(
+    history: ChatMessage[],
+    signal?: AbortSignal,
+): Promise<ChatCompletionResult> {
+    const lastUserMessage = [...history].reverse().find(m => m.role === "user" && m.content?.trim());
+    if (!lastUserMessage) {
+        throw new ChatEngineError("VPS Claude: 没有找到可发送的用户消息");
+    }
+    const res = await fetch("/api/dubot", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: lastUserMessage.content }),
+        signal,
+    });
+    const data = await res.json().catch(() => ({})) as { reply?: string; error?: string };
+    if (!res.ok || typeof data.reply !== "string") {
+        throw new ChatEngineError(data.error || `VPS Claude 请求失败 (${res.status})`);
+    }
+    return { parts: [{ text: data.reply }] };
+}
+
 export async function generateChatCompletion(
     session: ChatSession,
     history: ChatMessage[],
@@ -2253,6 +2280,11 @@ export async function generateChatCompletion(
     callbacks?: ChatCompletionCallbacks,
 ): Promise<ChatCompletionResult> {
     const { llmMessages, character, config, preset, regexes, userIdentity, toolsEnabled } = await buildChatPromptMessages(session, history, options);
+
+    if (isVpsClaudeProvider(config)) {
+        return generateVpsClaudeCompletion(history, options?.signal);
+    }
+
     const requestAppTags = mergeAppTags(options?.appTags, undefined, options?.appId ?? "chat");
 
     const nativeProtocolAvailable = Boolean(nativeToolProtocolForConfig(config));

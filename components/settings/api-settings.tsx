@@ -316,116 +316,128 @@ export function ApiSettings() {
                                                 <option value="SiliconFlow">SiliconFlow</option>
                                                 <option value="TogetherAI">Together AI</option>
                                                 <option value="Custom">自定义 (Custom)</option>
+                                                <option value="VPS Claude">VPS Claude（笃）</option>
                                             </select>
                                         </div>
 
-                                        {/* Custom 必填 Base URL；其他 provider 可选填中转站地址 */}
-                                        <div className="flex flex-col gap-1">
-                                            <label className="menu-desc ml-1">
-                                                Base URL {config.provider === "Custom" ? "（必填）" : "（可选，留空用官方端点）"}
-                                                {config.provider === "Google" && (
-                                                    <span style={{ color: "#888", marginLeft: 6, fontSize: "0.85em" }}>
-                                                        中转站填 https://xxx/v1beta 走原生协议
-                                                    </span>
-                                                )}
-                                            </label>
-                                            <Input
-                                                type="url"
-                                                value={config.baseUrl || ""}
-                                                onChange={(e) => updateConfig(config.id, { baseUrl: e.target.value })}
-                                                placeholder={
-                                                    config.provider === "Custom"
-                                                        ? "https://api.example.com/v1"
-                                                        : config.provider === "Google"
-                                                            ? "https://your-proxy.example.com/v1beta"
-                                                            : "默认用官方端点，留空即可"
-                                                }
-                                            />
-                                        </div>
-
-                                        <div className="flex flex-col gap-1">
-                                            <label className="menu-desc ml-1">API Key</label>
-                                            <Input
-                                                type="password"
-                                                value={config.apiKey}
-                                                onChange={(e) => updateConfig(config.id, { apiKey: e.target.value })}
-                                                placeholder="sk-..."
-                                            />
-                                        </div>
-
-                                        <div className="flex flex-col gap-1">
-                                            <label className="menu-desc ml-1">默认模型 (Default Model)</label>
-                                            <div className="flex gap-2">
-                                                {fetchedModels[config.id] && fetchedModels[config.id].length > 0 ? (
-                                                    <select
-                                                        value={config.defaultModel}
-                                                        onChange={(e) => updateConfig(config.id, { defaultModel: e.target.value })}
-                                                        className="ui-select flex-1"
-                                                    >
-                                                        <option value="">请选择模型...</option>
-                                                        {fetchedModels[config.id].map(m => (
-                                                            <option key={m} value={m}>{m}</option>
-                                                        ))}
-                                                    </select>
-                                                ) : (
-                                                    <input
-                                                        type="text"
-                                                        value={config.defaultModel}
-                                                        onChange={(e) => updateConfig(config.id, { defaultModel: e.target.value })}
-                                                        placeholder="gpt-4o, claude-3-opus..."
-                                                        className="ui-input flex-1"
-                                                    />
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        <div className="flex gap-3 mt-1">
-                                            <button
-                                                onClick={() => fetchModels(config)}
-                                                disabled={isFetching[config.id]}
-                                                className="ui-btn ui-btn ui-btn-soft-action flex-1"
-                                            >
-                                                <RefreshCw size={16} className={isFetching[config.id] ? "animate-spin" : ""} />
-                                                {isFetching[config.id] ? "拉取中..." : "拉取模型列表"}
-                                            </button>
-
-                                            <button
-                                                onClick={() => testConnection(config)}
-                                                disabled={isTesting[config.id]}
-                                                className="ui-btn ui-btn ui-btn-success flex-1"
-                                            >
-                                                <Rss size={16} className={isTesting[config.id] ? "animate-spin" : ""} />
-                                                {isTesting[config.id] ? "测试中..." : "测试连接"}
-                                            </button>
-                                        </div>
-
-                                        {testResult[config.id] && testResult[config.id].message && (
-                                            <Alert variant={testResult[config.id].success ? "success" : "danger"}>
+                                        {config.provider === "VPS Claude" ? (
+                                            <Alert variant="success">
                                                 <AlertCircle size={16} className="mt-[2px] shrink-0" />
-                                                <span className="break-all leading-[1.5]">{testResult[config.id].message}</span>
+                                                <span className="break-all leading-[1.5]">
+                                                    这个服务商直连自己 VPS 上跑的 claude -p --resume 会话，不需要填 Base URL / API Key / 模型——鉴权和转发都在服务端完成（环境变量 DUBOT_BRIDGE_URL / DUBOT_BRIDGE_TOKEN）。人设、记忆、情绪状态由 VPS 那边的 persona.txt + memory.db + jiwen 服务组装，不支持原生工具调用。
+                                                </span>
                                             </Alert>
+                                        ) : (
+                                            <>
+                                                {/* Custom 必填 Base URL；其他 provider 可选填中转站地址 */}
+                                                <div className="flex flex-col gap-1">
+                                                    <label className="menu-desc ml-1">
+                                                        Base URL {config.provider === "Custom" ? "（必填）" : "（可选，留空用官方端点）"}
+                                                        {config.provider === "Google" && (
+                                                            <span style={{ color: "#888", marginLeft: 6, fontSize: "0.85em" }}>
+                                                                中转站填 https://xxx/v1beta 走原生协议
+                                                            </span>
+                                                        )}
+                                                    </label>
+                                                    <Input
+                                                        type="url"
+                                                        value={config.baseUrl || ""}
+                                                        onChange={(e) => updateConfig(config.id, { baseUrl: e.target.value })}
+                                                        placeholder={
+                                                            config.provider === "Custom"
+                                                                ? "https://api.example.com/v1"
+                                                                : config.provider === "Google"
+                                                                    ? "https://your-proxy.example.com/v1beta"
+                                                                    : "默认用官方端点，留空即可"
+                                                        }
+                                                    />
+                                                </div>
+
+                                                <div className="flex flex-col gap-1">
+                                                    <label className="menu-desc ml-1">API Key</label>
+                                                    <Input
+                                                        type="password"
+                                                        value={config.apiKey}
+                                                        onChange={(e) => updateConfig(config.id, { apiKey: e.target.value })}
+                                                        placeholder="sk-..."
+                                                    />
+                                                </div>
+
+                                                <div className="flex flex-col gap-1">
+                                                    <label className="menu-desc ml-1">默认模型 (Default Model)</label>
+                                                    <div className="flex gap-2">
+                                                        {fetchedModels[config.id] && fetchedModels[config.id].length > 0 ? (
+                                                            <select
+                                                                value={config.defaultModel}
+                                                                onChange={(e) => updateConfig(config.id, { defaultModel: e.target.value })}
+                                                                className="ui-select flex-1"
+                                                            >
+                                                                <option value="">请选择模型...</option>
+                                                                {fetchedModels[config.id].map(m => (
+                                                                    <option key={m} value={m}>{m}</option>
+                                                                ))}
+                                                            </select>
+                                                        ) : (
+                                                            <input
+                                                                type="text"
+                                                                value={config.defaultModel}
+                                                                onChange={(e) => updateConfig(config.id, { defaultModel: e.target.value })}
+                                                                placeholder="gpt-4o, claude-3-opus..."
+                                                                className="ui-input flex-1"
+                                                            />
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex gap-3 mt-1">
+                                                    <button
+                                                        onClick={() => fetchModels(config)}
+                                                        disabled={isFetching[config.id]}
+                                                        className="ui-btn ui-btn ui-btn-soft-action flex-1"
+                                                    >
+                                                        <RefreshCw size={16} className={isFetching[config.id] ? "animate-spin" : ""} />
+                                                        {isFetching[config.id] ? "拉取中..." : "拉取模型列表"}
+                                                    </button>
+
+                                                    <button
+                                                        onClick={() => testConnection(config)}
+                                                        disabled={isTesting[config.id]}
+                                                        className="ui-btn ui-btn ui-btn-success flex-1"
+                                                    >
+                                                        <Rss size={16} className={isTesting[config.id] ? "animate-spin" : ""} />
+                                                        {isTesting[config.id] ? "测试中..." : "测试连接"}
+                                                    </button>
+                                                </div>
+
+                                                {testResult[config.id] && testResult[config.id].message && (
+                                                    <Alert variant={testResult[config.id].success ? "success" : "danger"}>
+                                                        <AlertCircle size={16} className="mt-[2px] shrink-0" />
+                                                        <span className="break-all leading-[1.5]">{testResult[config.id].message}</span>
+                                                    </Alert>
+                                                )}
+
+                                                <div
+                                                    className="ui-toggle-row mt-2 overflow-visible"
+                                                    style={{ display: "block", position: "relative", height: "auto", flexShrink: 0, padding: "14px 76px 14px 16px" }}
+                                                >
+                                                    <span className="menu-label font-medium">启用原生工具调用</span>
+                                                    <span className="menu-desc whitespace-normal break-words leading-[1.45]">
+                                                        开启后自动选择该服务商可用的原生工具格式（当前：{getNativeToolProtocolLabel(config)}）；关闭后使用文本动作协议。
+                                                    </span>
+                                                    <span style={{ position: "absolute", top: 0, bottom: 0, right: 16, display: "flex", alignItems: "center" }}>
+                                                        <Toggle
+                                                            checked={config.enableNativeTools !== false}
+                                                            onChange={(v) => updateConfig(config.id, { enableNativeTools: v })}
+                                                        />
+                                                    </span>
+                                                </div>
+
+                                                <div className="ui-toggle-row mt-2">
+                                                    <span className="menu-label font-medium">启用图像识别</span>
+                                                    <Toggle checked={config.enableImageRecognition} onChange={(v) => updateConfig(config.id, { enableImageRecognition: v })} />
+                                                </div>
+                                            </>
                                         )}
-
-                                        <div
-                                            className="ui-toggle-row mt-2 overflow-visible"
-                                            style={{ display: "block", position: "relative", height: "auto", flexShrink: 0, padding: "14px 76px 14px 16px" }}
-                                        >
-                                            <span className="menu-label font-medium">启用原生工具调用</span>
-                                            <span className="menu-desc whitespace-normal break-words leading-[1.45]">
-                                                开启后自动选择该服务商可用的原生工具格式（当前：{getNativeToolProtocolLabel(config)}）；关闭后使用文本动作协议。
-                                            </span>
-                                            <span style={{ position: "absolute", top: 0, bottom: 0, right: 16, display: "flex", alignItems: "center" }}>
-                                                <Toggle
-                                                    checked={config.enableNativeTools !== false}
-                                                    onChange={(v) => updateConfig(config.id, { enableNativeTools: v })}
-                                                />
-                                            </span>
-                                        </div>
-
-                                        <div className="ui-toggle-row mt-2">
-                                            <span className="menu-label font-medium">启用图像识别</span>
-                                            <Toggle checked={config.enableImageRecognition} onChange={(v) => updateConfig(config.id, { enableImageRecognition: v })} />
-                                        </div>
 
                                         <div className="ui-toggle-row mt-2">
                                             <span className="flex min-w-0 flex-col">
