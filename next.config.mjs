@@ -27,8 +27,11 @@ const nextConfig = {
   outputFileTracingIncludes: {
     "/api/**": ["./data/**"],
   },
-  webpack: (config, { isServer, webpack }) => {
-    if (!isServer) {
+  webpack: (config, { isServer, nextRuntime, webpack }) => {
+    // 客户端 bundle（isServer=false）和 Edge Middleware/Edge Functions（isServer=true 但
+    // nextRuntime="edge"）都跑在没有 Node.js 内置模块的运行时里，两边都要去掉 node: 依赖，
+    // 否则误引入的 fs/path/module 会在 Edge Runtime 里直接报错（如 __dirname is not defined）。
+    if (!isServer || nextRuntime === "edge") {
       config.plugins.push(
         new webpack.NormalModuleReplacementPlugin(/^node:/, (resource) => {
           resource.request = resource.request.replace(/^node:/, "");
