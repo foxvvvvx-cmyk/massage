@@ -96,4 +96,9 @@ export const config = {
   matcher: [
     "/((?!_next/static|_next/image|.*\\.(?:avif|bin|css|gif|glb|gltf|hdr|ico|jpeg|jpg|js|json|map|mjs|mp3|ogg|otf|png|svg|ttf|txt|wasm|wav|webmanifest|webp|woff|woff2)$).*)",
   ],
+  // Node.js runtime (stable since Next 15.5) instead of Edge — sidesteps a Next.js/Vercel
+  // landmine where next/server eagerly pulls in the ncc-bundled ua-parser-js, whose
+  // __nccwpck_require__ boilerplate references a bare __dirname that doesn't exist in the
+  // Edge sandbox. Node.js runtime has a real __dirname, so this never triggers there.
+  runtime: "nodejs",
 };
