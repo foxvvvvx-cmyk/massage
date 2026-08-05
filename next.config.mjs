@@ -44,6 +44,15 @@ const nextConfig = {
         module: false,
       };
     }
+    if (nextRuntime === "edge") {
+      // next/server eagerly requires userAgent(), which pulls in Next's ncc-bundled
+      // ua-parser-js. That bundle's __nccwpck_require__ boilerplate references a bare
+      // __dirname (next/dist/compiled/ua-parser-js/ua-parser.js), which doesn't exist
+      // in the Edge sandbox and throws "ReferenceError: __dirname is not defined" at
+      // request time — this is a known Next.js/Vercel landmine, not app code. Edge
+      // Middleware never touches the real filesystem, so a harmless constant is safe.
+      config.plugins.push(new webpack.DefinePlugin({ __dirname: JSON.stringify("/") }));
+    }
     return config;
   },
 };
