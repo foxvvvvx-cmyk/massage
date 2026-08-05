@@ -1,5 +1,16 @@
-import type { NextRequest } from "next/server";
-import { NextResponse } from "next/server";
+// Deep-import instead of the "next/server" barrel: that barrel's plain CJS entry
+// (next/server.js) eagerly requires ALL of its exports, including userAgent(), which
+// pulls in Next's ncc-bundled ua-parser-js. That bundle's __nccwpck_require__ wrapper
+// references a bare __dirname, which doesn't exist in the Edge sandbox and throws
+// "ReferenceError: __dirname is not defined" at request time — a known Next.js/Vercel
+// landmine (vercel/community#5430, next-auth#10373, supabase#21009). We only ever use
+// NextRequest/NextResponse here, so importing them directly from their own modules
+// avoids pulling in the rest of the barrel (and its side effects) entirely. Switching
+// middleware to the Node.js runtime instead was tried first, but Next 15.5.12 emits an
+// ESM-syntax middleware.js there that Vercel's Node.js middleware loader can't require()
+// ("Cannot use import statement outside a module") — a separate, still-open platform bug.
+import type { NextRequest } from "next/dist/server/web/spec-extension/request";
+import { NextResponse } from "next/dist/server/web/spec-extension/response";
 
 import { ACCOUNT_GATE_COOKIE, ACCOUNT_SESSION_COOKIE } from "./lib/account-cookie-constants";
 import { verifyAccountGateCookieValue } from "./lib/account-gate-cookie";
@@ -96,9 +107,4 @@ export const config = {
   matcher: [
     "/((?!_next/static|_next/image|.*\\.(?:avif|bin|css|gif|glb|gltf|hdr|ico|jpeg|jpg|js|json|map|mjs|mp3|ogg|otf|png|svg|ttf|txt|wasm|wav|webmanifest|webp|woff|woff2)$).*)",
   ],
-  // Node.js runtime (stable since Next 15.5) instead of Edge — sidesteps a Next.js/Vercel
-  // landmine where next/server eagerly pulls in the ncc-bundled ua-parser-js, whose
-  // __nccwpck_require__ boilerplate references a bare __dirname that doesn't exist in the
-  // Edge sandbox. Node.js runtime has a real __dirname, so this never triggers there.
-  runtime: "nodejs",
 };
