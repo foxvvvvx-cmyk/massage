@@ -31,8 +31,9 @@ import {
   loadChatMessages,
   pushChatMessage,
 } from "./chat-storage";
-import { loadApiConfigs } from "./settings-storage";
-import { determineBaseUrl, buildChatCompletionsUrl, buildRequestHeaders } from "./api-helpers";
+import { loadApiConfigs, loadBindingConfig, resolveBinding } from "./settings-storage";
+import { determineBaseUrl, buildChatCompletionsUrl, buildRequestHeaders, isVpsClaudeProvider } from "./api-helpers";
+import { generateVpsClaudeProactiveMessage } from "./chat-engine";
 import { bgSetInterval } from "./bg-timer";
 import { resolveCharacterId } from "./memories-sync";
 import { maybeRunCompanionReading, canCompanionRead } from "./reading-companion-service";
@@ -90,51 +91,70 @@ async function sendProactiveMessage(
 ): Promise<boolean> {
   console.log(`[proactive] ${characterName} generating message...`);
 
-  const configs = loadApiConfigs();
-  if (!configs.length || !configs[0].apiKey) {
-    console.log(`[proactive] ${characterName} FAILED: no API config`);
+  const characters = loadCharacters();
+  const char = characters.find(c => resolveCharacterId(c.name) === characterId);
+  if (!char) {
+    console.log(`[proactive] ${characterName} FAILED: character not found`);
     return false;
   }
 
-  const apiConfig = configs[0];
-  const baseUrl = determineBaseUrl(apiConfig);
-  const url = buildChatCompletionsUrl(baseUrl);
+  // 按角色实际绑定的服务商解析，而不是盲用 configs[0]——不同角色可能绑了不同 provider
+  // （比如笃绑的是 VPS Claude，其他角色绑的是普通 API），主动消息也得走各自绑定的那个。
+  const bindings = loadBindingConfig();
+  const activeSlot = resolveBinding(bindings, char.id, "chat");
+  const configs = loadApiConfigs();
+  const apiConfig = activeSlot.apiConfigId ? configs.find(c => c.id === activeSlot.apiConfigId) : undefined;
+  if (!apiConfig) {
+    console.log(`[proactive] ${characterName} FAILED: no API config bound`);
+    return false;
+  }
 
-  const state = await loadOrCreateState(characterId);
-  const style = getStyleGuidance(state);
+  const persona = char.persona || `你是${characterName}。`;
 
-  const characters = loadCharacters();
-  const char = characters.find(c => resolveCharacterId(c.name) === characterId);
-  const persona = char?.persona || `你是${characterName}。`;
+  try {
+    let text: string;
 
-  const systemPrompt = `${persona}
+    if (isVpsClaudeProvider(apiConfig)) {
+      text = await generateVpsClaudeProactiveMessage();
+    } else {
+      if (!apiConfig.apiKey) {
+        console.log(`[proactive] ${characterName} FAILED: no API key`);
+        return false;
+      }
+      const baseUrl = determineBaseUrl(apiConfig);
+      const url = buildChatCompletionsUrl(baseUrl);
+      const state = await loadOrCreateState(characterId);
+      const style = getStyleGuidance(state);
+
+      const systemPrompt = `${persona}
 
 现在是主动发消息的场景。你不应该等待对方的消息，而是自己发起对话。
 风格指引：${style.instruction}
 心情：${style.mood}
 简短自然地发一条消息（15字以内）。像真人发微信一样。`;
 
-  try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: buildRequestHeaders(apiConfig, baseUrl),
-      body: JSON.stringify({
-        model: apiConfig.defaultModel || "deepseek-chat",
-        messages: [{ role: "system", content: systemPrompt }],
-        max_tokens: 80,
-        temperature: 0.9,
-        stream: false,
-      }),
-    });
+      const res = await fetch(url, {
+        method: "POST",
+        headers: buildRequestHeaders(apiConfig, baseUrl),
+        body: JSON.stringify({
+          model: apiConfig.defaultModel || "deepseek-chat",
+          messages: [{ role: "system", content: systemPrompt }],
+          max_tokens: 80,
+          temperature: 0.9,
+          stream: false,
+        }),
+      });
 
-    if (!res.ok) {
-      console.log(`[proactive] ${characterName} LLM FAILED: HTTP ${res.status}`);
-      return false;
+      if (!res.ok) {
+        console.log(`[proactive] ${characterName} LLM FAILED: HTTP ${res.status}`);
+        return false;
+      }
+
+      const j = await res.json() as Record<string, unknown>;
+      const choices = j.choices as Array<{ message?: { content?: string } }> | undefined;
+      text = choices?.[0]?.message?.content || "";
     }
 
-    const j = await res.json() as Record<string, unknown>;
-    const choices = j.choices as Array<{ message?: { content?: string } }> | undefined;
-    const text = choices?.[0]?.message?.content || "";
     if (!text.trim()) {
       console.log(`[proactive] ${characterName} LLM returned empty`);
       return false;

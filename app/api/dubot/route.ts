@@ -12,13 +12,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     let message = "";
+    let mode: "reply" | "proactive" = "reply";
     try {
-        const body = await request.json() as { message?: unknown };
+        const body = await request.json() as { message?: unknown; mode?: unknown };
         message = typeof body.message === "string" ? body.message.trim() : "";
+        mode = body.mode === "proactive" ? "proactive" : "reply";
     } catch {
         // fall through to the empty-message check
     }
-    if (!message) {
+    if (mode === "reply" && !message) {
         return NextResponse.json({ error: "缺少 message" }, { status: 400 });
     }
 
@@ -31,7 +33,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
                 "Content-Type": "application/json",
                 "Authorization": `Bearer ${bridgeToken}`,
             },
-            body: JSON.stringify({ message }),
+            body: JSON.stringify({ message, mode }),
             signal: controller.signal,
         });
         clearTimeout(timeoutId);

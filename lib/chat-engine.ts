@@ -2273,6 +2273,24 @@ async function generateVpsClaudeCompletion(
     return { parts: [{ text: data.reply }] };
 }
 
+/**
+ * VPS Claude（笃）主动消息：不发用户消息，让 --resume 会话自己"想起来找她说句话"。
+ * 供 proactive-service.ts 在角色绑定的服务商是 VPS Claude 时调用。
+ */
+export async function generateVpsClaudeProactiveMessage(signal?: AbortSignal): Promise<string> {
+    const res = await fetch("/api/dubot", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "proactive" }),
+        signal,
+    });
+    const data = await res.json().catch(() => ({})) as { reply?: string; error?: string };
+    if (!res.ok || typeof data.reply !== "string") {
+        throw new ChatEngineError(data.error || `VPS Claude 主动消息请求失败 (${res.status})`);
+    }
+    return data.reply;
+}
+
 export async function generateChatCompletion(
     session: ChatSession,
     history: ChatMessage[],
