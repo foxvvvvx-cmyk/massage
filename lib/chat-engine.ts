@@ -2300,7 +2300,17 @@ export async function generateChatCompletion(
     const { llmMessages, character, config, preset, regexes, userIdentity, toolsEnabled } = await buildChatPromptMessages(session, history, options);
 
     if (isVpsClaudeProvider(config)) {
-        return generateVpsClaudeCompletion(history, options?.signal);
+        const result = await generateVpsClaudeCompletion(history, options?.signal);
+        // 其它 provider 的实际"消息落库+界面渲染"都是靠 onTextPart 回调驱动的
+        // （splitAndSaveAIMessages 在回调里调用），最终 return 值本身不会被调用方消费。
+        // 这里必须显式回调一次，否则 VPS Claude 的回复会在服务端成功生成，但从来
+        // 没被存进聊天记录、也不会显示在界面上。
+        const text = result.parts.map(p => p.text).join("");
+        await callbacks?.onTextPart?.(text, {
+            characterId: character.id,
+            characterName: character.name,
+        });
+        return result;
     }
 
     const requestAppTags = mergeAppTags(options?.appTags, undefined, options?.appId ?? "chat");
